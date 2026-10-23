@@ -19,7 +19,9 @@ public:
 
 	virtual void InitializeComponent() {};
 	virtual void BeginPlay() {};
-	virtual void TickComponent(float DeltaTime) 
+	// 소유 액터의 EndPlay나 DestroyComponent에서 호출된다. BeginPlay를 받은 컴포넌트만 받는다.
+	virtual void EndPlay() {};
+	virtual void TickComponent(float DeltaTime)
 	{
 		//HTR_LOG(Info, "TickComponent");
 	};

@@ -23,9 +23,14 @@ public:
 	virtual void BeginPlay(); // xx World->AddPrimitive 책임이동 필요
 	// 액터 자신의 로직. 컴포넌트는 각자의 PrimaryComponentTick으로 따로 실행된다.
 	virtual void Tick(float DeltaTime) {}
-	virtual void EndPlay() {};
+	virtual void EndPlay();
 	// FActorTickFunction이 호출하는 진입점
 	void TickActor(float DeltaTime) { Tick(DeltaTime); }
+
+	// World가 호출하는 진입점. BeginPlay를 받은 액터만 EndPlay를 받도록 짝을 맞춘다.
+	void DispatchBeginPlay();
+	void DispatchEndPlay();
+	bool HasActorBegunPlay() const { return bActorHasBegunPlay; }
 
 	UWorld* GetWorld() const { return World; }
 	ULevel* GetLevel() const { return Level; }
@@ -70,6 +75,7 @@ protected:
 	UWorld* World = nullptr;
 	ULevel* Level = nullptr;
 private:
-	
+	bool bActorHasBegunPlay = false;
+
 
 };

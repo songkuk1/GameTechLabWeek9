@@ -50,6 +50,34 @@ void AActor::BeginPlay()
 	RegisterAllActorTickFunctions(true);
 }
 
+void AActor::EndPlay()
+{
+	for (UActorComponent* Component : Components)
+	{
+		if (Component)
+			Component->EndPlay();
+	}
+}
+
+void AActor::DispatchBeginPlay()
+{
+	if (bActorHasBegunPlay)
+		return;
+
+	bActorHasBegunPlay = true;
+	BeginPlay();
+}
+
+void AActor::DispatchEndPlay()
+{
+	if (!bActorHasBegunPlay)
+		return;
+
+	// EndPlay 안에서 다시 Destroy가 불려도 두 번 들어오지 않도록 먼저 내린다.
+	bActorHasBegunPlay = false;
+	EndPlay();
+}
+
 void AActor::RegisterAllActorTickFunctions(bool bRegister)
 {
 	if (bRegister && !World)
@@ -323,6 +351,11 @@ void AActor::DestroyComponent(UActorComponent* Component)
     {
         HTR_LOG(Warning, "DefaultSceneRoot cannot be deleted.");
         return;
+    }
+
+    if (bActorHasBegunPlay)
+    {
+        Component->EndPlay();
     }
 
     if (USceneComponent* Parent = Cast<USceneComponent>(Component))
