@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Engine/GameEngine.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 
 #include "Editor/EditorUI/EditorUI.h"
@@ -20,9 +20,10 @@ class FEditorControlsPanel;
 class FOutputLogPanel;
 class UPrimitiveComponent;
 
-class UBenchmarkEngine : public UGameEngine
+// 자체 월드와 백버퍼 렌더를 가진 독립 실행 모드라 게임 엔진(UGameEngine)의 프레임 흐름을 쓰지 않는다.
+class UBenchmarkEngine : public UEngine
 {
-	DECLARE_CLASS(UBenchmarkEngine, UGameEngine)
+	DECLARE_CLASS(UBenchmarkEngine, UEngine)
 
 public:
 	FEngineConfig GetConfig() const override;

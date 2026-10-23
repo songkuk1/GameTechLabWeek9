@@ -273,6 +273,8 @@ project "HitoriGame"
 		"Source/Runtime",
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.json}",
+		"%{IncludeDir.Lua}",
+		"%{IncludeDir.sol2}",
 	}
 
 	links
@@ -281,4 +283,16 @@ project "HitoriGame"
 		"dxgi.lib",
 		"dxguid.lib",
 		"d3dcompiler.lib",
+		"Lua",
+	}
+
+	-- sol2 설정은 엔진·에디터와 같아야 한다. 다르면 같은 sol2 템플릿이 프로젝트마다 다르게 컴파일된다.
+	defines
+	{
+		"SOL_ALL_SAFETIES_ON=1",
+	}
+
+	buildoptions
+	{
+		"/bigobj",
 	}
