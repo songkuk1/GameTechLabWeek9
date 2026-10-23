@@ -189,6 +189,8 @@ void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FS
 	// 2. 후처리: Fog -> Gamma -> FXAA (표시용 sRGB)
 	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, Settings);
 	// TODO: HUD
+
+
 }
 
 void UGameEngine::CopyViewportToBackbuffer()
