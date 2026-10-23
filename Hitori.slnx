@@ -13,4 +13,6 @@
   </Project>
   <Project Path="Source\ThirdParty\ImGui\ImGui.vcxproj" Id="C0FF640D-2C14-8DBE-F595-301E616989EF">
   </Project>
+  <Project Path="Source\ThirdParty\Lua\Lua.vcxproj" Id="A705880B-130F-887C-9C8A-9E7C0893937C">
+  </Project>
 </Solution>

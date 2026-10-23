@@ -19,6 +19,8 @@ IncludeDir = {}
 IncludeDir["ImGui"] = "Source/ThirdParty/ImGui"
 IncludeDir["stb"]   = "Source/ThirdParty/stb"
 IncludeDir["json"]  = "Source/ThirdParty/json"
+IncludeDir["Lua"]	= "Source/ThirdParty/Lua"
+IncludeDir["sol2"]	= "Source/ThirdParty/sol2/include"
 
 -- premake의 filter는 project()를 만나면 초기화된다.
 -- 두 프로젝트가 같은 런타임(/MDd vs /MD)으로 컴파일되지 않으면 링크가 실패하므로
@@ -118,6 +120,27 @@ project "ImGui"
 		"d3dcompiler.lib",
 	}
 
+project "Lua"
+	location "Source/ThirdParty/Lua"
+	kind     "StaticLib"
+	CommonSettings()
+	language "C"
+
+	files
+	{
+		"%{IncludeDir.Lua}/*.c",
+		"%{IncludeDir.Lua}/*.h"
+	}
+	removefiles
+	{
+		"%{IncludeDir.Lua}/lua.c",
+		"%{IncludeDir.Lua}/luac.c"
+	}
+	defines 
+	{
+		"_CRT_SECURE_NO_WARNINGS"
+	}
+
 
 -- 런타임. 에디터를 모른다. include 경로에 Source/Editor가 없는 것이 그 방벽이다.
 -- location이 소스 루트와 같아야 "모든 파일 표시"에서 폴더가 보인다.
@@ -141,6 +164,8 @@ project "HitoriEngine"
 		"Source/Runtime",
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.json}",
+		"%{IncludeDir.Lua}",
+		"%{IncludeDir.sol2}"
 	}
 
 	links
@@ -151,6 +176,15 @@ project "HitoriEngine"
 		"d3dcompiler.lib",
 	}
 
+	defines 
+	{
+		"SOL_ALL_SAFETIES_ON=1"
+	}
+
+	buildoptions
+	{ 
+		"/bigobj"
+	}
 
 -- 에디터 애플리케이션. ObjViewer 구성에서는 같은 exe가 뷰어로 빌드된다.
 project "HitoriEditor"
@@ -181,6 +215,8 @@ project "HitoriEditor"
 		"%{IncludeDir.ImGui}/backends",
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.json}",
+		"%{IncludeDir.Lua}",
+		"%{IncludeDir.sol2}"
 	}
 
 	links
@@ -189,6 +225,19 @@ project "HitoriEditor"
 		"dxgi.lib",
 		"dxguid.lib",
 		"d3dcompiler.lib",
+		"HitoriEngine", 
+		"ImGui",
+		"Lua"
+	}
+
+	defines 
+	{ 
+		"SOL_ALL_SAFETIES_ON=1" 
+	}
+
+	buildoptions 
+	{
+		"/bigobj" 
 	}
 
 	filter "configurations:ObjViewer"
