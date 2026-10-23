@@ -40,7 +40,14 @@ DECLARE_CYCLE_STAT("Render Opaque (Total)", STAT_RenderOpaqueTotal);
 
 FEngineConfig UBenchmarkEngine::GetConfig() const
 {
-	FEngineConfig Desc = Super::GetConfig();
+	// 전체 화면 테두리 없는 창에 백버퍼로 직접 3D를 그리므로 깊이 버퍼가 필요하다.
+	FEngineConfig Desc;
+	Desc.Width = 0;
+	Desc.Height = 0;
+	Desc.bBorderless = true;
+	Desc.SyncInterval = 0;   // 0 = VSync 끔 (FPS 측정용)
+	Desc.bCreateDepthBuffer = true;
+	Desc.bExitOnEscape = true;
 	Desc.Title = L"Benchmarker";
 	Desc.SplashImage = ResourcePaths::SplashImage;
 	return Desc;
@@ -285,7 +292,6 @@ void UBenchmarkEngine::UpdateGizmoAndPicking()
 
 void UBenchmarkEngine::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
 
 	const uint32 Width = GetEngineLoop().GetViewportWidth();
 	const uint32 Height = GetEngineLoop().GetViewportHeight();

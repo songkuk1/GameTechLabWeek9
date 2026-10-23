@@ -24,7 +24,7 @@ public:
 	FFogRenderer(const FFogRenderer&) = delete;
 	FFogRenderer operator=(const FFogRenderer&) = delete;	
 
-	bool Init(FRenderer* InRenderer);
+	bool Init();
 	void OnRender(FTexture2D* depthTexture, const FMatrix& ViewProjection, const FVector& CameraPosition, const FFogInfo& InFogInfo);
 private:
 

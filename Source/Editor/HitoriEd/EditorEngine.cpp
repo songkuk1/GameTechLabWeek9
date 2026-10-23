@@ -107,14 +107,8 @@ bool UEditorEngine::Init()
 
 	Gizmo = MakeUnique<FGizmo>();
 
-	FogRenderer = MakeUnique<FFogRenderer>();
-	FogRenderer->Init(Renderer);
-
-	FXAARenderer = MakeUnique<FFXAARenderer>();
-	FXAARenderer->Init();
-
-	GammaEncodeRenderer = MakeUnique<FGammaEncodeRenderer>();
-	GammaEncodeRenderer->Init();
+	// Skybox·Fog·FXAA·Gamma는 Game과 공용인 파이프라인이 소유한다.
+	ScenePipeline.Init(Renderer);
 
 	DepthViewRenderer = MakeUnique<FDepthViewRenderer>();
 	DepthViewRenderer->Init();
@@ -133,6 +127,8 @@ bool UEditorEngine::Init()
 	OutlineRenderer->Init(Renderer);
 
 	SettingsPanel = EditorUI->AddEditorPanel<FSettingsPanel>();
+	ProjectSettingsPanel = EditorUI->AddEditorPanel<FProjectSettingsPanel>();
+	EditorUI->SetOpenProjectSettingsCallback([this]() { ProjectSettingsPanel->Open(); });
 	DebugPanel = EditorUI->AddEditorPanel<FDebugPanel>();
 	ShadowAtlasPanel = EditorUI->AddEditorPanel<FShadowAtlasPanel>();
 
@@ -326,9 +322,6 @@ bool UEditorEngine::Init()
 		const FGameViewportClient* GameClient = GetPIEGameViewportClient();
 		return IsPIEInWindow() && GameClient && GameClient->HasCamera() && PIEViewport->IsVisible() && GameClient->GetViewRenderMode().ViewMode == EViewMode::Lit;
 	});
-
-	SkyboxRenderer = MakeUnique<FSkyboxRenderer>();
-	SkyboxRenderer->Init(ResourcePaths::DefaultSkyPanorama);
 
 	const ImVec4 White = { 1, 1, 1, 1 };
 	const ImVec4 Green = { 0.40f, 0.80f, 0.30f, 1.0f };
@@ -647,96 +640,6 @@ FWorldContext* UEditorEngine::GetPIEWorldContext(int32 WorldPIEInstance)
 	return nullptr;
 }
 
-// 입력 View의 Ray와 피킹으로 Gizmo·공유 선택을 갱신한다.
-void UEditorEngine::RenderOpaquePass(FViewport& Viewport, const FRenderingInfo& ViewRenderingInfo, const FSceneView& View, FRenderQueue& RenderQueue, const FDirectionalLightInfo& DirectionalLight)
-{
-	const FMatrix& ViewProjection = View.ViewProjection;
-	const FVector ViewCameraLocation = View.GetCameraLocation();
-	const FVector ViewCameraForward = View.GetCameraForward();
-
-	// 뷰 모드가 셰이더 permutation을, Wireframe 여부가 Fill Mode를 정한다. 삼각형 연결은 그대로다.
-	const FViewRenderMode ViewRenderMode = View.RenderMode;
-	const bool bVisualizeLightCount = SettingsPanel->GetSettings().bVisualizeTileLightCount;
-    const bool bDrawPrimitives = SettingsPanel->GetSettings().bDrawPrimitives;
-    const bool bDepthPrepass = bDrawPrimitives && ViewRenderMode.ViewMode == EViewMode::Lit;
-    Renderer->SetViewMode(ViewRenderMode);
-    if (bDrawPrimitives)
-        Renderer->RenderQueueSorting(RenderQueue, ViewProjection, ViewCameraLocation);
-    if (bDepthPrepass)
-    {
-        FRenderingInfo DepthInfo = ViewRenderingInfo;
-        DepthInfo.ColorRenderTargets.Reset();
-        RenderCommand::BeginRenderPass(DepthInfo);
-        RenderCommand::SetRasterizerState(ERasterizerState::SolidBack);
-        RenderCommand::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        Renderer->RenderDepthPrepass(ViewProjection);
-        RenderCommand::EndRenderPass(DepthInfo);
-        Renderer->CullLights(Viewport.GetLightCullingResources(), View.ProjectionMatrix, DepthInfo.DepthStencil.Texture, Viewport.GetSceneRenderData().CullingLights, DepthInfo.ViewportSetting.Width, DepthInfo.ViewportSetting.Height, bVisualizeLightCount);
-    }
-
-	// 배경은 화면에서 sRGB 0.3 회색으로 보여야 한다. Linear 작업 흐름에서는 인코딩될 것이므로 디코딩해 지운다.
-	FRenderingInfo PassInfo = ViewRenderingInfo;
-	const float ClearValue = ColorWorkflow::bLinear ? FLinearColor::SRGBToLinear(0.3f) : 0.3f;
-	PassInfo.ColorRenderTargets[0].ClearValue.ColorClearValue = FVector4(ClearValue, ClearValue, ClearValue, 1.0f);
-    if (bDepthPrepass) PassInfo.DepthStencil.LoadOp = ERenderTargetLoadOp::Load;
-	RenderCommand::BeginRenderPass(PassInfo);
-
-	const ERasterizerState SceneRasterizerState = ViewRenderMode.ViewMode == EViewMode::Wireframe
-		? ERasterizerState::Wireframe : ERasterizerState::SolidBack;
-
-	// 렌더 루프 — 반드시 RenderAll보다 먼저
-	// 직교는 시선이 모두 평행해 파노라마의 한 점만 확대되므로 하늘을 그리지 않고 지우기 색을 배경으로 쓴다.
-	// 데이터 시각화 뷰도 하늘은 데이터가 없으므로 그리지 않는다.
-	if (!View.IsOrthographic() && !IsDataVisualization(ViewRenderMode.ViewMode))
-	{ 
-		SkyboxRenderer->OnRender(ViewProjection, ViewCameraLocation, DirectionalLight);
-	}
-
-	if (bDrawPrimitives)
-	{
-		RenderCommand::SetRasterizerState(SceneRasterizerState);
-		RenderCommand::SetBlendState(EBlendState::Opaque);
-		RenderCommand::SetDepthStencilState(EDepthStencilState::Default);
-
-		RenderCommand::SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		// 불투명을 먼저 그리고 반투명을 먼 것부터 그린다.
-		// Grid는 깊이를 쓰지 않는 반투명 위에도 겹칠 수 있지만, 언리얼의 에디터 프리미티브처럼 Overlay Pass에서 마지막에 합성한다.
-		Renderer->RenderOpaque(ViewProjection, bDepthPrepass);
-		Renderer->RenderTranslucent(ViewProjection);
-		// 장면 Wireframe이 Grid·Gizmo·UI로 전파되지 않도록 복원한다.
-		RenderCommand::SetRasterizerState(ERasterizerState::SolidBack);
-	}
-
-
-	RenderCommand::EndRenderPass(PassInfo);
-    RenderCommand::UnbindShaderResources(8, 4, EShaderBindFlagBits::Pixel);
-    RenderCommand::UnbindShaderResources(8, 2, EShaderBindFlagBits::Vertex);
-}
-
-void UEditorEngine::RenderFogPass(UWorld& ViewWorld, const FRenderingInfo& ViewRenderingInfo, const FVector& ViewCameraLocation, const FMatrix& ViewProjection, FRenderQueue& RenderQueue)
-{
-
-	const TArray<FExponentialHeightFogSceneInfo>& SceneFogInfos = ViewWorld.GetScene().FogInfos;
-
-	if (SceneFogInfos.Num() == 0)
-		return;
-
-	FRenderingInfo PassInfo = ViewRenderingInfo;
-
-	//Load는 기존 내용을 그대로 두고 그 위에 그림을 그린다는뜻
-	for (FRenderingDesc& Color : PassInfo.ColorRenderTargets)
-		Color.LoadOp = ERenderTargetLoadOp::Load;
-
-	PassInfo.DepthStencil.Texture = nullptr;
-	RenderCommand::BeginRenderPass(PassInfo);
-
-	FogRenderer->OnRender(ViewRenderingInfo.DepthStencil.Texture, ViewProjection, ViewCameraLocation, SceneFogInfos[0].FogInfo);
-
-	//Fog는 여러개있더라도 1개의 Fog만 인식해서 그리도록 해야한다.
-
-	RenderCommand::EndRenderPass(PassInfo);
-}
-
 void UEditorEngine::RenderOverlayPass(FEditorViewportClient* OverlayClient, UWorld& ViewWorld, const FRenderingInfo& ViewRenderingInfo, const FSceneView& View, FRenderQueue& RenderQueue)
 {
 	const FMatrix& ViewProjection = View.ViewProjection;
@@ -880,33 +783,6 @@ void UEditorEngine::RenderOverlayPass(FEditorViewportClient* OverlayClient, UWor
 	RenderCommand::EndRenderPass(PassInfo);
 }
 
-void UEditorEngine::RenderFXAAPass(FTexture2D* FxaaTarget, const FRenderingInfo& ViewRenderingInfo)
-{
-	FTexture2D* SceneColor = ViewRenderingInfo.ColorRenderTargets[0].Texture;
-	if (!SceneColor || !FxaaTarget)
-		return;
-
-	// 출력은 임시 텍스처, 깊이 없음, 어차피 전부 덮어쓰니 Clear 불필요
-	FRenderingInfo PassInfo;
-	PassInfo.ViewportSetting = ViewRenderingInfo.ViewportSetting;
-
-	FRenderingDesc ColorDesc{};
-	ColorDesc.Texture = FxaaTarget;
-	ColorDesc.LoadOp = ERenderTargetLoadOp::DontCare;
-	PassInfo.ColorRenderTargets.Add(ColorDesc);
-	PassInfo.DepthStencil.Texture = nullptr;
-
-	//장면 텍스처를 읽어서 임시 텍스처에 FXAA 결과를 그린다
-	RenderCommand::BeginRenderPass(PassInfo);
-	FXAARenderer->OnRender(SceneColor);
-	RenderCommand::EndRenderPass(PassInfo);
-
-	// SceneColor가 SRV로 남아 있으면 Overlay 패스에서 RTV로 쓸 때 D3D가 강제로 해제하므로 먼저 비운다
-	RenderCommand::UnbindShaderResource(0, EShaderBindFlagBits::Pixel);
-
-	RenderCommand::CopyTexture(SceneColor, FxaaTarget);
-}
-
 void UEditorEngine::RenderDepthPass(const FRenderingInfo& ViewRenderingInfo, const FMatrix& ViewProjection, const FVector& ViewCameraLocation, const FVector& ViewCameraForward)
 {
 	FRenderingInfo PassInfo = ViewRenderingInfo;
@@ -973,31 +849,35 @@ void UEditorEngine::UpdateGizmoAndPicking()
 
 }
 
-// Lit + Phong이고 그림자를 가리는 시각화가 꺼진 View만 그림자를 쓴다.
+// 파이프라인 조건에 더해, 에디터 전용인 깊이 시각화 중에는 그림자를 쓰지 않는다.
 bool UEditorEngine::ViewSupportsShadows(const FSceneView& View) const
 {
+    return !SettingsPanel->GetSettings().bDepthView && ScenePipeline.ViewSupportsShadows(View, MakeSceneRenderSettings());
+}
+
+FSceneRenderSettings UEditorEngine::MakeSceneRenderSettings() const
+{
     const FEditorSettings& Settings = SettingsPanel->GetSettings();
-    return View.RenderMode.ViewMode == EViewMode::Lit && View.RenderMode.ShadingModel == EShadingModel::Phong && Settings.bDrawPrimitives
-        && !Settings.bDepthView && !Settings.bVisualizeTileLightCount;
+    FSceneRenderSettings Out;
+    Out.bDrawPrimitives = Settings.bDrawPrimitives;
+    Out.bVisualizeTileLightCount = Settings.bVisualizeTileLightCount;
+    Out.bFog = Settings.bExponentialHeightFog;
+    Out.bFXAA = Settings.bEnableFXAA;
+    Out.bToneMapping = Settings.bToneMapping;
+    Out.ExposureEV = Settings.ExposureEV;
+    return Out;
 }
 
 // View 행렬로 Scene·Grid·Gizmo·텍스트·Outline을 렌더한다.
 void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FSceneView& View, FEditorViewportClient* OverlayClient)
 {
-	const FRenderingInfo& SceneRenderingInfo = Viewport.GetSceneRenderingInfo();
 	const FRenderingInfo& ViewRenderingInfo = Viewport.GetRenderingInfo();
 	FRenderQueue& RenderQueue = Viewport.GetSceneRenderData().RenderQueue;
-	const FMatrix& ViewProjection = View.ViewProjection;
-	const FVector ViewCameraLocation = View.GetCameraLocation();
-	const FVector ViewCameraForward = View.GetCameraForward();
-	FLightingConstants Lighting;
-	FSceneRenderData& Data = Viewport.GetSceneRenderData();
+	const FSceneRenderSettings SceneSettings = MakeSceneRenderSettings();
 
-	// 지원 View만 공유 그림자를 요청한다. 비지원 View는 다른 View의 결과를 지우지 않는다.
+	// 그림자 자원은 World 컨텍스트별로 엔진이 할당해 파이프라인에 넘긴다.
     const bool bSupportsShadows = ViewSupportsShadows(View);
     uint32 ShadowResourceIndex = InvalidShadowResourceIndex;
-    const FShadowFrameData* ShadowFrame = nullptr;
-    FShadowFrameData DirectionalFrame;
     if (bSupportsShadows)
     {
         if (FWorldContext* Context = GetWorldContextFromWorld(&ViewWorld))
@@ -1005,52 +885,22 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
             if (Context->ShadowResourceIndex == InvalidShadowResourceIndex)
                 Context->ShadowResourceIndex = Renderer->AllocateShadowResources(Context->WorldType == EWorldType::Editor);
             ShadowResourceIndex = Context->ShadowResourceIndex;
-            ShadowFrame = Renderer->RenderWorldShadows(ShadowResourceIndex, ViewWorld, SceneRenderer);
         }
-        Renderer->RenderDirectionalShadow(Viewport, ViewWorld, SceneRenderer, View, DirectionalFrame);
     }
-    else
-        Viewport.GetDirectionalShadow().ResetFrame();
-    const bool bReadyForShading = Renderer->BindWorldShadows(ShadowResourceIndex, SceneRenderer.GetFrameNumber(), bSupportsShadows);
-    const bool bDirectionalReady = Renderer->BindDirectionalShadow(Viewport, SceneRenderer.GetFrameNumber(), bSupportsShadows);
-    // 셰이딩 준비가 성공한 경우에만 기존 요청 배열을 비소유 참조로 전달한다.
-    const TArray<FShadowRequestPerLight>* ShadowRequests = bReadyForShading && ShadowFrame ? &ShadowFrame->ShadowRequestsPerLight : nullptr;
-    ViewWorld.GetScene().BuildLightingConstants(Lighting, ShadowRequests, bDirectionalReady ? &DirectionalFrame.ShadowRequestsPerLight : nullptr);
-    ViewWorld.GetScene().BuildStructuredLight(Data.PointLights, Data.SpotLights, Data.CullingLights, View.ViewMatrix, ShadowRequests);
-    Lighting.bReadyForShading = bReadyForShading ? 1u : 0u;
-    Lighting.NumShadowInfos = bReadyForShading ? Renderer->GetShadowResources(ShadowResourceIndex)->NumShadowInfos : 0u;
-    Renderer->SetLighting(Lighting, Data.PointLights, Data.SpotLights);
 
-	// 1. 불투명·반투명 Pass (Linear 씬 컬러)
-	RenderOpaquePass(Viewport, SceneRenderingInfo, View, RenderQueue, Lighting.Directional);
-    // Viewport 자원을 GPU 바인딩이 붙잡지 않게 조명 패스 소비 후 해제한다.
-    Renderer->BindDirectionalShadow(Viewport, SceneRenderer.GetFrameNumber(), false);
+	// 1. 그림자·라이팅·불투명·반투명 (Linear 씬 컬러)
+	FShadowFrameData DirectionalFrame;
+	const bool bDirectionalReady = ScenePipeline.RenderScene(Viewport, ViewWorld, View, SceneRenderer, ShadowResourceIndex, bSupportsShadows, SceneSettings, DirectionalFrame);
 
 	if (SettingsPanel->GetSettings().bDepthView)
 	{
 		// 깊이 시각화는 표시용 타깃을 통째로 덮어쓰므로 인코딩이 필요 없다
-		RenderDepthPass(ViewRenderingInfo, ViewProjection, ViewCameraLocation, ViewCameraForward);
+		RenderDepthPass(ViewRenderingInfo, View.ViewProjection, View.GetCameraLocation(), View.GetCameraForward());
 	}
 	else
 	{
-		// 데이터 시각화 뷰는 씬 컬러 값 자체가 결과이므로 안개·인코딩·FXAA로 값을 바꾸지 않는다.
-		const EViewMode ViewMode = View.RenderMode.ViewMode;
-		const bool bVisualizeData = IsDataVisualization(ViewMode);
-
-		//직교인 경우 안개 Pass를 그리지 않는다.
-		if (!View.IsOrthographic() && !bVisualizeData && SettingsPanel->GetSettings().bExponentialHeightFog)
-			// 2. 안개 Pass (Linear 씬 컬러)
-			RenderFogPass(ViewWorld, SceneRenderingInfo, ViewCameraLocation, ViewProjection, RenderQueue);
-
-		// 3. Gamma Encode Pass: Linear 씬 컬러 → (Lit이면 ACES) → 표시용 sRGB
-		const FEditorSettings& Settings = SettingsPanel->GetSettings();
-		const bool bEncode = !bVisualizeData && ColorWorkflow::bLinear;
-		const bool bToneMap = bEncode && Settings.bToneMapping && ViewMode == EViewMode::Lit;
-		RenderGammaEncodePass(SceneRenderingInfo, ViewRenderingInfo, bEncode, bToneMap, Settings.ExposureEV);
-
-		// 4. FXAA Pass: 밝기 계산이 감마 공간을 전제로 하므로 인코딩 뒤에 한다
-		if (!bVisualizeData && SettingsPanel->GetSettings().bEnableFXAA)
-			RenderFXAAPass(Viewport.GetFxaaTarget(), ViewRenderingInfo);
+		// 2. 후처리: Fog → Gamma Encode → FXAA (표시용 sRGB)
+		ScenePipeline.RenderPostProcess(Viewport, ViewWorld, View, SceneSettings);
 	}
 
 	// 표시용 컬러 위에 깊이 기반 Cascade 색상을 합성한다.
@@ -1068,31 +918,6 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 
 	// 5. 오버레이 Pass: Grid·Gizmo·UUID는 sRGB 색으로 지정되므로 인코딩 뒤 표시용 타깃에 그린다
 	RenderOverlayPass(OverlayClient, ViewWorld, ViewRenderingInfo, View, RenderQueue);
-}
-
-void UEditorEngine::RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, bool bEncode, bool bToneMap, float ExposureEV)
-{
-	FTexture2D* SceneColor = SceneRenderingInfo.ColorRenderTargets[0].Texture;
-	FTexture2D* ViewColor = ViewRenderingInfo.ColorRenderTargets[0].Texture;
-	if (!SceneColor || !ViewColor)
-		return;
-
-	// 출력은 표시용 타깃 전체를 덮어쓰므로 Clear·깊이가 필요 없다
-	FRenderingInfo PassInfo;
-	PassInfo.ViewportSetting = ViewRenderingInfo.ViewportSetting;
-
-	FRenderingDesc ColorDesc{};
-	ColorDesc.Texture = ViewColor;
-	ColorDesc.LoadOp = ERenderTargetLoadOp::DontCare;
-	PassInfo.ColorRenderTargets.Add(ColorDesc);
-	PassInfo.DepthStencil.Texture = nullptr;
-
-	RenderCommand::BeginRenderPass(PassInfo);
-	GammaEncodeRenderer->OnRender(SceneColor, bEncode, bToneMap, ExposureEV);
-	RenderCommand::EndRenderPass(PassInfo);
-
-	// 다음 프레임에 SceneColor를 RTV로 쓸 때 SRV로 남아 있으면 D3D가 강제로 해제하므로 먼저 비운다
-	RenderCommand::UnbindShaderResource(0, EShaderBindFlagBits::Pixel);
 }
 
 

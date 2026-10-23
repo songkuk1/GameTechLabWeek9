@@ -168,13 +168,9 @@ project "HitoriEngine"
 		"%{IncludeDir.sol2}"
 	}
 
-	links
-	{
-		"d3d11.lib",
-		"dxgi.lib",
-		"dxguid.lib",
-		"d3dcompiler.lib",
-	}
+	-- DirectX 라이브러리는 실행 파일 쪽(Editor, Game)에서 링크한다.
+	-- 정적 라이브러리에 links를 주면 import lib가 HitoriEngine.lib 안으로 합쳐지고,
+	-- Game의 /WHOLEARCHIVE가 그 멤버를 전부 끌어와 __NULL_IMPORT_DESCRIPTOR가 중복 정의된다.
 
 	defines 
 	{
@@ -250,3 +246,53 @@ project "HitoriEditor"
 		targetname "Benchmark_Debug"
 
 	filter {}
+
+
+-- 독립 실행 게임. 런타임만 링크하므로 에디터·ImGui 코드가 exe에 들어가지 않는다.
+project "HitoriGame"
+	location "Source/Game"
+	kind     "WindowedApp"
+	CommonSettings()
+
+	pchheader "EnginePCH.h"
+	pchsource "Source/Game/GamePCH.cpp"
+
+	links { "HitoriEngine" }
+	-- 클래스는 각 obj의 전역 변수(FAutoRegister)가 시작 시 등록하고, 씬 로드는 이름으로 찾는다.
+	-- 게임 코드가 직접 참조하지 않는 클래스의 obj도 빠지지 않도록 엔진 lib를 통째로 링크한다.
+	linkoptions { "/WHOLEARCHIVE:HitoriEngine.lib" }
+
+	files
+	{
+		"Source/Game/**.h",
+		"Source/Game/**.cpp",
+	}
+
+	includedirs
+	{
+		"Source/Runtime",
+		"%{IncludeDir.stb}",
+		"%{IncludeDir.json}",
+		"%{IncludeDir.Lua}",
+		"%{IncludeDir.sol2}",
+	}
+
+	links
+	{
+		"d3d11.lib",
+		"dxgi.lib",
+		"dxguid.lib",
+		"d3dcompiler.lib",
+		"Lua",
+	}
+
+	-- sol2 설정은 엔진·에디터와 같아야 한다. 다르면 같은 sol2 템플릿이 프로젝트마다 다르게 컴파일된다.
+	defines
+	{
+		"SOL_ALL_SAFETIES_ON=1",
+	}
+
+	buildoptions
+	{
+		"/bigobj",
+	}
