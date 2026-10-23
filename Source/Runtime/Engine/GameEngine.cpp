@@ -4,6 +4,8 @@
 #include "Launch/LaunchEngineLoop.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/Level.h"
+#include "Core/ProjectSettings.h"
+#include "Serialization/JsonArchive.h"
 #include "Render/Renderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/Swapchain.h"
@@ -31,7 +33,8 @@ bool UGameEngine::Init()
 	InitialWorldContext.SetCurrentWorld(UWorld::CreateWorld(EWorldType::Game, true));
 	GameWorld = InitialWorldContext.World();
 
-	// TODO: 시작 씬 로드 (Config/Project.json의 StartScene → FJsonArchive::LoadWorld)
+	// 액터는 SpawnActor로 BeginPlay 대기열에 들어가 첫 World Tick에서 BeginPlay가 불린다.
+	LoadStartScene();
 
 	// 뷰포트 연결과 입력 설정이 이 카메라에 적용되므로 그 전에 정한다.
 	SetupMainCamera();
@@ -46,6 +49,29 @@ bool UGameEngine::Init()
 	Viewport.GetGameClient()->SetInputEnabled(true);
 
 	return true;
+}
+
+// Config/Project.json의 StartScene을 불러온다.
+// 설정이나 씬이 없어도 게임은 빈 월드로 뜨게 하고, 원인은 경고 로그로 남긴다.
+void UGameEngine::LoadStartScene()
+{
+	FProjectSettings Settings;
+	if (!Settings.Load(FProjectSettings::DefaultPath))
+	{
+		HTR_LOG(Warning, "[Game] starting with an empty world");
+		return;
+	}
+	if (Settings.StartScene.empty())
+	{
+		HTR_LOG(Warning, "[Game] StartScene is not set in {}; starting with an empty world", FProjectSettings::DefaultPath);
+		return;
+	}
+	if (!FJsonArchive::LoadWorld(GameWorld, FProjectSettings::ToNativePath(Settings.StartScene)))
+	{
+		HTR_LOG(Warning, "[Game] failed to load start scene {}; starting with an empty world", Settings.StartScene);
+		return;
+	}
+	HTR_LOG(Info, "[Game] start scene loaded: {}", Settings.StartScene);
 }
 
 // 씬에 배치된 첫 ACameraActor를 메인 카메라로 지정한다. PIE 시작과 같은 규칙이다.

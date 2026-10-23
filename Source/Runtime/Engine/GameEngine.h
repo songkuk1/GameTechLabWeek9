@@ -6,10 +6,16 @@
 #include "Engine/Viewport.h"
 #include "SceneRenderPipeline.h"
 
-class UGameEngine : public UEngine
+class UGameEngine final: public UEngine
 {
 	DECLARE_CLASS(UGameEngine, UEngine)
 public:
+	UGameEngine() = default;
+	~UGameEngine() = default;
+
+	UGameEngine(const UGameEngine&) = delete;
+	UGameEngine& operator=(const UGameEngine&) = delete;
+
 	FEngineConfig GetConfig() const override;
 
 	bool Init() override;
@@ -25,6 +31,7 @@ private:
 	FViewport Viewport;
 	
 
+	void LoadStartScene();
 	void SetupMainCamera();
 	void UpdateGameInput();
 	void RenderViewports();

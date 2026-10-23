@@ -143,13 +143,9 @@ project "HitoriEngine"
 		"%{IncludeDir.json}",
 	}
 
-	links
-	{
-		"d3d11.lib",
-		"dxgi.lib",
-		"dxguid.lib",
-		"d3dcompiler.lib",
-	}
+	-- DirectX 라이브러리는 실행 파일 쪽(Editor, Game)에서 링크한다.
+	-- 정적 라이브러리에 links를 주면 import lib가 HitoriEngine.lib 안으로 합쳐지고,
+	-- Game의 /WHOLEARCHIVE가 그 멤버를 전부 끌어와 __NULL_IMPORT_DESCRIPTOR가 중복 정의된다.
 
 
 -- 에디터 애플리케이션. ObjViewer 구성에서는 같은 exe가 뷰어로 빌드된다.
@@ -213,6 +209,9 @@ project "HitoriGame"
 	pchsource "Source/Game/GamePCH.cpp"
 
 	links { "HitoriEngine" }
+	-- 클래스는 각 obj의 전역 변수(FAutoRegister)가 시작 시 등록하고, 씬 로드는 이름으로 찾는다.
+	-- 게임 코드가 직접 참조하지 않는 클래스의 obj도 빠지지 않도록 엔진 lib를 통째로 링크한다.
+	linkoptions { "/WHOLEARCHIVE:HitoriEngine.lib" }
 
 	files
 	{
