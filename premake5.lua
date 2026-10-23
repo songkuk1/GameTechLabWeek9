@@ -201,3 +201,36 @@ project "HitoriEditor"
 		targetname "Benchmark_Debug"
 
 	filter {}
+
+
+-- 독립 실행 게임. 런타임만 링크하므로 에디터·ImGui 코드가 exe에 들어가지 않는다.
+project "HitoriGame"
+	location "Source/Game"
+	kind     "WindowedApp"
+	CommonSettings()
+
+	pchheader "EnginePCH.h"
+	pchsource "Source/Game/GamePCH.cpp"
+
+	links { "HitoriEngine" }
+
+	files
+	{
+		"Source/Game/**.h",
+		"Source/Game/**.cpp",
+	}
+
+	includedirs
+	{
+		"Source/Runtime",
+		"%{IncludeDir.stb}",
+		"%{IncludeDir.json}",
+	}
+
+	links
+	{
+		"d3d11.lib",
+		"dxgi.lib",
+		"dxguid.lib",
+		"d3dcompiler.lib",
+	}
