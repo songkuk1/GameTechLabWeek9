@@ -127,6 +127,8 @@ bool UEditorEngine::Init()
 	OutlineRenderer->Init(Renderer);
 
 	SettingsPanel = EditorUI->AddEditorPanel<FSettingsPanel>();
+	ProjectSettingsPanel = EditorUI->AddEditorPanel<FProjectSettingsPanel>();
+	EditorUI->SetOpenProjectSettingsCallback([this]() { ProjectSettingsPanel->Open(); });
 	DebugPanel = EditorUI->AddEditorPanel<FDebugPanel>();
 	ShadowAtlasPanel = EditorUI->AddEditorPanel<FShadowAtlasPanel>();
 

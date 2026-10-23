@@ -25,6 +25,7 @@ private:
 	FViewport Viewport;
 	
 
+	void LoadStartScene();
 	void SetupMainCamera();
 	void UpdateGameInput();
 	void RenderViewports();

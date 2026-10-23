@@ -24,6 +24,7 @@
 #include "Editor/Details/DetailsPanel.h"
 #include "Editor/EditorControls/EditorControlsPanel.h"
 #include "Editor/Settings/SettingsPanel.h"
+#include "Editor/Settings/ProjectSettingsPanel.h"
 #include "Editor/DebugTools/DebugPanel.h"
 #include "Editor/DebugTools/ShadowAtlasPanel.h"
 #include "Editor/Viewports/ViewportsPanel.h"
@@ -151,6 +152,7 @@ private:
 	FDetailsPanel* DetailsPanel = nullptr;
 	FEditorControlsPanel* EditorControlsPanel = nullptr;
 	FSettingsPanel* SettingsPanel = nullptr;
+	FProjectSettingsPanel* ProjectSettingsPanel = nullptr;
 	FDebugPanel* DebugPanel = nullptr;
 	FShadowAtlasPanel* ShadowAtlasPanel = nullptr;
 	FViewportsPanel* ViewportsPanel = nullptr;
