@@ -8,6 +8,7 @@
 #include "Component/LightComponentBase.h"
 #include "Core/EngineLog.h"
 #include "UObject/Object.h"
+#include "Script/LuaScriptInstance.h"
 
 enum class EAttachmentRule;
 
@@ -65,7 +66,30 @@ void AActor::DispatchBeginPlay()
 		return;
 
 	bActorHasBegunPlay = true;
+
+	if (!ScriptPath.empty())
+	{
+		ScriptInstance = MakeUnique<FLuaScriptInstance>(this, ScriptPath);
+
+        //TODO : 스크립트가 틱이 돌기를 원하는지 확인해야 한다.
+		if (ScriptInstance->Load()) 
+			PrimaryActorTick.bCanEverTick = true;
+		else
+			ScriptInstance.reset();
+	}
+
 	BeginPlay();
+
+	if (ScriptInstance)
+		ScriptInstance->Call("BeginPlay");
+}
+
+void AActor::TickActor(float DeltaTime)
+{
+	Tick(DeltaTime);
+
+	if (ScriptInstance)
+		ScriptInstance->Call("Tick", DeltaTime);
 }
 
 void AActor::DispatchEndPlay()
@@ -75,7 +99,13 @@ void AActor::DispatchEndPlay()
 
 	// EndPlay 안에서 다시 Destroy가 불려도 두 번 들어오지 않도록 먼저 내린다.
 	bActorHasBegunPlay = false;
+
+	if (ScriptInstance)
+		ScriptInstance->Call("EndPlay");
+
 	EndPlay();
+
+	ScriptInstance.reset();
 }
 
 void AActor::RegisterAllActorTickFunctions(bool bRegister)

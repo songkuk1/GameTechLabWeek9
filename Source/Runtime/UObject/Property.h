@@ -56,6 +56,7 @@ enum EPropertyFlags : uint32
     CPF_Edit      = 1 << 0, // 디테일 패널에 노출
     CPF_EditConst = 1 << 1, // 노출하되 수정 불가
     CPF_Transient = 1 << 2, // 직렬화에서 제외
+    CPF_LuaScriptPath = 1 << 3, // String 프로퍼티 옆에 .lua 파일 선택 버튼을 붙인다
 
     CPF_EditAnywhere    = CPF_Edit,
     CPF_VisibleAnywhere = CPF_Edit | CPF_EditConst,

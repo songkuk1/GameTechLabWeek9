@@ -153,7 +153,6 @@ void UWorld::ClearWorld()
 				Actor->RegisterAllActorTickFunctions(false);
 		Level->ClearActors();
 	}
-	HTR_LOG(Info, "{} : ", PersistentLevel->GetActorNum());
 }
 
 void UWorld::GatherRenderPackets(FRenderQueue& RenderQueue, const FLODViewContext* LODView, const FFrustumPlanes* Frustum, FRenderer* Renderer)

@@ -10,6 +10,7 @@
 #include "imgui_internal.h"
 #include "Editor/HitoriEd/EditorDragDrop.h"
 #include "Editor/HitoriEd/EditorResourcePaths.h"
+#include "Editor/HitoriEd/EditorFileUtils.h"
 #include "Component/PrimitiveComponent.h"
 #include "Component/StaticMeshComponent.h"
 #include "Component/TextRenderComponent.h"
@@ -820,6 +821,14 @@ namespace
 		{
 			FString* Value = static_cast<FString*>(ValuePtr);
 
+			// 파일 선택 버튼 자리를 남기고 입력칸을 줄인다
+			const bool bBrowseLua = Property.HasAnyFlags(CPF_LuaScriptPath);
+			const float BrowseButtonWidth = ImGui::CalcTextSize("...").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+			if (bBrowseLua)
+			{
+				ImGui::SetNextItemWidth(-(BrowseButtonWidth + ImGui::GetStyle().ItemSpacing.x));
+			}
+
 			char Buffer[256] = {};
 			strncpy_s(Buffer, Value->c_str(), sizeof(Buffer) - 1);
 			if (CustomFont) ImGui::PushFont(CustomFont);
@@ -828,6 +837,20 @@ namespace
 				*Value = Buffer;
 			}
 			if (CustomFont) ImGui::PopFont();
+
+			if (bBrowseLua)
+			{
+				ImGui::SameLine();
+				if (ImGui::Button(("..." + Label).c_str(), ImVec2(BrowseButtonWidth, 0.0f)))
+				{
+					const FString Picked = FEditorFileUtils::OpenScriptFileDialog();
+					if (!Picked.empty())
+					{
+						*Value = Picked;
+						bChanged = true;
+					}
+				}
+			}
 			break;
 		}
 		case EPropertyType::Transform:

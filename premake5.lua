@@ -136,9 +136,22 @@ project "Lua"
 		"%{IncludeDir.Lua}/lua.c",
 		"%{IncludeDir.Lua}/luac.c"
 	}
-	defines 
+	defines
 	{
 		"_CRT_SECURE_NO_WARNINGS"
+	}
+
+
+-- Lua 스크립트를 Solution Explorer에서 열어 보기 위한 프로젝트. 컴파일하지 않는다(Utility).
+-- location을 스크립트 폴더로 두어 "모든 파일 표시"에서 새로 만든 .lua도 바로 보이게 한다.
+project "Scripts"
+	location "Assets/Scripts"
+	kind     "Utility"
+	CommonSettings()
+
+	files
+	{
+		"Assets/Scripts/**.lua",
 	}
 
 

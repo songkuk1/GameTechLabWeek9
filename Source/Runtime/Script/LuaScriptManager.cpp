@@ -4,9 +4,18 @@
 #include "Script/LuaScriptManager.h"
 #include <sol/sol.hpp>
 
-FLuaScriptManager& FLuaScriptManager::Get() { static FLuaScriptManager Instance; return Instance; }
+FLuaScriptManager& FLuaScriptManager::Get()
+{
+	static FLuaScriptManager Instance;
+	return Instance;
+}
+
 FLuaScriptManager::~FLuaScriptManager() = default;   // sol::state가 완전한 타입인 cpp에서 정의
-sol::state& FLuaScriptManager::GetState() { return *Lua; }
+
+sol::state& FLuaScriptManager::GetState()
+{
+	return *Lua;
+}
 
 void FLuaScriptManager::Initialize()
 {
@@ -31,4 +40,7 @@ void FLuaScriptManager::Initialize()
 	}
 }
 
-void FLuaScriptManager::Shutdown() { Lua.reset(); }
+void FLuaScriptManager::Shutdown()
+{ 
+	Lua.reset(); 
+}
