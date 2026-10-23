@@ -11,13 +11,12 @@
 #include "Editor/Rendering/GridRenderer.h"
 #include "Editor/Gizmo/GizmoRenderer.h"
 #include "Render/LineBatcher.h"
-#include "Render/FogRenderer.h"
-#include "Render/FXAARenderer.h"
-#include "Render/GammaEncodeRenderer.h"
 #include "Render/DepthViewRenderer.h"
 #include "Render/ShadowCascadeDebugRenderer.h"
 #include "Engine/GameViewportClient.h"
 #include "Render/SceneRenderer.h"
+
+#include "SceneRenderPipeline.h"
 
 
 #include "Editor/EditorUI/EditorUI.h"
@@ -25,16 +24,16 @@
 #include "Editor/Details/DetailsPanel.h"
 #include "Editor/EditorControls/EditorControlsPanel.h"
 #include "Editor/Settings/SettingsPanel.h"
+#include "Editor/Settings/ProjectSettingsPanel.h"
 #include "Editor/DebugTools/DebugPanel.h"
 #include "Editor/DebugTools/ShadowAtlasPanel.h"
 #include "Editor/Viewports/ViewportsPanel.h"
 #include "Editor/ContentDrawer/ContentDrawerPanel.h"
 
+
 #include "Editor/Rendering/Outline.h"
 #include "Editor/Rendering/OutLineRenderer.h"
 #include "Editor/Outliner/OutlinerPanel.h"
-
-#include "Render/SkyboxRenderer.h"
 
 #include "PlayInEditorDataTypes.h"
 #include "Core/Misc/Optional.h"
@@ -93,6 +92,8 @@ private:
 	void RenderViewports();
 	void ReleaseWorldShadowResources(UWorld* World);
 	bool ViewSupportsShadows(const FSceneView& View) const;
+	// SettingsPanel 값 중 씬 렌더에 필요한 것만 파이프라인 설정으로 옮긴다.
+	FSceneRenderSettings MakeSceneRenderSettings() const;
 	// 현재 표시 슬롯 또는 네이티브 창 포커스로 게임 카메라 입력을 켜고 끈다.
 	void UpdatePIEInput();
 	FGameViewportClient* GetPIEGameViewportClient() const;
@@ -110,16 +111,8 @@ private:
 	// 화면 합성과 View 설정 보관으로 프레임을 마무리한다.
 	void EndFrame();
 
-	//불투명 물체에 대한 Pass
-	void RenderOpaquePass(FViewport& Viewport, const FRenderingInfo& ViewRenderingInfo, const FSceneView& View, FRenderQueue& RenderQueue, const FDirectionalLightInfo& DirectionalLight);
-	//안개에 대한 Pass
-	void RenderFogPass(UWorld& ViewWorld, const FRenderingInfo& ViewRenderingInfo, const FVector& ViewCameraLocation,const FMatrix& ViewProjection, FRenderQueue& RenderQueue);
 	//Overlay Pass
 	void RenderOverlayPass(FEditorViewportClient* OverlayClient, UWorld& ViewWorld, const FRenderingInfo& ViewRenderingInfo, const FSceneView& View, FRenderQueue& RenderQueue);
-	//Gamma Encode Pass: Linear 씬 컬러를 톤매핑하고 화면 표시용 sRGB로 인코딩한다
-	void RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, bool bEncode, bool bToneMap, float ExposureEV);
-	//FXAA Pass
-	void RenderFXAAPass(FTexture2D* FxaaTarget, const FRenderingInfo& ViewRenderingInfo);
 	//Depth Pass
 	void RenderDepthPass(const FRenderingInfo& ViewRenderingInfo, const FMatrix& ViewProjection, const FVector& ViewCameraLocation, const FVector& ViewCameraForward);
 
@@ -138,18 +131,17 @@ private:
 
 	TUniquePtr<FEditorUI> EditorUI;
 
+	// Editor·Game 공용 씬 렌더(그림자·Opaque·Skybox)와 후처리(Fog·Gamma·FXAA)를 담은 Pipeline
+	FSceneRenderPipeline ScenePipeline;
+
 	TUniquePtr<FImGuiRenderer> ImGuiRenderer;
 	TUniquePtr<FGridRenderer> GridRenderer;
 	TUniquePtr<FGizmoRenderer> GizmoRenderer;
 	TUniquePtr<FTextRenderer> TextRenderer;
-	TUniquePtr<FFogRenderer> FogRenderer;
 	TUniquePtr<FLineBatcher> LineBatcher;
 	TUniquePtr<FGizmo> Gizmo;
 	TUniquePtr<FOutline> Outline;
 	TUniquePtr<FOutlineRenderer> OutlineRenderer;
-	TUniquePtr<FSkyboxRenderer> SkyboxRenderer;
-	TUniquePtr<FFXAARenderer> FXAARenderer;
-	TUniquePtr<FGammaEncodeRenderer> GammaEncodeRenderer;
 	TUniquePtr<FDepthViewRenderer> DepthViewRenderer;
 	TUniquePtr<FShadowCascadeDebugRenderer> ShadowCascadeDebugRenderer;
 
@@ -160,6 +152,7 @@ private:
 	FDetailsPanel* DetailsPanel = nullptr;
 	FEditorControlsPanel* EditorControlsPanel = nullptr;
 	FSettingsPanel* SettingsPanel = nullptr;
+	FProjectSettingsPanel* ProjectSettingsPanel = nullptr;
 	FDebugPanel* DebugPanel = nullptr;
 	FShadowAtlasPanel* ShadowAtlasPanel = nullptr;
 	FViewportsPanel* ViewportsPanel = nullptr;

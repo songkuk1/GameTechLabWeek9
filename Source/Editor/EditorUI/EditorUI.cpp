@@ -130,6 +130,13 @@ void FEditorUI::DrawMainMenuBar()
 			ImGui::EndMenu();
 		}
 
+		if (ImGui::BeginMenu("Edit"))
+		{
+			if (ImGui::MenuItem("Project Settings...")) { if (OnOpenProjectSettings) OnOpenProjectSettings(); }
+
+			ImGui::EndMenu();
+		}
+
 		if (ImGui::BeginMenu("Window"))
 		{
 			for (auto& Panel : Panels)
