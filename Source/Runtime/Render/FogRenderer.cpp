@@ -6,7 +6,7 @@
 #include "ColorWorkflow.h"
 
 
-bool FFogRenderer::Init(FRenderer* InRenderer)
+bool FFogRenderer::Init()
 {
 
 	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/ExponentialHeightFog.hlsl");
