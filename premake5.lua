@@ -19,8 +19,11 @@ IncludeDir = {}
 IncludeDir["ImGui"] = "Source/ThirdParty/ImGui"
 IncludeDir["stb"]   = "Source/ThirdParty/stb"
 IncludeDir["json"]  = "Source/ThirdParty/json"
-IncludeDir["Lua"]	= "Source/ThirdParty/Lua"
+-- LuaJIT은 빌드 중에 CPU별 어셈블리 인터프리터를 생성해야 해서 premake로 소스를 빌드하지 않는다.
+-- src/msvcbuild.bat(mixed, debug mixed)로 만든 정적 lib과 헤더를 저장소에 넣어 둔다.
+IncludeDir["Lua"]	= "Source/ThirdParty/LuaJIT/include"
 IncludeDir["sol2"]	= "Source/ThirdParty/sol2/include"
+LuaJITLibDir = "Source/ThirdParty/LuaJIT/lib"
 
 -- premake의 filter는 project()를 만나면 초기화된다.
 -- 두 프로젝트가 같은 런타임(/MDd vs /MD)으로 컴파일되지 않으면 링크가 실패하므로
@@ -90,6 +93,19 @@ function CommonSettings()
 	filter {}
 end
 
+-- 실행 파일(Editor, Game)에서 호출한다. 엔진과 같은 C 런타임(/MDd, /MD)으로 빌드한 lib을 고른다.
+function LinkLuaJIT()
+	filter "configurations:Debug or Benchmark_Debug"
+		libdirs { LuaJITLibDir .. "/Debug" }
+
+	filter "configurations:Release or ObjViewer or Benchmark"
+		libdirs { LuaJITLibDir .. "/Release" }
+
+	filter {}
+
+	links { "lua51" }
+end
+
 
 -- 외부 라이브러리. 별도 프로젝트로 두면 에디터의 소스 루트가 Source/Editor 하나로 좁혀져
 -- Solution Explorer의 "모든 파일 표시"에서 폴더 구조가 그대로 보인다.
@@ -119,28 +135,6 @@ project "ImGui"
 		"dxguid.lib",
 		"d3dcompiler.lib",
 	}
-
-project "Lua"
-	location "Source/ThirdParty/Lua"
-	kind     "StaticLib"
-	CommonSettings()
-	language "C"
-
-	files
-	{
-		"%{IncludeDir.Lua}/*.c",
-		"%{IncludeDir.Lua}/*.h"
-	}
-	removefiles
-	{
-		"%{IncludeDir.Lua}/lua.c",
-		"%{IncludeDir.Lua}/luac.c"
-	}
-	defines
-	{
-		"_CRT_SECURE_NO_WARNINGS"
-	}
-
 
 -- Lua 스크립트를 Solution Explorer에서 열어 보기 위한 프로젝트. 컴파일하지 않는다(Utility).
 -- location을 스크립트 폴더로 두어 "모든 파일 표시"에서 새로 만든 .lua도 바로 보이게 한다.
@@ -185,13 +179,15 @@ project "HitoriEngine"
 	-- 정적 라이브러리에 links를 주면 import lib가 HitoriEngine.lib 안으로 합쳐지고,
 	-- Game의 /WHOLEARCHIVE가 그 멤버를 전부 끌어와 __NULL_IMPORT_DESCRIPTOR가 중복 정의된다.
 
-	defines 
+	-- SOL_LUAJIT: sol2가 Lua 5.1 API(LuaJIT)로 컴파일되고 jit 라이브러리를 열 수 있게 한다
+	defines
 	{
-		"SOL_ALL_SAFETIES_ON=1"
+		"SOL_ALL_SAFETIES_ON=1",
+		"SOL_LUAJIT=1",
 	}
 
 	buildoptions
-	{ 
+	{
 		"/bigobj"
 	}
 
@@ -234,14 +230,15 @@ project "HitoriEditor"
 		"dxgi.lib",
 		"dxguid.lib",
 		"d3dcompiler.lib",
-		"HitoriEngine", 
+		"HitoriEngine",
 		"ImGui",
-		"Lua"
 	}
+	LinkLuaJIT()
 
-	defines 
-	{ 
-		"SOL_ALL_SAFETIES_ON=1" 
+	defines
+	{
+		"SOL_ALL_SAFETIES_ON=1",
+		"SOL_LUAJIT=1",
 	}
 
 	buildoptions 
@@ -296,13 +293,14 @@ project "HitoriGame"
 		"dxgi.lib",
 		"dxguid.lib",
 		"d3dcompiler.lib",
-		"Lua",
 	}
+	LinkLuaJIT()
 
 	-- sol2 설정은 엔진·에디터와 같아야 한다. 다르면 같은 sol2 템플릿이 프로젝트마다 다르게 컴파일된다.
 	defines
 	{
 		"SOL_ALL_SAFETIES_ON=1",
+		"SOL_LUAJIT=1",
 	}
 
 	buildoptions
