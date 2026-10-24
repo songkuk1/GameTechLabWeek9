@@ -100,7 +100,7 @@ bool UPrimitiveComponent::MoveComponent(const FVector& Delta, const FRotator& Ne
 {
 	if (!bSweep)
 	{
-		SetWorldLocationAndRotation(Transform.Location + Delta, NewRotation, bSweep);
+		SetWorldLocationAndRotation(GetWorldLocation() + Delta, NewRotation, bSweep);
 	}
 	else
 	{

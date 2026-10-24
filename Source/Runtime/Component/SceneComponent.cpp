@@ -231,7 +231,7 @@ void USceneComponent::SetWorldLocationAndRotation(FVector NewLocation, FRotator 
 		NewRelRotation = NewRelQuat.ToFRotator();
 	}
 
-	SetRelativeLocationAndRotation(NewLocation, NewRelRotation);
+	SetRelativeLocationAndRotation(NewRelLocation, NewRelRotation);
 }
 
 void USceneComponent::SetWorldScale3D(FVector NewScale)
@@ -240,7 +240,7 @@ void USceneComponent::SetWorldScale3D(FVector NewScale)
 
 bool USceneComponent::MoveComponent(const FVector& Delta, const FRotator& NewRotation, bool bSweep, FHitResult* Hit)
 {		
-	SetWorldLocationAndRotation(Transform.Location + Delta, NewRotation, bSweep);
+	SetWorldLocationAndRotation(GetWorldLocation() + Delta, NewRotation, bSweep);
 
 	return true;
 }
