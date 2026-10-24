@@ -101,7 +101,9 @@ void AActor::DispatchEndPlay()
 
 	EndPlay();
 
-	ScriptInstance.reset();
+    // Instance의 Lua 함수 (Tick, Coroutine) 에서 Destroy가 불렸을 수도 있으므로
+    // Script Instance 는 여기서 지우지 않는다. 어차피 Actor Member 여서 Frame 끝에서 delete 될 때 함께 delete 됨.
+
 }
 
 void AActor::RegisterAllActorTickFunctions(bool bRegister)

@@ -50,8 +50,12 @@ void UActorComponent::DispatchEndPlay()
 
 	EndPlay();
 
+	/*
 	// Lua 쪽 참조(env, obj, owner)를 놓는다.
 	ScriptInstance.reset();
+	*/
+
+	// Script Instance 여기서 지우지 않는다. Actor::DispatchEndPlay() 수정과 같은 이유
 }
 
 void UActorComponent::SetActive(bool bNewActive)

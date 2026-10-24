@@ -71,6 +71,7 @@ private:
 	bool bHiddenInGame = false;
 	bool bIsActive = true;
 
-	// 플레이 중에만 존재한다. DispatchBeginPlay에서 만들고 DispatchEndPlay에서 지운다.
+	// 플레이 중에만 존재한다. DispatchBeginPlay에서 만들고 Component가 delete 될 때 지워진다.
+	// EndPlay에서 지우지 않는 이유는 Script 안에서 Destroy가 호출되었을 수 있기 때문.
 	TUniquePtr<FLuaScriptInstance> ScriptInstance;
 };

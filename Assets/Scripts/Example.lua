@@ -8,7 +8,9 @@ end
 local Time = 0
 function Tick(dt)
     Time = Time + dt
-    Light:SetIntensity(1.0 + math.sin(Time * 2.0) * 0.5)   -- 0.5 ~ 1.5 사이로 깜빡임
+    Light:SetIntensity(1.0 + math.sin(Time * 2.0) * 50)   -- 0.5 ~ 1.5 사이로 깜빡임
+    print("Tick: ", Time, "Intensity", Light:GetIntensity())
+
 end
 
 function EndPlay()
