@@ -2,6 +2,7 @@
 // (다른 cpp들처럼 첫 줄에 PCH include)
 #include "EnginePCH.h"
 #include "Script/LuaScriptManager.h"
+#include "Script/LuaBindings.h"
 #include <sol/sol.hpp>
 
 FLuaScriptManager& FLuaScriptManager::Get()
@@ -22,6 +23,9 @@ void FLuaScriptManager::Initialize()
 	Lua = std::make_unique<sol::state>();
 	Lua->open_libraries(sol::lib::base, sol::lib::math, sol::lib::string,
 		sol::lib::table, sol::lib::coroutine, sol::lib::package);
+
+	// 스크립트가 로드되기 전에 VM에 한 번만 등록한다
+	RegisterLuaBindings(*Lua);
 
 	// Lua의 print를 엔진 로그로 연결 (variadic_args 연습도 겸함)
 	Lua->set_function("print", [](sol::this_state S, sol::variadic_args Args) {

@@ -6,19 +6,33 @@
 // Actor.h처럼 널리 쓰이는 헤더는 이 파일 대신 전방 선언만 둔다.
 #include <sol/sol.hpp>
 
-class AActor;
+class UObject;
 
-// 액터 하나에 붙는 Lua 스크립트. 스크립트 전용 environment(전역 공간)를 소유한다.
+// 액터나 컴포넌트 하나에 붙는 Lua 스크립트. 스크립트 전용 environment(전역 공간)를 소유한다.
+// 스크립트에서 obj는 소유 객체이고, 컴포넌트 스크립트에서는 owner로 소유 액터도 쓸 수 있다.
 class FLuaScriptInstance
 {
 public:
-	FLuaScriptInstance(AActor* InOwner, const FString& InPath);
+	FLuaScriptInstance(UObject* InOwner, const FString& InPath);
 	~FLuaScriptInstance();
+
+	// 경로가 비어 있거나 로드에 실패하면 nullptr. 실패 원인은 Load가 로그로 남긴다.
+	static std::unique_ptr<FLuaScriptInstance> CreateAndLoad(UObject* InOwner, const FString& InPath);
 
 	// environment를 만들고 파일을 실행해 함수들을 등록한다. 실패하면 로그를 남기고 false.
 	bool Load();
 	bool IsLoaded() const { return bLoaded; }
 	const FString& GetPath() const { return Path; }
+
+	// 스크립트가 FuncName을 함수로 정의했는지. 예: Tick이 있을 때만 Tick 함수를 등록한다.
+	bool HasFunction(const char* FuncName)
+	{
+		if (!bLoaded)
+			return false;
+
+		sol::object Value = Env[FuncName];
+		return Value.get_type() == sol::type::function;
+	}
 
 	// 스크립트에 FuncName 함수가 있으면 호출한다. 없으면 아무것도 하지 않는다.
 	// Lua 쪽 에러는 로그만 남기고 엔진은 계속 돈다.
@@ -41,7 +55,7 @@ public:
 	}
 
 private:
-	AActor* Owner = nullptr;
+	UObject* Owner = nullptr;
 	FString Path;
 	sol::environment Env;
 	bool bLoaded = false;

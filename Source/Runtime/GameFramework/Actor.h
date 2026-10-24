@@ -17,6 +17,7 @@ class AActor : public UObject
 	DECLARE_CLASS(AActor, UObject)
 	REFLECT_START(ClassName)
 		PROPERTY_FLAGS(ScriptPath, CPF_EditAnywhere | CPF_LuaScriptPath)
+		//PROPERTY_TYPE(PrimaryActorTick.bCanEverTick, EPropertyType::Bool)
 		REFLECT_END()
 public:
 	AActor();

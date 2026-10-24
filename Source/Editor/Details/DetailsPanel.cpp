@@ -853,6 +853,23 @@ namespace
 			}
 			break;
 		}
+		case EPropertyType::Name:
+		{
+			FName* Value = static_cast<FName*>(ValuePtr);
+
+			// 타이핑할 때마다 FName을 만들면 중간 문자열이 이름 테이블에 쌓이므로 입력을 마쳤을 때만 반영한다
+			char Buffer[256] = {};
+			strncpy_s(Buffer, Value->ToString().c_str(), sizeof(Buffer) - 1);
+			if (CustomFont) ImGui::PushFont(CustomFont);
+			ImGui::InputText(Label.c_str(), Buffer, sizeof(Buffer));
+			if (ImGui::IsItemDeactivatedAfterEdit())
+			{
+				*Value = FName(Buffer);
+				bChanged = true;
+			}
+			if (CustomFont) ImGui::PopFont();
+			break;
+		}
 		case EPropertyType::Transform:
 		{
 			FTransform* Value = static_cast<FTransform*>(ValuePtr);

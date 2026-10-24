@@ -7,6 +7,9 @@
 class AAmbientLightActor final : public AActor
 {
 	DECLARE_CLASS(AAmbientLightActor, AActor)
+	REFLECT_START(ClassName)
+		FUNCTION(GetLightComponent)
+	REFLECT_END()
 
 public:
 	AAmbientLightActor();

@@ -4,11 +4,13 @@
 #include "Math/EngineMath.h"
 #include "Math/Transform.h"
 #include "Math/Color.h"
+#include "Core/NameTypes.h"
 
 class UMaterial;
 class UFont;
 
-enum class EPropertyType { Unknown, Float, Int, String, Bool, Vector, Vector4, Rotator, Transform, Object, LinearColor, ByteColor};
+// 새 타입은 기존 값이 밀리지 않도록 끝에 추가한다
+enum class EPropertyType { Unknown, Float, Int, String, Bool, Vector, Vector4, Rotator, Transform, Object, LinearColor, ByteColor, Name};
 
 template <typename T>
 constexpr EPropertyType GetPropertyType()
@@ -40,6 +42,8 @@ DEFINE_PROPERTY_TYPE(FTransform, Transform)
 DEFINE_PROPERTY_TYPE(FRotator, Rotator)
 DEFINE_PROPERTY_TYPE(FLinearColor, LinearColor)
 DEFINE_PROPERTY_TYPE(FColor, ByteColor)
+// FName은 이름 테이블의 번호라 FString과 메모리 구조가 다르다. String으로 매핑하면 안 된다.
+DEFINE_PROPERTY_TYPE(FName, Name)
 
 //DragFloat, DragInt, DragFloat3, DragFloat4, ColorEdit4 등 ImGui 위젯과 관련된 메타데이터를 저장하는 구조체
 struct FProPertyWidgetMeta

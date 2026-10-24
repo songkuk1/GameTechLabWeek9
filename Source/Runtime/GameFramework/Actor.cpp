@@ -45,7 +45,7 @@ void AActor::BeginPlay()
 
 	for (UActorComponent* Component : Components)
 	{
-		Component->BeginPlay();
+		Component->DispatchBeginPlay();
 	}
 
 	RegisterAllActorTickFunctions(true);
@@ -56,7 +56,7 @@ void AActor::EndPlay()
 	for (UActorComponent* Component : Components)
 	{
 		if (Component)
-			Component->EndPlay();
+			Component->DispatchEndPlay();
 	}
 }
 
@@ -67,16 +67,12 @@ void AActor::DispatchBeginPlay()
 
 	bActorHasBegunPlay = true;
 
-	if (!ScriptPath.empty())
-	{
-		ScriptInstance = MakeUnique<FLuaScriptInstance>(this, ScriptPath);
+	ScriptInstance = FLuaScriptInstance::CreateAndLoad(this, ScriptPath);
 
-        //TODO : 스크립트가 틱이 돌기를 원하는지 확인해야 한다.
-		if (ScriptInstance->Load()) 
-			PrimaryActorTick.bCanEverTick = true;
-		else
-			ScriptInstance.reset();
-	}
+	// 스크립트에 Tick이 있을 때만 켠다. 원래 Tick하는 클래스라면 이미 켜져 있으므로 끄지는 않는다.
+	// BeginPlay가 Tick 함수를 등록하기 전에 켜야 한다.
+	if (ScriptInstance && ScriptInstance->HasFunction("Tick"))
+		PrimaryActorTick.bCanEverTick = true;
 
 	BeginPlay();
 
@@ -365,7 +361,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 
     if (World)
     {
-        NewComponent->BeginPlay();
+        NewComponent->DispatchBeginPlay();
         RegisterAllActorTickFunctions(true);
     }
 
@@ -385,7 +381,7 @@ void AActor::DestroyComponent(UActorComponent* Component)
 
     if (bActorHasBegunPlay)
     {
-        Component->EndPlay();
+        Component->DispatchEndPlay();
     }
 
     if (USceneComponent* Parent = Cast<USceneComponent>(Component))

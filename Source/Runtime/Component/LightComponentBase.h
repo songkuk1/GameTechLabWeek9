@@ -14,6 +14,11 @@ class ULightComponentBase : public USceneComponent
 		PROPERTY(LightColor)
 		PROPERTY(Intensity)
 		PROPERTY(bVisible)
+		FUNCTION(GetIntensity)
+		FUNCTION(SetIntensity)
+		FUNCTION(GetLightColor)
+		FUNCTION(SetLightColor)
+		FUNCTION(SetLightVisible)
 	REFLECT_END()
 
 public:

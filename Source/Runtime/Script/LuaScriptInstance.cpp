@@ -1,15 +1,29 @@
 #include "EnginePCH.h"
 #include "Script/LuaScriptInstance.h"
 #include "Script/LuaScriptManager.h"
-#include "GameFramework/Actor.h"   // sol이 AActor*를 Lua 값으로 바꾸려면 완전한 타입이 필요하다
+#include "Script/LuaReflection.h"
+#include "GameFramework/Actor.h"
+#include "Component/ActorComponent.h"
 
-FLuaScriptInstance::FLuaScriptInstance(AActor* InOwner, const FString& InPath)
+FLuaScriptInstance::FLuaScriptInstance(UObject* InOwner, const FString& InPath)
 	: Owner(InOwner), Path(InPath)
 {
 }
 
 // Env는 Lua VM 안의 테이블을 참조로 붙잡고 있다. VM(FLuaScriptManager)보다 먼저 파괴되어야 한다.
 FLuaScriptInstance::~FLuaScriptInstance() = default;
+
+std::unique_ptr<FLuaScriptInstance> FLuaScriptInstance::CreateAndLoad(UObject* InOwner, const FString& InPath)
+{
+	if (InPath.empty())
+		return nullptr;
+
+	auto Instance = std::make_unique<FLuaScriptInstance>(InOwner, InPath);
+	if (!Instance->Load())
+		return nullptr;
+
+	return Instance;
+}
 
 bool FLuaScriptInstance::Load()
 {
@@ -19,7 +33,11 @@ bool FLuaScriptInstance::Load()
 
 	// 못 찾은 이름은 전역(print, math, 바인딩된 타입)에서 찾도록 globals를 fallback으로 둔다.
 	Env = sol::environment(Lua, sol::create, Lua.globals());
-	Env["obj"] = Owner;
+
+	// 실제 클래스에 맞는 usertype으로 넘긴다. 액터는 AActor, 컴포넌트는 UObject로 넘어간다.
+	Env["obj"] = LuaReflection::MakeObject(Lua, Owner);
+	if (UActorComponent* Component = Cast<UActorComponent>(Owner))
+		Env["owner"] = LuaReflection::MakeObject(Lua, Component->GetOwner());
 
 	sol::protected_function_result Result = Lua.safe_script_file(Path, Env, sol::script_pass_on_error);
 	if (!Result.valid())
