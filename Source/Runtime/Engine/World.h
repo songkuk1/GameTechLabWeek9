@@ -75,6 +75,11 @@ public:
 
 	bool DestroyActor(AActor* Actor);
 
+	// 파괴 예정으로 표시. Frame 끝에서 delete
+	void DeferDelete(UObject* Object);
+	// 실제로 delete. Tick 끝과 ClearWorld 에서 호출
+	void FlushPendingKill();
+
 	// View별 Billboard 행렬 공급자는 이 동기 호출 동안만 사용하며 저장하지 않는다.
 	using FBillboardTraceTransform = FMatrix(*)(const UBillboardComponent&, const void*);
 	// 현재 World의 Component에 Ray를 전달하고 가장 가까운 유효 교차를 반환한다.
@@ -153,4 +158,6 @@ private:
 
 	FRenderStats RenderStats;
 
+	// Destroy 되었지만 아직 delete 하지 않은 객체 모아두는 배열 ( Frame 끝에서 지울 수 있도록 )
+	TArray<UObject*> PendingKillObjects;
 };

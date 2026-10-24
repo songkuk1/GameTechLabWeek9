@@ -402,7 +402,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 
 void AActor::DestroyComponent(UActorComponent* Component)
 {
-    if (!Component)
+    if (!Component || Component->IsPendingKill())
         return;
 
     if (Component == RootComponent)
@@ -442,7 +442,14 @@ void AActor::DestroyComponent(UActorComponent* Component)
         World->GetScene().RemoveLight(Light);
     }
     RemoveOwnedComponent(Component);
-    delete Component;
+
+    // delete Component;
+    // 바로 delete 하지 않고, 소멸자가 하던 Tick 등록 해제 지금 하기
+    Component->PrimaryComponentTick.UnRegisterTickFunction();
+
+	if (World) World->DeferDelete(Component);
+	else delete Component;
+    
     return;
 }
 

@@ -135,6 +135,8 @@ void UWorld::Tick(float DeltaTime)
 		UpdatePendingOverlaps();
 	}
 
+	// Frame 끝에서 Destroy 된 객체 실제로 지우기
+	FlushPendingKill();
 
 }
 
@@ -209,7 +211,9 @@ void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ign
 }
 
 void UWorld::ClearWorld()
-{
+{	
+	FlushPendingKill();
+	
 	// BeginPlay 대기 중인 Actor 제거
 	while (!BeginPlayList.IsEmpty())
 	{
@@ -575,7 +579,8 @@ int32 UWorld::GetActorNum()
 
 bool UWorld::DestroyActor(AActor* Actor)
 {
-	if (!Actor)
+	// 이미 Destroy 된 Actor면 재처리 하지 않기
+	if (!Actor || Actor->IsPendingKill() )
 		return false;
 
 	ULevel* Level = Actor->GetLevel();
@@ -635,12 +640,44 @@ bool UWorld::DestroyActor(AActor* Actor)
 
 	Actor->RegisterAllActorTickFunctions(false);
 
+	/*
 	// 4. Actor 삭제
 	delete Actor;
+	*/
+
+	// 바로 delete 하지 않기
+	// Component 파괴 예정으로 표시 ( Actor 소멸자가 delete 할 예정 )
+	for (UActorComponent* Component : Actor->GetComponents())
+		if (Component) Component->MarkPendingKill();
+	
+	DeferDelete(Actor);
 
 	HTR_LOG(Info, "Destroy Actor : {} UUID {}", ActorName, ActorUUID);
 
 	return true;
+}
+
+// Delete 예정임을 표시
+void UWorld::DeferDelete(UObject* Object)
+{
+	if (!Object || Object->IsPendingKill())
+		return;
+
+	Object->MarkPendingKill();
+	PendingKillObjects.Add(Object);
+}
+
+void UWorld::FlushPendingKill()
+{
+	// 소멸자 안에서 또 Destroy가 불려 목록이 늘어날 수 있으므로, 목록을 옮겨 놓고 지운 뒤 다시 확인
+	while (PendingKillObjects.Num() > 0)
+	{
+		TArray<UObject*> ToDelete = std::move(PendingKillObjects);
+		PendingKillObjects.Empty();
+
+		for (UObject* Object : ToDelete)
+			delete Object;
+	}
 }
 
 // 다른 World의 객체를 제외하고 Component 교차 중 최근접 결과를 선택한다.
