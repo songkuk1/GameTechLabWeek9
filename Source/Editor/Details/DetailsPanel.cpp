@@ -827,9 +827,11 @@ namespace
 			// 파일 선택 버튼 자리를 남기고 입력칸을 줄인다
 			const bool bBrowseLua = Property.HasAnyFlags(CPF_LuaScriptPath);
 			const float BrowseButtonWidth = ImGui::CalcTextSize("...").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+			// 경로가 있으면 Edit, 없으면 Create. 글자가 바뀌어도 칸이 흔들리지 않게 긴 쪽 폭으로 고정한다
+			const float CreateButtonWidth = (std::max)(ImGui::CalcTextSize("Create").x, ImGui::CalcTextSize("Edit").x) + ImGui::GetStyle().FramePadding.x * 2.0f;
 			if (bBrowseLua)
 			{
-				ImGui::SetNextItemWidth(-(BrowseButtonWidth + ImGui::GetStyle().ItemSpacing.x));
+				ImGui::SetNextItemWidth(-(BrowseButtonWidth + CreateButtonWidth + ImGui::GetStyle().ItemSpacing.x * 2.0f));
 			}
 
 			char Buffer[256] = {};
@@ -851,6 +853,29 @@ namespace
 					{
 						*Value = Picked;
 						bChanged = true;
+					}
+				}
+
+				ImGui::SameLine();
+				if (Value->empty())
+				{
+					// template.lua를 복제해 <씬>_<액터>(_<컴포넌트>).lua를 만들고 바로 연결한다
+					if (ImGui::Button(("Create" + Label).c_str(), ImVec2(CreateButtonWidth, 0.0f)))
+					{
+						const FString Created = FEditorFileUtils::CreateScriptFile(Object);
+						if (!Created.empty())
+						{
+							*Value = Created;
+							bChanged = true;
+						}
+					}
+				}
+				else
+				{
+					// 실행 중인 Visual Studio에서 파일을 열고 포커스를 옮긴다
+					if (ImGui::Button(("Edit" + Label).c_str(), ImVec2(CreateButtonWidth, 0.0f)))
+					{
+						FEditorFileUtils::OpenScriptInEditor(*Value);
 					}
 				}
 			}
