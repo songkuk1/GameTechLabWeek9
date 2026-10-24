@@ -4,7 +4,105 @@
 #include "Core/EngineLog.h"
 #include <commdlg.h>
 #include "Serialization/JsonArchive.h"
- 
+#include "GameFramework/Actor.h"
+#include "Component/ActorComponent.h"
+#include <shellapi.h>
+
+namespace
+{
+	// 콘솔 창 없이 프로그램을 실행하고 표준 출력을 받아 온다
+	std::string RunAndCaptureOutput(std::wstring CommandLine)
+	{
+		SECURITY_ATTRIBUTES Sa{ sizeof(Sa), nullptr, TRUE };
+		HANDLE ReadPipe = nullptr;
+		HANDLE WritePipe = nullptr;
+		if (!CreatePipe(&ReadPipe, &WritePipe, &Sa, 0))
+			return {};
+		SetHandleInformation(ReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+		STARTUPINFOW Si{ sizeof(Si) };
+		Si.dwFlags = STARTF_USESTDHANDLES;
+		Si.hStdOutput = WritePipe;
+		Si.hStdError = WritePipe;
+
+		PROCESS_INFORMATION Pi{};
+		const BOOL bStarted = CreateProcessW(nullptr, CommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &Si, &Pi);
+		CloseHandle(WritePipe);
+
+		std::string Output;
+		if (bStarted)
+		{
+			char Buffer[512];
+			DWORD Read = 0;
+			while (ReadFile(ReadPipe, Buffer, sizeof(Buffer), &Read, nullptr) && Read > 0)
+				Output.append(Buffer, Read);
+			WaitForSingleObject(Pi.hProcess, 5000);
+			CloseHandle(Pi.hProcess);
+			CloseHandle(Pi.hThread);
+		}
+		CloseHandle(ReadPipe);
+		return Output;
+	}
+
+	// vswhere(VS 설치 시 함께 깔리는 설치 정보 조회 도구)로 최신 devenv.exe 경로를 찾는다. 한 번만 조회한다.
+	const std::wstring& FindDevenvPath()
+	{
+		static std::wstring Cached;
+		static bool bSearched = false;
+		if (bSearched)
+			return Cached;
+		bSearched = true;
+
+		const wchar_t* ProgramFilesX86 = _wgetenv(L"ProgramFiles(x86)");
+		if (!ProgramFilesX86)
+			return Cached;
+
+		const std::filesystem::path VsWhere = std::filesystem::path(ProgramFilesX86) / L"Microsoft Visual Studio" / L"Installer" / L"vswhere.exe";
+		if (!std::filesystem::exists(VsWhere))
+			return Cached;
+
+		std::string Output = RunAndCaptureOutput(L"\"" + VsWhere.wstring() + L"\" -latest -prerelease -property productPath -utf8");
+		while (!Output.empty() && (Output.back() == '\n' || Output.back() == '\r' || Output.back() == ' '))
+			Output.pop_back();
+		if (Output.empty())
+			return Cached;
+
+		const int Len = MultiByteToWideChar(CP_UTF8, 0, Output.c_str(), static_cast<int>(Output.size()), nullptr, 0);
+		std::wstring Path(Len, L'\0');
+		MultiByteToWideChar(CP_UTF8, 0, Output.c_str(), static_cast<int>(Output.size()), Path.data(), Len);
+
+		if (std::filesystem::exists(Path))
+			Cached = Path;
+		return Cached;
+	}
+
+	// 파일 이름에 쓸 수 없는 문자와 공백을 _로 바꾼다
+	FString MakeSafeFileName(const FString& Name)
+	{
+		FString Result = Name;
+		for (char& C : Result)
+		{
+			if (C == ' ' || C == '<' || C == '>' || C == ':' || C == '"' || C == '/' || C == '\\' || C == '|' || C == '?' || C == '*'
+				|| static_cast<unsigned char>(C) < 32)
+			{
+				C = '_';
+			}
+		}
+		return Result;
+	}
+
+	// template.lua가 없을 때 쓰는 기본 내용
+	constexpr const char* DefaultScriptSource =
+		"function BeginPlay()\n"
+		"end\n"
+		"\n"
+		"function EndPlay()\n"
+		"end\n"
+		"\n"
+		"function Tick(dt)\n"
+		"end\n";
+}
+
 FString FEditorFileUtils::CurrentScenePath = "";
 
 bool FEditorFileUtils::NewScene(UWorld* World)
@@ -197,6 +295,104 @@ FString FEditorFileUtils::OpenScriptFileDialog()
 		return FString(FilePath);
 
 	return Relative.generic_string();
+}
+
+FString FEditorFileUtils::CreateScriptFile(UObject* Owner)
+{
+	if (!Owner)
+		return FString();
+
+	// 저장하지 않은 씬은 이름이 없으므로 Untitled로 둔다
+	const FString SceneName = CurrentScenePath.empty()
+		? FString("Untitled")
+		: std::filesystem::path(CurrentScenePath).stem().string();
+
+	// 컴포넌트 이름은 액터마다 겹치기 쉬워서(UAmbientLightComponent 등) 소유 액터 이름을 함께 붙인다
+	FString BaseName;
+	if (UActorComponent* Component = Cast<UActorComponent>(Owner))
+	{
+		const AActor* OwnerActor = Component->GetOwner();
+		BaseName = SceneName + "_" + (OwnerActor ? OwnerActor->GetName() : FString("NoOwner")) + "_" + Component->GetName();
+	}
+	else
+	{
+		BaseName = SceneName + "_" + Owner->GetName();
+	}
+	BaseName = MakeSafeFileName(BaseName);
+
+	const std::filesystem::path Root = std::filesystem::current_path();
+	const std::filesystem::path ScriptDir = Root / "Assets" / "Scripts";
+	const std::filesystem::path ScriptFile = ScriptDir / (BaseName + ".lua");
+	const FString RelativePath = std::filesystem::relative(ScriptFile, Root).generic_string();
+
+	std::error_code Ec;
+	std::filesystem::create_directories(ScriptDir, Ec);
+
+	// 이미 있으면 덮어쓰지 않고 그 파일을 연결한다 (작성해 둔 스크립트를 날리지 않도록)
+	if (std::filesystem::exists(ScriptFile))
+	{
+		HTR_LOG(Info, "Script already exists, linked : {}", RelativePath);
+		return RelativePath;
+	}
+
+	const std::filesystem::path TemplateFile = ScriptDir / "template.lua";
+	if (std::filesystem::exists(TemplateFile))
+	{
+		std::filesystem::copy_file(TemplateFile, ScriptFile, Ec);
+	}
+	else
+	{
+		std::ofstream Out(ScriptFile);
+		if (Out)
+			Out << DefaultScriptSource;
+		else
+			Ec = std::make_error_code(std::errc::io_error);
+	}
+
+	if (Ec)
+	{
+		HTR_LOG(Error, "Failed to create script : {} ({})", RelativePath, Ec.message());
+		return FString();
+	}
+
+	HTR_LOG(Info, "Script created : {}", RelativePath);
+	return RelativePath;
+}
+
+bool FEditorFileUtils::OpenScriptInEditor(const FString& ScriptPath)
+{
+	if (ScriptPath.empty())
+		return false;
+
+	const std::filesystem::path FilePath = std::filesystem::absolute(ScriptPath).lexically_normal();
+	if (!std::filesystem::exists(FilePath))
+	{
+		HTR_LOG(Error, "Script file not found : {}", ScriptPath);
+		return false;
+	}
+
+	// 실행되는 쪽(VS)이 창을 앞으로 가져올 수 있게 허락한다. 없으면 Windows가 포커스 이동을 막고 작업 표시줄만 깜빡인다.
+	AllowSetForegroundWindow(ASFW_ANY);
+
+	const std::wstring& Devenv = FindDevenvPath();
+	if (!Devenv.empty())
+	{
+		// /edit : 이미 실행 중인 VS 인스턴스에서 파일을 연다 (없으면 가벼운 창으로 새로 띄운다)
+		std::wstring CommandLine = L"\"" + Devenv + L"\" /edit \"" + FilePath.wstring() + L"\"";
+		STARTUPINFOW Si{ sizeof(Si) };
+		PROCESS_INFORMATION Pi{};
+		if (CreateProcessW(nullptr, CommandLine.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &Si, &Pi))
+		{
+			CloseHandle(Pi.hProcess);
+			CloseHandle(Pi.hThread);
+			return true;
+		}
+		HTR_LOG(Warning, "Failed to launch Visual Studio, falling back to default app");
+	}
+
+	// VS를 못 찾으면 .lua에 연결된 기본 프로그램으로 연다
+	const HINSTANCE Result = ShellExecuteW(nullptr, L"open", FilePath.wstring().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+	return reinterpret_cast<INT_PTR>(Result) > 32;
 }
 
 
