@@ -87,7 +87,7 @@ void FLuaCoroutineScheduler::Resume(FTask& Task)
     // wait_until
 	case sol::type::function:
 		Task.WaitType = EWaitType::Until;
-		Task.Predicate = Value.as<sol::protected_function>(MainState, Value);
+		Task.Predicate = sol::protected_function(MainState, Value);
 		break;
     
     // wait_frame
