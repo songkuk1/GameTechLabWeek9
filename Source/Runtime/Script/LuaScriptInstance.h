@@ -1,7 +1,8 @@
 #pragma once
 #include "Core/EngineString.h"
 #include "Core/EngineLog.h"
-#include "LuaCoroutineScheduler.h"
+#include "Script/LuaCoroutineScheduler.h"
+
 
 // Call이 가변 인자 템플릿이라 헤더에 구현이 있어야 하므로 sol을 여기서 include한다.
 // Actor.h처럼 널리 쓰이는 헤더는 이 파일 대신 전방 선언만 둔다.
@@ -55,10 +56,20 @@ public:
 		}
 	}
 
+	// Frame 마다 한 번 호출
+	void TickCoroutines(float Dt)
+	{
+		if (bLoaded) Scheduler.Tick(Dt);
+	}
+
+	// 소유 객체가 EndPlay될 때 남은 코루틴을 모두 멈추기
+	void StopCoroutines() { Scheduler.StopAll(); }
+
 private:
 	UObject* Owner = nullptr;
 	FString Path;
 	sol::environment Env;
-	FLuaCoroutineScheduler* Scheduler;
+	// 멤버는 선언의 역순으로 파괴되므로 Env 다음에 선언
+	FLuaCoroutineScheduler Scheduler;
 	bool bLoaded = false;
 };

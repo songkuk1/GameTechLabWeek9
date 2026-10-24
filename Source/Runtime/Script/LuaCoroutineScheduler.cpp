@@ -36,11 +36,8 @@ int32 FLuaCoroutineScheduler::Start(sol::function Fn)
     Resume(Task);
     if (Task.bDead) return Id;
 
-    // Tasks를 순회하는 중이면 임시 목록 ( Pending Add ) 에 모아두기 
-    if (bTicking)
-        PendingAdd.Add(std::move(Task));
-    else
-        Tasks.Add(std::move(Task));
+    // Tick 끝에서 Tasks로 합쳐져 다음 Tick 부터 순회
+    PendingAdd.Add(std::move(Task));
     return Id;
 }
 
@@ -72,11 +69,16 @@ void FLuaCoroutineScheduler::Resume(FTask& Task)
 
     // return_count() 는 yield가 넘긴 값의 개수
     // 0 이면 wait_frame, 그 이상이면 wait이거나 wait_until)
-	sol::object Value = sol::lua_nil;
-	if (Result.return_count() > 0)
-		Value = Result.get<sol::object>(0);
+	sol::object Value;
+    sol::type ValueType = sol::type::lua_nil;
 
-	switch (Value.get_type())
+    if (Result.return_count() > 0)
+    {
+		Value = Result.get<sol::object>(0);
+        ValueType = Value.get_type();
+    }
+
+	switch (ValueType)
 	{
     // wait
 	case sol::type::number:

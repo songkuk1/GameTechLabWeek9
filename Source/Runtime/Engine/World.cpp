@@ -28,6 +28,7 @@
 #include "Core/Async/TaskPool.h"
 
 #include "UObject/UObjectGlobals.h"
+#include "Script/LuaScriptInstance.h"
 
 DECLARE_CYCLE_STAT("Actor Tick", STAT_ActorTick); // Actor 틱 측정
 DECLARE_CYCLE_STAT("Update All Transforms", STAT_UpdateAllTransforms); // 각 Transform의 Update 시간 측정
@@ -133,6 +134,9 @@ void UWorld::Tick(float DeltaTime)
 
 		// 이동이 다 끝난 최종 위치로 판정한다.
 		UpdatePendingOverlaps();
+
+		// Coroutine
+		TickScriptCoroutines(DeltaTime);
 	}
 
 	// Frame 끝에서 Destroy 된 객체 실제로 지우기
@@ -213,7 +217,8 @@ void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ign
 void UWorld::ClearWorld()
 {	
 	FlushPendingKill();
-	
+	ScriptInstances.Empty();
+
 	// BeginPlay 대기 중인 Actor 제거
 	while (!BeginPlayList.IsEmpty())
 	{
@@ -677,6 +682,47 @@ void UWorld::FlushPendingKill()
 
 		for (UObject* Object : ToDelete)
 			delete Object;
+	}
+}
+
+void UWorld::RegisterScriptInstance(FLuaScriptInstance* Instance)
+{
+	if (Instance && ScriptInstances.Find(Instance) == INDEX_NONE)
+		ScriptInstances.Add(Instance);
+}
+
+void UWorld::UnregisterScriptInstance(FLuaScriptInstance* Instance)
+{
+	const int32 Index = ScriptInstances.Find(Instance);
+	if (Index == INDEX_NONE)
+		return;
+
+	// 순회 중 ( 코루틴 안에서 Destroy ) 이면 Index 가 밀리지 않게 비워만 두고, 순회가 끝난 뒤 정리
+	if (bTickingScripts)
+		ScriptInstances[Index] = nullptr;
+	else
+		ScriptInstances.RemoveAtSwap(static_cast<uint32>(Index));
+}
+
+void UWorld::TickScriptCoroutines(float DeltaTime)
+{
+	bTickingScripts = true;
+
+	// 순회 중 새로 등록된 Instance 는 다음 프레임부터 돈다
+	const int32 Count = ScriptInstances.Num();
+	for (int32 i = 0; i < Count; ++i)
+	{
+		if (FLuaScriptInstance* Instance = ScriptInstances[i])
+			Instance->TickCoroutines(DeltaTime);
+	}
+
+	bTickingScripts = false;
+
+	// 순회 중 비워 둔 칸을 정리한다
+	for (int32 i = ScriptInstances.Num() - 1; i >= 0; --i)
+	{
+		if (!ScriptInstances[i])
+			ScriptInstances.RemoveAt(i);
 	}
 }
 

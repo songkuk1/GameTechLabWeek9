@@ -1,6 +1,7 @@
 #include "EnginePCH.h"
 
 #include "GameFramework/Actor.h"
+#include "Engine/World.h"
 #include "Script/LuaScriptInstance.h"
 
 UActorComponent::UActorComponent()
@@ -23,9 +24,14 @@ void UActorComponent::DispatchBeginPlay()
 	if (!ScriptInstance && Owner && Owner->HasActorBegunPlay())
 	{
 		ScriptInstance = FLuaScriptInstance::CreateAndLoad(this, ScriptPath);
+
 		// 스크립트에 Tick이 있을 때만 켠다. 액터가 Tick 함수를 등록하기 전에 켜야 한다.
 		if (ScriptInstance && ScriptInstance->HasFunction("Tick"))
 			PrimaryComponentTick.bCanEverTick = true;
+
+		// Coroutine은 World가 매 프레임 진행함
+		if (ScriptInstance && Owner->GetWorld())
+			Owner->GetWorld()->RegisterScriptInstance(ScriptInstance.get());
 	}
 
 	BeginPlay();
@@ -50,12 +56,13 @@ void UActorComponent::DispatchEndPlay()
 
 	EndPlay();
 
-	/*
-	// Lua 쪽 참조(env, obj, owner)를 놓는다.
-	ScriptInstance.reset();
-	*/
-
 	// Script Instance 여기서 지우지 않는다. Actor::DispatchEndPlay() 수정과 같은 이유
+
+	if (ScriptInstance)
+	{
+		ScriptInstance->StopCoroutines();
+		if (Owner && Owner->GetWorld()) Owner->GetWorld()->UnregisterScriptInstance(ScriptInstance.get());
+	}
 }
 
 void UActorComponent::SetActive(bool bNewActive)
