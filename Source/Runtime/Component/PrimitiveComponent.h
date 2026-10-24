@@ -30,6 +30,16 @@ class UPrimitiveComponent :public USceneComponent
 		PROPERTY(bVisible)
 		PROPERTY(bCastShadow)
 		PROPERTY(bReceiveShadow)
+		FUNCTION(GetRenderMesh)
+		FUNCTION(GetNumMaterials)
+		FUNCTION(GetMaterial)
+		FUNCTION(SetMaterial)
+		FUNCTION(CastsShadow)
+		FUNCTION(SetCastShadow)
+		FUNCTION(ReceivesShadow)
+		FUNCTION(SetReceiveShadow)
+		FUNCTION(IsVisible)
+		FUNCTION(SetVisible)
 	REFLECT_END()
 public:
 	UPrimitiveComponent();

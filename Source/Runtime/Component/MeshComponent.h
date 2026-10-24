@@ -5,6 +5,13 @@
 class UMeshComponent : public UPrimitiveComponent
 {
 	DECLARE_CLASS(UMeshComponent, UPrimitiveComponent)
+	// GetMaterial·SetMaterial·GetNumMaterials는 UPrimitiveComponent에 등록되어 있고 virtual로 이 클래스의 구현이 불린다
+	REFLECT_START(ClassName)
+		FUNCTION(GetMaterialSlotName)
+		FUNCTION(GetDefaultMaterial)
+		FUNCTION(GetOverrideMaterial)
+		FUNCTION(ClearOverrideMaterials)
+	REFLECT_END()
 public:
 	UMeshComponent();
 	virtual ~UMeshComponent();

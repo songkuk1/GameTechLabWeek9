@@ -8,6 +8,8 @@ class UStaticMeshComponent : public UMeshComponent
 
 	REFLECT_START(UStaticMeshComponent)
 		PROPERTY(StaticMesh)
+		FUNCTION(GetStaticMesh)
+		FUNCTION(SetStaticMesh)
 	REFLECT_END()
 public:
 	UStaticMeshComponent();

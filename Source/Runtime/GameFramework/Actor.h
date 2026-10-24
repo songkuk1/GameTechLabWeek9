@@ -17,7 +17,15 @@ class AActor : public UObject
 	DECLARE_CLASS(AActor, UObject)
 	REFLECT_START(ClassName)
 		PROPERTY_FLAGS(ScriptPath, CPF_EditAnywhere | CPF_LuaScriptPath)
-		//PROPERTY_TYPE(PrimaryActorTick.bCanEverTick, EPropertyType::Bool)
+		FUNCTION(GetRootComponent)
+		FUNCTION(FindComponentByName)
+		FUNCTION(GetActorLocation)
+		FUNCTION(GetActorRotation)
+		FUNCTION(GetActorScale3D)
+		FUNCTION(GetActorTransform)
+		FUNCTION(HasActorBegunPlay)
+		FUNCTION(Destroy)
+		FUNCTION(DestroyComponent)
 		REFLECT_END()
 public:
 	AActor();

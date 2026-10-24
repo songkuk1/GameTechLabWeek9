@@ -10,6 +10,29 @@
 class UCameraComponent : public USceneComponent
 {
 	DECLARE_CLASS(UCameraComponent, USceneComponent)
+	// 행렬·FRay를 쓰는 함수와 에디터 입력 처리(Update*)는 노출하지 않는다
+	REFLECT_START(ClassName)
+		FUNCTION(GetFieldOfView)
+		FUNCTION(SetFieldOfView)
+		FUNCTION(GetAspectRatio)
+		FUNCTION(SetAspectRatio)
+		FUNCTION(GetNearZ)
+		FUNCTION(SetNearZ)
+		FUNCTION(GetFarZ)
+		FUNCTION(SetFarZ)
+		FUNCTION(GetIsOrthogonal)
+		FUNCTION(SetIsOrthogonal)
+		FUNCTION(GetOrthoWidth)
+		FUNCTION(SetOrthoWidth)
+		FUNCTION(GetMoveSpeed)
+		FUNCTION(SetMoveSpeed)
+		FUNCTION(GetMouseSensitivity)
+		FUNCTION(SetMouseSensitivity)
+		FUNCTION(GetWheelSpeed)
+		FUNCTION(SetWheelSpeed)
+		FUNCTION(SetExternalInputManaged)
+		FUNCTION(IsExternalInputManaged)
+	REFLECT_END()
 
 public:
 	UCameraComponent() { PrimaryComponentTick.bCanEverTick = true; }   // 이동·회전 입력을 매 프레임 처리한다

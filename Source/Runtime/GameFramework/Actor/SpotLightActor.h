@@ -7,6 +7,9 @@
 class ASpotLightActor final : public AActor
 {
 	DECLARE_CLASS(ASpotLightActor, AActor)
+	REFLECT_START(ClassName)
+		FUNCTION(GetLightComponent)
+	REFLECT_END()
 
 public:
 	ASpotLightActor();

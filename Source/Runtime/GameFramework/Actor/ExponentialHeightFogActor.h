@@ -8,6 +8,10 @@
 class AExponentialHeightFogActor final : public AActor
 {
 	DECLARE_CLASS(AExponentialHeightFogActor, AActor)
+	REFLECT_START(ClassName)
+		FUNCTION(GetBillboardComponent)
+		FUNCTION(GetExponentialHeightFogComponent)
+	REFLECT_END()
 
 
 

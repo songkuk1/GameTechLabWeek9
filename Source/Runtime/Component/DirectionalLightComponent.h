@@ -14,6 +14,9 @@ class UDirectionalLightComponent : public ULightComponent
         PROPERTY(CascadeDistributionExponent)
         PROPERTY(CascadeBlendRatio)
         PROPERTY(LightSourceAngle)
+        FUNCTION(UsesCSM)
+        FUNCTION(GetLightSourceAngle)
+        FUNCTION(SetLightSourceAngle)
     REFLECT_END()
 
 public:

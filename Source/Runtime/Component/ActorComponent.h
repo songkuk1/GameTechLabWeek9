@@ -13,6 +13,12 @@ class UActorComponent : public UObject
 
 	REFLECT_START(ClassName)
 		PROPERTY_FLAGS(ScriptPath, CPF_EditAnywhere | CPF_LuaScriptPath)
+		// GetOwner는 반환 타입 AActor가 여기서는 전방 선언뿐이라 등록할 수 없다(Actor.h와 순환 include).
+		// 컴포넌트 스크립트에서는 owner로 소유 액터를 쓴다.
+		FUNCTION(SetActive)
+		FUNCTION(IsActive)
+		FUNCTION(SetHiddenInGame)
+		FUNCTION(IsHiddenInGame)
 	REFLECT_END()
 
 public:

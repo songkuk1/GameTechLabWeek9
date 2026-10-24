@@ -19,6 +19,7 @@ class ULightComponentBase : public USceneComponent
 		FUNCTION(GetLightColor)
 		FUNCTION(SetLightColor)
 		FUNCTION(SetLightVisible)
+		FUNCTION(IsLightVisible)
 	REFLECT_END()
 
 public:

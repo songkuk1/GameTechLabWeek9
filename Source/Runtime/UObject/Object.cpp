@@ -57,6 +57,9 @@ UClass* UObject::StaticClass()
 			{
 				return ::new (Memory) UObject();
 			};
+		// UObject는 DECLARE_CLASS·REFLECT 블록이 없으므로 여기서 직접 등록한다
+		c.AddFunction("GetUUID", &UObject::GetUUID);
+		c.AddFunction("GetName", &UObject::GetName);
 		bIsInit = true;
 	}
 	return &c;

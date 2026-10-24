@@ -5,26 +5,14 @@
 
 void RegisterLuaActorBindings(sol::state& Lua)
 {
-	// UUID·Name·ClassName은 UObject에서 물려받는다.
+	// ClassName은 UObject에서 물려받는다.
 	// 액터는 엔진이 소유하므로 Lua에서 만들 수 없게 하고, 항상 포인터로 넘긴다.
+	// GetActorLocation·GetRootComponent·FindComponentByName 등은 Actor.h의 FUNCTION으로 등록되어 있다.
 	Lua.new_usertype<AActor>("AActor",
 		sol::no_constructor,
 		sol::base_classes, sol::bases<UObject>(),
 
-		// AActor가 이미 제공하는 getter만 읽기 전용으로 노출한다.
-		// 반환값은 복사본이다. obj.Location.X = 1 처럼 고쳐도 액터는 바뀌지 않는다.
-		// GetActorRotation은 선언만 있고 구현이 없어 아직 노출하지 않는다.
-		"Location", sol::readonly_property([](const AActor& A) { return A.GetActorLocation(); }),
-		"Scale",    sol::readonly_property([](const AActor& A) { return A.GetActorScale3D(); }),
-
-		// 컴포넌트는 따로 usertype이 없어 UObject로 넘어가고, 프로퍼티는 리플렉션으로 읽고 쓴다.
-		"GetRootComponent", [](const AActor& A, sol::this_state S) {
-			return LuaReflection::MakeObject(sol::state_view(S), A.GetRootComponent());
-		},
-		// 없으면 nil
-		"FindComponentByName", [](const AActor& A, const FString& Name, sol::this_state S) {
-			return LuaReflection::MakeObject(sol::state_view(S), A.FindComponentByName(FName(Name)));
-		},
+		// TArray를 반환해 FUNCTION으로 등록할 수 없으므로 명시적으로 둔다.
 		// Lua 배열(1부터 시작하는 테이블)로 돌려준다. ipairs로 순회한다.
 		"GetComponents", [](const AActor& A, sol::this_state S) {
 			sol::state_view Lua(S);

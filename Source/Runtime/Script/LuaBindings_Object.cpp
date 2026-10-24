@@ -11,8 +11,8 @@ void RegisterLuaObjectBindings(sol::state& Lua)
 	Lua.new_usertype<UObject>("UObject",
 		sol::no_constructor,
 
-		"UUID",      sol::readonly_property([](const UObject& O) { return O.GetUUID(); }),
-		"Name",      sol::readonly_property([](const UObject& O) { return O.GetName(); }),
+		// GetUUID·GetName은 UObject::StaticClass에서 FUNCTION으로 등록한다.
+		// 클래스 이름은 UClass*를 거쳐야 해서(FUNCTION이 지원하지 않는 타입) 명시적으로 둔다.
 		"ClassName", sol::readonly_property([](const UObject& O) { return O.GetClass() ? O.GetClass()->Name : FString(); }),
 
 		sol::meta_function::index,     [](UObject& O, const std::string& Key, sol::this_state S) { return LuaReflection::Index(O, Key, S); },

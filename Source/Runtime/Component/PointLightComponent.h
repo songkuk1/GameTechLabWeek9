@@ -8,6 +8,9 @@ class UPointLightComponent : public ULightComponent
 	REFLECT_START(UPointLightComponent)
 		PROPERTY(AttenuationRadius)
 		PROPERTY(SourceRadius)
+		FUNCTION(GetAttenuationRadius)
+		FUNCTION(GetSourceRadius)
+		FUNCTION(SetSourceRadius)
 	REFLECT_END()
 
 public:

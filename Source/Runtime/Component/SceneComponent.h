@@ -18,6 +18,23 @@ class USceneComponent : public UActorComponent
 
 	REFLECT_START(ClassName)
 		PROPERTY(Transform)
+		FUNCTION(GetRelativeLocation)
+		FUNCTION(SetRelativeLocation)
+		FUNCTION(GetRelativeRotation)
+		FUNCTION(SetRelativeRotation)
+		FUNCTION(SetRelativeLocationAndRotation)
+		FUNCTION(GetRelativeScale3D)
+		FUNCTION(SetRelativeScale3D)
+		FUNCTION(GetTransform)
+		FUNCTION(SetTransform)
+		FUNCTION(GetAttachParent)
+		FUNCTION(GetWorldLocation)
+		FUNCTION(GetWorldRotation)
+		FUNCTION(GetWorldScale3D)
+		FUNCTION(SetWorldLocation)
+		FUNCTION(SetWorldRotation)
+		FUNCTION(SetWorldLocationAndRotation)
+		FUNCTION(SetWorldScale3D)
 		REFLECT_END()
 
 public:

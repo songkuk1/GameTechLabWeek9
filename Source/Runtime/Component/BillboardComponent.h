@@ -7,7 +7,12 @@ class UBillboardComponent : public UPrimitiveComponent
 {
 	DECLARE_CLASS(UBillboardComponent, UPrimitiveComponent)
 
+	// SetTintColor·SetTexture는 오버로드되어 있어 등록할 수 없다
 	REFLECT_START(ClassName)
+		FUNCTION(GetTintColor)
+		FUNCTION(SetFollowLightColor)
+		FUNCTION(IsFollowingLightColor)
+		FUNCTION(GetTexturePath)
 	REFLECT_END()
 
 public:
