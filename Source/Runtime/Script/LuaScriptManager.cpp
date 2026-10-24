@@ -22,7 +22,7 @@ void FLuaScriptManager::Initialize()
 {
 	Lua = std::make_unique<sol::state>();
 	Lua->open_libraries(sol::lib::base, sol::lib::math, sol::lib::string,
-		sol::lib::table, sol::lib::coroutine, sol::lib::package);
+		sol::lib::table, sol::lib::coroutine, sol::lib::package, sol::lib::jit);
 
 	// 스크립트가 로드되기 전에 VM에 한 번만 등록한다
 	RegisterLuaBindings(*Lua);
