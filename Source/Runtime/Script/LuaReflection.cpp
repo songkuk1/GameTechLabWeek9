@@ -89,8 +89,9 @@ namespace
 		case EPropertyType::Object:
 			// nil은 비워 두면 Invoke가 nullptr로 받는다
 			if (LuaType == sol::type::lua_nil) { Out = FScriptValue(); return true; }
-			if (!Value.is<UObject*>()) return false;
-			Out = FScriptValue(std::in_place_type<UObject*>, Value.as<UObject*>());
+			if (!Value.is<FLuaObjectRef>()) return false;
+			// 함수를 부르는 지금 살아 있는지 확인하고 주소로 바꾼다 (Destroy 됐으면 Lua Error)
+			Out = FScriptValue(std::in_place_type<UObject*>, &Value.as<FLuaObjectRef>().Resolve());
 			return true;
 		default:
 			return false;
@@ -122,9 +123,10 @@ namespace
 	{
 		sol::state_view Lua(S);
 
-		if (Args.size() == 0 || !Args[0].is<UObject*>())
+		if (Args.size() == 0 || !Args[0].is<FLuaObjectRef>())
 			throw sol::error(std::format("{}() : obj:{}() 처럼 콜론(:)으로 호출해야 합니다", Func.Name, Func.Name));
-		UObject* Self = Args[0].as<UObject*>();
+		// 호출하는 지금 살아 있는지 확인한다 (Destroy 됐으면 Lua Error)
+		UObject* Self = &Args[0].as<FLuaObjectRef>().Resolve();
 		const FString Where = std::format("{}.{}()", Self ? GetClassName(*Self) : FString("nil"), Func.Name);
 
 		int32 NumInputParams = 0;
@@ -174,14 +176,12 @@ namespace
 
 sol::object LuaReflection::MakeObject(sol::state_view Lua, UObject* Object)
 {
-	if (!Object)
+	// 파괴 예정 객체도 Lua에는 nil로 넘긴다
+	if (!::IsValid(Object))
 		return sol::make_object(Lua, sol::lua_nil);
 
-	// UObject*로만 넘기면 AActor에 명시적으로 바인딩한 Location 같은 멤버가 보이지 않는다.
-	if (AActor* Actor = Cast<AActor>(Object))
-		return sol::make_object(Lua, Actor);
-
-	return sol::make_object(Lua, Object);
+	// 액터든 컴포넌트든 같은 핸들 타입으로 넘긴다. 멤버는 리플렉션이 실제 클래스를 보고 찾는다.
+	return sol::make_object(Lua, FLuaObjectRef{ FWeakObjectPtr(Object) });
 }
 
 sol::object LuaReflection::GetProperty(UObject& Object, const std::string& Key, sol::this_state S)
@@ -277,8 +277,8 @@ void LuaReflection::SetProperty(UObject& Object, const std::string& Key, sol::st
 		UObject* NewObject = nullptr;
 		if (Value.get_type() != sol::type::lua_nil)
 		{
-			ExpectType(Value.is<UObject*>(), Object, *Property, "UObject 또는 nil");
-			NewObject = Value.as<UObject*>();
+			ExpectType(Value.is<FLuaObjectRef>(), Object, *Property, "UObject 또는 nil");
+			NewObject = &Value.as<FLuaObjectRef>().Resolve();
 		}
 		// 머티리얼 슬롯에 메시를 넣는 것처럼 선언된 클래스와 다른 객체는 막는다
 		if (NewObject && Property->Class)
@@ -326,6 +326,29 @@ sol::table LuaReflection::GetClassFunctionTable(sol::state_view Lua, UClass* Cla
 sol::object LuaReflection::Index(UObject& Object, const std::string& Key, sol::this_state S)
 {
 	sol::state_view Lua(S);
+
+	// UClass*를 거쳐야 해서 FUNCTION으로 등록할 수 없는 값
+	if (Key == "ClassName")
+		return sol::make_object(Lua, Object.GetClass() ? Object.GetClass()->Name : FString());
+
+	// TArray를 반환해 FUNCTION으로 등록할 수 없으므로 직접 둔다. Lua 배열(1부터)로 돌려준다.
+	if (Key == "GetComponents" && Cast<AActor>(&Object))
+	{
+		return sol::make_object(Lua, [](const FLuaObjectRef& Self, sol::this_state S) {
+			sol::state_view L(S);
+			sol::table Result = L.create_table();
+			if (AActor* Actor = Cast<AActor>(&Self.Resolve()))
+			{
+				for (UActorComponent* Component : Actor->GetComponents())
+				{
+					if (::IsValid(Component))
+						Result.add(MakeObject(L, Component));
+				}
+			}
+			return Result;
+		});
+	}
+
 	for (UClass* Class = Object.GetClass(); Class; Class = Class->Super)
 	{
 		sol::object Func = GetClassFunctionTable(Lua, Class)[Key];
