@@ -33,7 +33,6 @@
 #include "Component/SpotLightComponent.h"
 #include "Component/DirectionalLightComponent.h"
 #include "Component/ShapeComponent.h"
-#include "Collision/ShapeCollision.h"
 #include "Core/ResourcePaths.h"
 
 #include "Core/EngineLog.h"
@@ -686,29 +685,13 @@ void UEditorEngine::RenderOverlayPass(FEditorViewportClient* OverlayClient, UWor
 			}
 		}
 		AActor* SelectedActor = OutlinerPanel ? OutlinerPanel->GetSelectedActor() : nullptr;
-		TArray<UShapeComponent*> ViewShapes;
 		for (TObjectIterator<UShapeComponent> Shape; Shape; ++Shape)
 		{
 			if (!Shape || !Shape->GetOwner() || Shape->GetOwner()->GetWorld() != &ViewWorld)
 				continue;
-			ViewShapes.Add(*Shape);
 			if (Shape->ShouldDrawOnlyIfSelected() && Shape->GetOwner() != SelectedActor)
 				continue;
 			Shape->DrawDebug(LineBatcher.get());
-		}
-
-		// 임시 판정 확인용: 겹친 쌍마다 접촉점에서 법선(A→B) 방향으로 침투 깊이만큼 초록 화살표를 그린다.
-		// Overlap 매니저가 생기면 지운다.
-		for (int32 i = 0; i < ViewShapes.Num(); ++i)
-		{
-			for (int32 j = i + 1; j < ViewShapes.Num(); ++j)
-			{
-				FContact Contact;
-				if (!ShapeCollision::OverlapShapes(ViewShapes[i], ViewShapes[j], &Contact))
-					continue;
-				const float Length = std::max(Contact.Depth, 0.1f);
-				LineBatcher->AddArrow(Contact.Point, Contact.Normal, Length, Length * 0.2f, Length * 0.3f, FVector4(0.0f, 1.0f, 0.0f, 1.0f));
-			}
 		}
 		LineBatcher->OnRender(ViewProjection);
 	}

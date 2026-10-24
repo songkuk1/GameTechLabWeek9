@@ -44,7 +44,22 @@ public:
 	bool TryGetActorBounds(FBox& OutBounds) const;
 
 	bool Destroy();
-	
+
+	// 두 액터 사이의 첫 컴포넌트 겹침이 시작될 때 / 마지막 겹침이 끝날 때 불린다 (UE와 같은 이름).
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor);
+	virtual void NotifyActorEndOverlap(AActor* OtherActor);
+	bool IsOverlappingActor(const AActor* Other) const;
+
+	// (자신, 상대 액터)
+	TDelegate<AActor*, AActor*> OnActorBeginOverlap;
+	TDelegate<AActor*, AActor*> OnActorEndOverlap;
+
+	// 내 컴포넌트가 Sweep으로 막히거나, 남이 Sweep하다 내 컴포넌트에 막혔을 때 불린다 (UE와 같은 이름).
+	// Hit은 항상 내 입장 기준: HitComponent는 상대, Normal은 상대에서 나를 향한다.
+	virtual void NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit);
+	// (자신, 상대 액터, 충돌 정보)
+	TDelegate<AActor*, AActor*, const FHitResult&> OnActorHit;
+
 	//xx삭제 예정
 	friend class UWorld;
 

@@ -113,25 +113,25 @@ namespace
 
 namespace ShapeCollision
 {
-	FCollisionSphere MakeSphere(const USphereComponent& Sphere)
+	FCollisionSphere MakeSphere(const USphereComponent& Sphere, const FVector& Offset)
 	{
-		return { Sphere.GetWorldLocation(), Sphere.GetScaledSphereRadius() };
+		return { Sphere.GetWorldLocation() + Offset, Sphere.GetScaledSphereRadius() };
 	}
 
-	FCollisionCapsule MakeCapsule(const UCapsuleComponent& Capsule)
+	FCollisionCapsule MakeCapsule(const UCapsuleComponent& Capsule, const FVector& Offset)
 	{
 		FVector X, Y, Z;
 		Capsule.GetWorldAxes(X, Y, Z);
 
-		const FVector Center = Capsule.GetWorldLocation();
+		const FVector Center = Capsule.GetWorldLocation() + Offset;
 		const FVector HalfSegment = Z * Capsule.GetScaledCapsuleHalfHeightWithoutHemisphere();
 		return { Center - HalfSegment, Center + HalfSegment, Capsule.GetScaledCapsuleRadius() };
 	}
 
-	FCollisionBox MakeBox(const UBoxComponent& Box)
+	FCollisionBox MakeBox(const UBoxComponent& Box, const FVector& Offset)
 	{
 		FCollisionBox Result;
-		Result.Center = Box.GetWorldLocation();
+		Result.Center = Box.GetWorldLocation() + Offset;
 		Box.GetWorldAxes(Result.Axis[0], Result.Axis[1], Result.Axis[2]);
 		Result.Extent = Box.GetScaledBoxExtent();
 		return Result;
@@ -302,7 +302,7 @@ namespace ShapeCollision
 		return true;
 	}
 
-	bool OverlapShapes(UShapeComponent* A, UShapeComponent* B, FContact* OutContact)
+	bool OverlapShapes(UShapeComponent* A, UShapeComponent* B, FContact* OutContact, const FVector& OffsetA)
 	{
 		if (!A || !B || A == B)
 			return false;
@@ -315,9 +315,14 @@ namespace ShapeCollision
 		// 함수는 Box → Capsule → Sphere 순서로만 있으니, 뒤집혀 들어오면 바꿔 부르고 법선을 되돌린다
 		if (KindA > KindB)
 		{
-			const bool bHit = OverlapShapes(B, A, OutContact);
+			// A를 +OffsetA 옮기는 것과 B를 -OffsetA 옮기는 것은 상대 위치가 같다.
+			// 다만 전체가 -OffsetA만큼 밀린 좌표에서 계산되므로 접촉점은 되돌려 준다.
+			const bool bHit = OverlapShapes(B, A, OutContact, -OffsetA);
 			if (bHit && OutContact)
+			{
 				OutContact->Normal = -OutContact->Normal;
+				OutContact->Point = OutContact->Point + OffsetA;
+			}
 			return bHit;
 		}
 
@@ -325,19 +330,19 @@ namespace ShapeCollision
 		{
 		case EShapeKind::Box:
 		{
-			const FCollisionBox BoxA = MakeBox(*Cast<UBoxComponent>(A));
+			const FCollisionBox BoxA = MakeBox(*Cast<UBoxComponent>(A), OffsetA);
 			if (KindB == EShapeKind::Box)     return BoxBox(BoxA, MakeBox(*Cast<UBoxComponent>(B)), OutContact);
 			if (KindB == EShapeKind::Capsule) return BoxCapsule(BoxA, MakeCapsule(*Cast<UCapsuleComponent>(B)), OutContact);
 			return BoxSphere(BoxA, MakeSphere(*Cast<USphereComponent>(B)), OutContact);
 		}
 		case EShapeKind::Capsule:
 		{
-			const FCollisionCapsule CapsuleA = MakeCapsule(*Cast<UCapsuleComponent>(A));
+			const FCollisionCapsule CapsuleA = MakeCapsule(*Cast<UCapsuleComponent>(A), OffsetA);
 			if (KindB == EShapeKind::Capsule) return CapsuleCapsule(CapsuleA, MakeCapsule(*Cast<UCapsuleComponent>(B)), OutContact);
 			return CapsuleSphere(CapsuleA, MakeSphere(*Cast<USphereComponent>(B)), OutContact);
 		}
 		default:
-			return SphereSphere(MakeSphere(*Cast<USphereComponent>(A)), MakeSphere(*Cast<USphereComponent>(B)), OutContact);
+			return SphereSphere(MakeSphere(*Cast<USphereComponent>(A), OffsetA), MakeSphere(*Cast<USphereComponent>(B)), OutContact);
 		}
 	}
 }

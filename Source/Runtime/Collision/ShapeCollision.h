@@ -40,9 +40,10 @@ struct FContact
 
 namespace ShapeCollision
 {
-	FCollisionSphere MakeSphere(const USphereComponent& Sphere);
-	FCollisionCapsule MakeCapsule(const UCapsuleComponent& Capsule);
-	FCollisionBox MakeBox(const UBoxComponent& Box);
+	// Offset: 컴포넌트를 실제로 옮기지 않고 그만큼 옮긴 위치의 도형을 만든다 (Sweep용)
+	FCollisionSphere MakeSphere(const USphereComponent& Sphere, const FVector& Offset = FVector::ZeroVector);
+	FCollisionCapsule MakeCapsule(const UCapsuleComponent& Capsule, const FVector& Offset = FVector::ZeroVector);
+	FCollisionBox MakeBox(const UBoxComponent& Box, const FVector& Offset = FVector::ZeroVector);
 
 	// 인자 순서는 Box → Capsule → Sphere. OverlapShapes가 이 순서로 맞춰 부른다.
 	bool BoxBox(const FCollisionBox& A, const FCollisionBox& B, FContact* OutContact);
@@ -54,5 +55,6 @@ namespace ShapeCollision
 	bool SphereSphere(const FCollisionSphere& A, const FCollisionSphere& B, FContact* OutContact);
 
 	// 두 Shape 컴포넌트의 종류를 보고 위 함수 중 하나로 보낸다. Normal은 A에서 B로 향한다.
-	bool OverlapShapes(UShapeComponent* A, UShapeComponent* B, FContact* OutContact = nullptr);
+	// OffsetA: A를 그만큼 옮겼다고 치고 판정한다. Sweep이 컴포넌트를 실제로 옮기지 않고 여러 위치를 시험할 때 쓴다.
+	bool OverlapShapes(UShapeComponent* A, UShapeComponent* B, FContact* OutContact = nullptr, const FVector& OffsetA = FVector::ZeroVector);
 }
