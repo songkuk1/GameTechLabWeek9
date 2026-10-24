@@ -228,7 +228,8 @@ public:
 	};
 	int32 Find(const ElementType& Item) const
 	{
-		return std::find(mDatas.begin(), mDatas.end(), Item) - mDatas.begin();
+		const auto Found = std::find(mDatas.begin(), mDatas.end(), Item);
+		return Found == mDatas.end() ? -1 : static_cast<int32>(Found - mDatas.begin());
 	}
 
 	int32 Num() const;
