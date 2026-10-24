@@ -200,9 +200,8 @@ void UPrimitiveComponent::BeginComponentOverlap(UPrimitiveComponent* Other)
 	OverlappingComponents.Add(Other);
 	Other->OverlappingComponents.Add(this);
 
-	// TODO: TDelegate 구현이 들어오면 로그 대신 Broadcast
-	// OnComponentBeginOverlap.Broadcast(this, OtherActor, Other);
-	// Other->OnComponentBeginOverlap.Broadcast(Other, MyActor, this);
+	OnComponentBeginOverlap.Broadcast(this, OtherActor, Other);
+	Other->OnComponentBeginOverlap.Broadcast(Other, MyActor, this);
 	HTR_LOG(Info, "BeginOverlap: {} <-> {}", GetName(), Other->GetName());
 
 	if (!bActorsWereOverlapping && MyActor && OtherActor)
@@ -226,9 +225,8 @@ void UPrimitiveComponent::EndComponentOverlap(UPrimitiveComponent* Other)
 	AActor* MyActor = GetOwner();
 	AActor* OtherActor = Other->GetOwner();
 
-	// TODO: TDelegate 구현이 들어오면 로그 대신 Broadcast
-	// OnComponentEndOverlap.Broadcast(this, OtherActor, Other);
-	// Other->OnComponentEndOverlap.Broadcast(Other, MyActor, this);
+	OnComponentEndOverlap.Broadcast(this, OtherActor, Other);
+	Other->OnComponentEndOverlap.Broadcast(Other, MyActor, this);
 	HTR_LOG(Info, "EndOverlap: {} <-> {}", GetName(), Other->GetName());
 
 	// 목록에서 뺀 뒤에 봐야 "두 액터의 마지막 겹침이 끝났는지" 알 수 있다.
@@ -412,11 +410,10 @@ void UPrimitiveComponent::DispatchBlockingHit(const FHitResult& Hit)
 	OtherHit.ImpactNormal = -Hit.ImpactNormal;
 	OtherHit.HitComponent = this;
 
-	// TODO: TDelegate 구현이 들어오면 Broadcast
 	MyActor->NotifyHit(this, OtherActor, Other, Hit);
-	// OnComponentHit.Broadcast(this, OtherActor, Other, Hit);
+	OnComponentHit.Broadcast(this, OtherActor, Other, Hit);
 	OtherActor->NotifyHit(Other, MyActor, this, OtherHit);
-	// Other->OnComponentHit.Broadcast(Other, MyActor, this, OtherHit);
+	Other->OnComponentHit.Broadcast(Other, MyActor, this, OtherHit);
 }
 
 bool UPrimitiveComponent::TraceMesh(const FRay& WorldRay, const FStaticMeshData& Mesh, const FMatrix& WorldMatrix, FHitResult& OutResult)

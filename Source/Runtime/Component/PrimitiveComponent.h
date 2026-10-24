@@ -6,7 +6,7 @@
 #include "Render/RenderPacket.h"
 #include "Render/GeometryGenerator.h"
 #include "Collision/HitResult.h"
-#include "Core/Delgates/Delgate.h"
+#include "Core/Delegates/Delegate.h"
 
 class FPrimitiveSceneProxy;
 class AActor;
@@ -105,10 +105,10 @@ public:
 	bool IsOverlappingActor(const AActor* Other) const;
 
 	// (자신, 상대 액터, 상대 컴포넌트)
-	TDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentBeginOverlap;
-	TDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentEndOverlap;
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentBeginOverlap;
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentEndOverlap;
 	// (자신, 상대 액터, 상대 컴포넌트, 충돌 정보). Sweep 이동이 bBlockComponent인 상대에 막혔을 때
-	TDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*, const FHitResult&> OnComponentHit;
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*, const FHitResult&> OnComponentHit;
 
 protected:
 	bool TraceMesh(const FRay& WorldRay, const FStaticMeshData& Mesh, const FMatrix& WorldMatrix, FHitResult& OutResult);

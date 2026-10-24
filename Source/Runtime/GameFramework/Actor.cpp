@@ -267,21 +267,21 @@ bool AActor::Destroy()
 
 void AActor::NotifyActorBeginOverlap(AActor* OtherActor)
 {
-    // TODO: TDelegate 구현이 들어오면 Broadcast, Lua 브랜치가 머지되면 스크립트의 OnOverlap(OtherActor) 호출
-    // OnActorBeginOverlap.Broadcast(this, OtherActor);
+    // TODO: Lua 브랜치가 머지되면 스크립트의 OnOverlap(OtherActor) 호출
+    OnActorBeginOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorBeginOverlap: {} <-> {}", GetName(), OtherActor->GetName());
 }
 
 void AActor::NotifyActorEndOverlap(AActor* OtherActor)
 {
-    // OnActorEndOverlap.Broadcast(this, OtherActor);
+    OnActorEndOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorEndOverlap: {} <-> {}", GetName(), OtherActor->GetName());
 }
 
 void AActor::NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit)
 {
-    // TODO: TDelegate 구현이 들어오면 Broadcast, Lua 브랜치가 머지되면 스크립트의 OnHit(OtherActor) 호출
-    // OnActorHit.Broadcast(this, OtherActor, Hit);
+    // TODO: Lua 브랜치가 머지되면 스크립트의 OnHit(OtherActor) 호출
+    OnActorHit.Broadcast(this, OtherActor, Hit);
     HTR_LOG(Info, "Hit: {} -> {} (Time {:.3f}, StartPenetrating {})", MyComp->GetName(), OtherComp->GetName(), Hit.Time, Hit.bStartPentrating);
 }
 

@@ -51,14 +51,14 @@ public:
 	bool IsOverlappingActor(const AActor* Other) const;
 
 	// (자신, 상대 액터)
-	TDelegate<AActor*, AActor*> OnActorBeginOverlap;
-	TDelegate<AActor*, AActor*> OnActorEndOverlap;
+	TMulticastDelegate<AActor*, AActor*> OnActorBeginOverlap;
+	TMulticastDelegate<AActor*, AActor*> OnActorEndOverlap;
 
 	// 내 컴포넌트가 Sweep으로 막히거나, 남이 Sweep하다 내 컴포넌트에 막혔을 때 불린다 (UE와 같은 이름).
 	// Hit은 항상 내 입장 기준: HitComponent는 상대, Normal은 상대에서 나를 향한다.
 	virtual void NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit);
 	// (자신, 상대 액터, 충돌 정보)
-	TDelegate<AActor*, AActor*, const FHitResult&> OnActorHit;
+	TMulticastDelegate<AActor*, AActor*, const FHitResult&> OnActorHit;
 
 	//xx삭제 예정
 	friend class UWorld;
