@@ -121,7 +121,7 @@ void UWorld::Tick(float DeltaTime)
 	{
 		while (!BeginPlayList.IsEmpty())
 		{
-			BeginPlayList.Peek()->BeginPlay();
+			BeginPlayList.Peek()->DispatchBeginPlay();
 			BeginPlayList.Dequeue();
 		}
 
@@ -231,7 +231,6 @@ void UWorld::ClearWorld()
 				Actor->RegisterAllActorTickFunctions(false);
 		Level->ClearActors();
 	}
-	HTR_LOG(Info, "{} : ", PersistentLevel->GetActorNum());
 }
 
 void UWorld::GatherRenderPackets(FRenderQueue& RenderQueue, const FLODViewContext* LODView, const FFrustumPlanes* Frustum, FRenderer* Renderer)
@@ -584,6 +583,9 @@ bool UWorld::DestroyActor(AActor* Actor)
 	if (!Level)
 		return false;
 
+	// 0. 아직 컴포넌트와 프록시가 살아 있을 때 EndPlay를 알린다.
+	Actor->DispatchEndPlay();
+
 	// 1. BeginPlay 대기열에서 제거
 	TQueue<AActor*> NewBeginPlayList;
 
@@ -746,6 +748,18 @@ void UWorld::BeginPlay()
 
 void UWorld::EndPlay()
 {
+	// EndPlay 안에서 다른 액터를 Destroy하면 배열이 줄어들 수 있어 매번 크기를 다시 읽는다.
+	for (ULevel* Level : Levels)
+	{
+		if (!Level)
+			continue;
+
+		for (int32 i = 0; i < Level->Actors.Num(); ++i)
+		{
+			if (AActor* Actor = Level->Actors[i])
+				Actor->DispatchEndPlay();
+		}
+	}
 }
 
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)

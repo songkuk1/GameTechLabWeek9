@@ -10,22 +10,40 @@
 
 class UWorld;
 class ULevel;
+class FLuaScriptInstance;
 
 class AActor : public UObject
 {
 	DECLARE_CLASS(AActor, UObject)
 	REFLECT_START(ClassName)
+		PROPERTY_FLAGS(ScriptPath, CPF_EditAnywhere | CPF_LuaScriptPath)
+		FUNCTION(GetRootComponent)
+		FUNCTION(FindComponentByName)
+		FUNCTION(GetActorLocation)
+		FUNCTION(GetActorRotation)
+		FUNCTION(GetActorScale3D)
+		FUNCTION(GetActorTransform)
+		FUNCTION(HasActorBegunPlay)
+		FUNCTION(Destroy)
+		FUNCTION(DestroyComponent)
 		REFLECT_END()
 public:
 	AActor();
 	virtual ~AActor();
 
 	virtual void BeginPlay(); // xx World->AddPrimitive 책임이동 필요
-	// 액터 자신의 로직. 컴포넌트는 각자의 PrimaryComponentTick으로 따로 실행된다.
 	virtual void Tick(float DeltaTime) {}
-	virtual void EndPlay() {};
-	// FActorTickFunction이 호출하는 진입점
-	void TickActor(float DeltaTime) { Tick(DeltaTime); }
+	virtual void EndPlay();
+	void TickActor(float DeltaTime);
+
+	// World가 호출하는 진입점. BeginPlay를 받은 액터만 EndPlay를 받도록 짝을 맞춘다.
+	void DispatchBeginPlay();
+	void DispatchEndPlay();
+	bool HasActorBegunPlay() const { return bActorHasBegunPlay; }
+
+	// 비어 있으면 스크립트 없음. 씬 저장과 PIE 복제는 리플렉션(PROPERTY)이 처리한다.
+	FString ScriptPath;
+	FLuaScriptInstance* GetScriptInstance() const { return ScriptInstance.get(); }
 
 	UWorld* GetWorld() const { return World; }
 	ULevel* GetLevel() const { return Level; }
@@ -85,6 +103,10 @@ protected:
 	UWorld* World = nullptr;
 	ULevel* Level = nullptr;
 private:
-	
+	bool bActorHasBegunPlay = false;
+
+	// 플레이 중에만 존재한다. DispatchBeginPlay에서 만들고 DispatchEndPlay에서 지운다.
+	TUniquePtr<FLuaScriptInstance> ScriptInstance;
+
 
 };

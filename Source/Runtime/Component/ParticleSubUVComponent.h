@@ -38,6 +38,8 @@ class UParticleSubUVComponent : public UBillboardComponent
 		PROPERTY(ColSize)
 		PROPERTY(RowSize)
 		PROPERTY(FrameRate)
+		FUNCTION(SetSubUVSize)
+		FUNCTION(SetFrameRate)
 	REFLECT_END()
 
 public:

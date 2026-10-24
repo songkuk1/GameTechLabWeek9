@@ -8,6 +8,7 @@ class ATextRenderActor : public AActor
 	DECLARE_CLASS(ATextRenderActor, AActor)
 
 	REFLECT_START(ClassName)
+		FUNCTION(GetTextRenderComponent)
 	REFLECT_END()
 
 public:

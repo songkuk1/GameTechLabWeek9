@@ -6,6 +6,10 @@
 class AStaticMeshActor :public AActor
 {
 	DECLARE_CLASS(AStaticMeshActor, AActor)
+	// SetPrimitiveType은 enum 매개변수라 등록할 수 없다
+	REFLECT_START(ClassName)
+		FUNCTION(GetStaticMeshComponent)
+	REFLECT_END()
 public:
 	AStaticMeshActor();
 	virtual ~AStaticMeshActor() = default;

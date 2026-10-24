@@ -34,6 +34,11 @@ public: \
 #define PROPERTY_TYPE_FLAGS(PropertyName, PropertyType, Flags) \
     InClass->AddProperty<decltype(ThisClass::PropertyName)>(#PropertyName, offsetof(ThisClass, PropertyName), EPropertyType::##PropertyType, Flags);
 
+// 멤버 함수를 리플렉션에 등록한다. 시그니처는 함수 포인터에서 템플릿이 알아낸다.
+// 오버로드된 함수는 &ThisClass::Name이 모호해 등록할 수 없다.
+#define FUNCTION(FunctionName) \
+    InClass->AddFunction(#FunctionName, &ThisClass::FunctionName);
+
 #define REFLECT_END()\
 	};\
 private:

@@ -4,11 +4,13 @@
 #include "Math/EngineMath.h"
 #include "Math/Transform.h"
 #include "Math/Color.h"
+#include "Core/NameTypes.h"
 
 class UMaterial;
 class UFont;
 
-enum class EPropertyType { Unknown, Float, Int, String, Bool, Vector, Vector4, Rotator, Transform, Object, LinearColor, ByteColor};
+// 새 타입은 기존 값이 밀리지 않도록 끝에 추가한다
+enum class EPropertyType { Unknown, Float, Int, String, Bool, Vector, Vector4, Rotator, Transform, Object, LinearColor, ByteColor, Name};
 
 template <typename T>
 constexpr EPropertyType GetPropertyType()
@@ -40,6 +42,8 @@ DEFINE_PROPERTY_TYPE(FTransform, Transform)
 DEFINE_PROPERTY_TYPE(FRotator, Rotator)
 DEFINE_PROPERTY_TYPE(FLinearColor, LinearColor)
 DEFINE_PROPERTY_TYPE(FColor, ByteColor)
+// FName은 이름 테이블의 번호라 FString과 메모리 구조가 다르다. String으로 매핑하면 안 된다.
+DEFINE_PROPERTY_TYPE(FName, Name)
 
 //DragFloat, DragInt, DragFloat3, DragFloat4, ColorEdit4 등 ImGui 위젯과 관련된 메타데이터를 저장하는 구조체
 struct FProPertyWidgetMeta
@@ -56,6 +60,7 @@ enum EPropertyFlags : uint32
     CPF_Edit      = 1 << 0, // 디테일 패널에 노출
     CPF_EditConst = 1 << 1, // 노출하되 수정 불가
     CPF_Transient = 1 << 2, // 직렬화에서 제외
+    CPF_LuaScriptPath = 1 << 3, // String 프로퍼티 옆에 .lua 파일 선택 버튼을 붙인다
 
     CPF_EditAnywhere    = CPF_Edit,
     CPF_VisibleAnywhere = CPF_Edit | CPF_EditConst,

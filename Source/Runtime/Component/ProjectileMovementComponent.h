@@ -20,6 +20,12 @@ class UProjectileMovementComponent : public UMovementComponent
 			PROPERTY(Velocity)
 			PROPERTY(Gravity)
 			PROPERTY(bConstrainToPlane)
+			// Compute*·GetSimulationTimeStep은 Tick 안의 시뮬레이션 단계라 노출하지 않는다
+			FUNCTION(SetVelocityInLocalSpace)
+			FUNCTION(LimitVelocity)
+			FUNCTION(AddForce)
+			FUNCTION(GetPendingForce)
+			FUNCTION(ClearPendingForce)
 		REFLECT_END()
 
 public:

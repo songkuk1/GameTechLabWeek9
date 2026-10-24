@@ -5,7 +5,11 @@
 class UMovementComponent : public UActorComponent
 {
 	DECLARE_CLASS(UMovementComponent, UActorComponent)
+	// HandleImpact·ComputeSlideVector·MoveUpdatedComponent는 FHitResult를 써서 등록할 수 없다
 	REFLECT_START(ClassName)
+		FUNCTION(SetUpdatedComponent)
+		FUNCTION(UpdateComponentVelocity)
+		FUNCTION(StopMovementImmediately)
 		REFLECT_END()
 
 protected:

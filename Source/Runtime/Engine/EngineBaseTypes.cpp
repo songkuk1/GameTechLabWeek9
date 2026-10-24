@@ -38,7 +38,7 @@ void FActorTickFunction::ExecuteTick(float DeltaTime)
 void FActorComponentTickFunction::ExecuteTick(float DeltaTime)
 {
 	if (Target)
-		Target->TickComponent(DeltaTime);
+		Target->DispatchTickComponent(DeltaTime);
 }
 
 FTickTaskManager::~FTickTaskManager()

@@ -8,6 +8,7 @@
 #include "Component/LightComponentBase.h"
 #include "Core/EngineLog.h"
 #include "UObject/Object.h"
+#include "Script/LuaScriptInstance.h"
 
 enum class EAttachmentRule;
 
@@ -44,10 +45,63 @@ void AActor::BeginPlay()
 
 	for (UActorComponent* Component : Components)
 	{
-		Component->BeginPlay();
+		Component->DispatchBeginPlay();
 	}
 
 	RegisterAllActorTickFunctions(true);
+}
+
+void AActor::EndPlay()
+{
+	for (UActorComponent* Component : Components)
+	{
+		if (Component)
+			Component->DispatchEndPlay();
+	}
+}
+
+void AActor::DispatchBeginPlay()
+{
+	if (bActorHasBegunPlay)
+		return;
+
+	bActorHasBegunPlay = true;
+
+	ScriptInstance = FLuaScriptInstance::CreateAndLoad(this, ScriptPath);
+
+	// 스크립트에 Tick이 있을 때만 켠다. 원래 Tick하는 클래스라면 이미 켜져 있으므로 끄지는 않는다.
+	// BeginPlay가 Tick 함수를 등록하기 전에 켜야 한다.
+	if (ScriptInstance && ScriptInstance->HasFunction("Tick"))
+		PrimaryActorTick.bCanEverTick = true;
+
+	BeginPlay();
+
+	if (ScriptInstance)
+		ScriptInstance->Call("BeginPlay");
+}
+
+void AActor::TickActor(float DeltaTime)
+{
+	Tick(DeltaTime);
+
+	if (ScriptInstance)
+		ScriptInstance->Call("Tick", DeltaTime);
+}
+
+void AActor::DispatchEndPlay()
+{
+	if (!bActorHasBegunPlay)
+		return;
+
+	// EndPlay 안에서 다시 Destroy가 불려도 두 번 들어오지 않도록 먼저 내린다.
+	bActorHasBegunPlay = false;
+
+	if (ScriptInstance)
+		ScriptInstance->Call("EndPlay");
+
+	EndPlay();
+
+	ScriptInstance.reset();
 }
 
 void AActor::RegisterAllActorTickFunctions(bool bRegister)
@@ -214,15 +268,14 @@ FVector AActor::GetActorLocation() const
     return FVector::ZeroVector;
 }
 
-//FRotator AActor::GetActorRotation() const
-//{
-//    if (RootComponent)
-//    {
-//        // USceneComponent의 GetWorldRotation() 호출
-//        return RootComponent->GetWorldRotation();
-//    }
-//    return FRotator::ZeroRotator;
-//}
+FRotator AActor::GetActorRotation() const
+{
+    if (RootComponent)
+    {
+        return RootComponent->GetWorldRotation();
+    }
+    return FRotator(0, 0, 0);
+}
 
 FVector AActor::GetActorScale3D() const
 {
@@ -340,7 +393,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 
     if (World)
     {
-        NewComponent->BeginPlay();
+        NewComponent->DispatchBeginPlay();
         RegisterAllActorTickFunctions(true);
     }
 
@@ -356,6 +409,11 @@ void AActor::DestroyComponent(UActorComponent* Component)
     {
         HTR_LOG(Warning, "DefaultSceneRoot cannot be deleted.");
         return;
+    }
+
+    if (bActorHasBegunPlay)
+    {
+        Component->DispatchEndPlay();
     }
 
     if (USceneComponent* Parent = Cast<USceneComponent>(Component))
