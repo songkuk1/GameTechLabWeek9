@@ -10,6 +10,8 @@ class USpotLightComponent : public UPointLightComponent
 	REFLECT_START(USpotLightComponent)
 		PROPERTY(InnerConeAngle)
 		PROPERTY(OuterConeAngle)
+		FUNCTION(GetInnerConeAngle)
+		FUNCTION(GetOuterConeAngle)
 	REFLECT_END()
 
 public:

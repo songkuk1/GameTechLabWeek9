@@ -18,6 +18,7 @@
 //class ACameraActor;
 class ULevel;
 class UBillboardComponent;
+class UShapeComponent;
 
 struct FLODViewContext;
 
@@ -83,6 +84,15 @@ public:
 	void BeginPlay();
 	void EndPlay();
 
+	// 움직인 컴포넌트를 표시해두면 Tick 끝에서 한 번 UpdateOverlaps를 불러준다. 에디터 월드에서는 무시한다.
+	void MarkOverlapDirty(UPrimitiveComponent* Component);
+	// 사라질 컴포넌트를 대기 목록에서 뺀다.
+	void CancelOverlapUpdate(UPrimitiveComponent* Component);
+	// Shape와 모양이 겹치는 이 월드의 Shape를 모두 모은다. 이벤트 규칙은 호출하는 쪽이 거른다 (UE의 ComponentOverlapMulti).
+	void OverlapMulti(UShapeComponent* Shape, TArray<UPrimitiveComponent*>& OutOverlaps);
+	// 넓은 단계. 월드 AABB가 Bounds와 겹치는 이 월드의 Shape를 모은다 (Ignore 제외). Overlap과 Sweep이 같이 쓴다.
+	void GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes);
+
 	FScene& GetScene() { return Scene; }
 	FTickTaskManager& GetTickTaskManager() { return TickTaskManager; }
 
@@ -122,6 +132,10 @@ private:
 	FTickTaskManager TickTaskManager;
 
 	TQueue<AActor*> BeginPlayList;
+
+	void UpdatePendingOverlaps();
+	TArray<UPrimitiveComponent*> PendingOverlapUpdates;
+	TArray<UPrimitiveComponent*> OverlapUpdatesInProgress;
 
 	//메인 카메라 
 	ACameraActor* MainCamera = nullptr;

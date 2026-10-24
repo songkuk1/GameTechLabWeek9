@@ -57,6 +57,9 @@ UClass* UObject::StaticClass()
 			{
 				return ::new (Memory) UObject();
 			};
+		// UObject는 DECLARE_CLASS·REFLECT 블록이 없으므로 여기서 직접 등록한다
+		c.AddFunction("GetUUID", &UObject::GetUUID);
+		c.AddFunction("GetName", &UObject::GetName);
 		bIsInit = true;
 	}
 	return &c;
@@ -103,6 +106,14 @@ void UObject::Serialize(json& Handle, bool bIsLoading)
 				FString& Value = *static_cast<FString*>(Ptr);
 				if (bIsLoading) Value = Handle[Property.Name].get<std::string>();
 				else Handle[Property.Name] = Value;
+				break;
+			}
+			case EPropertyType::Name:
+			{
+				// 이름 테이블 번호는 실행마다 달라지므로 문자열로 저장한다
+				FName& Value = *static_cast<FName*>(Ptr);
+				if (bIsLoading) Value = FName(Handle[Property.Name].get<std::string>());
+				else Handle[Property.Name] = Value.ToString();
 				break;
 			}
 			case EPropertyType::Bool:
@@ -233,6 +244,7 @@ void UObject::SerializeScriptProperties(FStructuredArchive::FSlot Slot)
 			case EPropertyType::Float:     Value << *static_cast<float*>(Ptr); break;
 			case EPropertyType::Int:       Value << *static_cast<int32*>(Ptr); break;
 			case EPropertyType::String:    Value << *static_cast<FString*>(Ptr); break;
+			case EPropertyType::Name:      Value << *static_cast<FName*>(Ptr); break;
 			case EPropertyType::Bool:      Value << *static_cast<bool*>(Ptr); break;
 			case EPropertyType::Vector:    Value << *static_cast<FVector*>(Ptr); break;
 			case EPropertyType::Vector4:   Value << *static_cast<FVector4*>(Ptr); break;

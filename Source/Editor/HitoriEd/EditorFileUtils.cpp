@@ -161,4 +161,42 @@ FString FEditorFileUtils::OpenLoadSceneDialog()
 	return FString();
 }
 
+FString FEditorFileUtils::OpenScriptFileDialog()
+{
+	char FilePath[MAX_PATH] = {};
+
+	const std::filesystem::path Root = std::filesystem::current_path();
+	const FString InitialDir = (Root / "Assets" / "Scripts").string();
+
+	OPENFILENAMEA ofn = {};
+	ofn.lStructSize = sizeof(OPENFILENAMEA);
+	ofn.hwndOwner = GetActiveWindow();
+
+	ofn.lpstrFile = FilePath;
+	ofn.nMaxFile = MAX_PATH;
+
+	ofn.lpstrFilter =
+		"Lua Scripts (*.lua)\0*.lua\0"
+		"All Files (*.*)\0*.*\0";
+
+	ofn.lpstrDefExt = "lua";
+	ofn.lpstrInitialDir = std::filesystem::is_directory(InitialDir) ? InitialDir.c_str() : nullptr;
+
+	ofn.Flags =
+		OFN_FILEMUSTEXIST |
+		OFN_PATHMUSTEXIST |
+		OFN_NOCHANGEDIR;
+
+	if (!GetOpenFileNameA(&ofn))
+		return FString();
+
+	// 씬 파일에 절대 경로가 남으면 다른 PC에서 열 수 없으므로 작업 디렉터리(저장소 루트) 기준으로 바꾼다.
+	std::error_code Ec;
+	std::filesystem::path Relative = std::filesystem::relative(FilePath, Root, Ec);
+	if (Ec || Relative.empty())
+		return FString(FilePath);
+
+	return Relative.generic_string();
+}
+
 

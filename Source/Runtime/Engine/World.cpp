@@ -12,6 +12,8 @@
 #include "UObject/UObjectIterator.h"
 
 #include "Collision/Ray.h"
+#include "Collision/ShapeCollision.h"
+#include "Component/ShapeComponent.h"
 #include "Component/BillboardComponent.h"
 #include "Component/ExponentialHeightFogComponent.h"
 #include "Component/LightComponentBase.h"
@@ -119,7 +121,7 @@ void UWorld::Tick(float DeltaTime)
 	{
 		while (!BeginPlayList.IsEmpty())
 		{
-			BeginPlayList.Peek()->BeginPlay();
+			BeginPlayList.Peek()->DispatchBeginPlay();
 			BeginPlayList.Dequeue();
 		}
 
@@ -128,9 +130,82 @@ void UWorld::Tick(float DeltaTime)
 			// 모든 Actor를 도는 대신 등록된 Tick 함수(메인 카메라 포함)만 실행한다.
 			TickTaskManager.RunAllTickGroups(DeltaTime);
 		}
+
+		// 이동이 다 끝난 최종 위치로 판정한다.
+		UpdatePendingOverlaps();
 	}
 
 
+}
+
+void UWorld::MarkOverlapDirty(UPrimitiveComponent* Component)
+{
+	// 에디터에서 기즈모로 끌 때는 게임 이벤트를 내지 않는다 (UE도 PIE·게임에서만 낸다).
+	if (WorldType == EWorldType::Editor || !Component)
+		return;
+	if (PendingOverlapUpdates.Find(Component) == INDEX_NONE)
+		PendingOverlapUpdates.Add(Component);
+}
+
+void UWorld::CancelOverlapUpdate(UPrimitiveComponent* Component)
+{
+	const int32 Index = PendingOverlapUpdates.Find(Component);
+	if (Index != INDEX_NONE)
+		PendingOverlapUpdates.RemoveAtSwap(Index);
+
+	// 처리 중인 목록은 순회 인덱스가 밀리지 않게 지우지 않고 비워만 둔다.
+	const int32 InProgressIndex = OverlapUpdatesInProgress.Find(Component);
+	if (InProgressIndex != INDEX_NONE)
+		OverlapUpdatesInProgress[InProgressIndex] = nullptr;
+}
+
+void UWorld::UpdatePendingOverlaps()
+{
+	// 이벤트 처리 중에 다시 움직인 컴포넌트는 다음 Tick 목록에 들어가도록 먼저 옮겨 비운다.
+	OverlapUpdatesInProgress = std::move(PendingOverlapUpdates);
+	PendingOverlapUpdates.Empty();
+
+	for (int32 i = 0; i < OverlapUpdatesInProgress.Num(); ++i)
+	{
+		// 앞 컴포넌트의 이벤트에서 뒤 컴포넌트가 삭제되면 CancelOverlapUpdate가 nullptr로 바꿔둔다.
+		if (UPrimitiveComponent* Component = OverlapUpdatesInProgress[i])
+			Component->UpdateOverlaps();
+	}
+	OverlapUpdatesInProgress.Empty();
+}
+
+void UWorld::OverlapMulti(UShapeComponent* Shape, TArray<UPrimitiveComponent*>& OutOverlaps)
+{
+	OutOverlaps.Empty();
+	if (!Shape)
+		return;
+
+	// 넓은 단계로 AABB가 겹치는 것만 추린 뒤 정밀 판정
+	TArray<UShapeComponent*> Candidates;
+	GatherShapesInBounds(Shape->CalcBounds(), Shape, Candidates);
+	for (UShapeComponent* Other : Candidates)
+	{
+		if (ShapeCollision::OverlapShapes(Shape, Other))
+			OutOverlaps.Add(Other);
+	}
+}
+
+void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes)
+{
+	OutShapes.Empty();
+	for (TObjectIterator<UShapeComponent> Other; Other; ++Other)
+	{
+		if (*Other == Ignore || !Other->GetOwner() || Other->GetOwner()->GetWorld() != this)
+			continue;
+
+		const FBox OtherBounds = Other->CalcBounds();
+		if (Bounds.Max.X < OtherBounds.Min.X || Bounds.Min.X > OtherBounds.Max.X
+			|| Bounds.Max.Y < OtherBounds.Min.Y || Bounds.Min.Y > OtherBounds.Max.Y
+			|| Bounds.Max.Z < OtherBounds.Min.Z || Bounds.Min.Z > OtherBounds.Max.Z)
+			continue;
+
+		OutShapes.Add(*Other);
+	}
 }
 
 void UWorld::ClearWorld()
@@ -140,6 +215,9 @@ void UWorld::ClearWorld()
 	{
 		BeginPlayList.Dequeue();
 	}
+
+	// 모든 액터가 함께 지워지니 겹침 이벤트 없이 대기 목록만 버린다.
+	PendingOverlapUpdates.Empty();
 
 	// 액터를 지우기 전에 렌더 프록시와 틱 등록부터 푼다. ClearActors는 액터를 delete만 하므로,
 	// 그대로 두면 지워진 컴포넌트를 가리키는 프록시가 FScene에 남아 다음 프레임에 터진다.
@@ -153,7 +231,6 @@ void UWorld::ClearWorld()
 				Actor->RegisterAllActorTickFunctions(false);
 		Level->ClearActors();
 	}
-	HTR_LOG(Info, "{} : ", PersistentLevel->GetActorNum());
 }
 
 void UWorld::GatherRenderPackets(FRenderQueue& RenderQueue, const FLODViewContext* LODView, const FFrustumPlanes* Frustum, FRenderer* Renderer)
@@ -506,6 +583,9 @@ bool UWorld::DestroyActor(AActor* Actor)
 	if (!Level)
 		return false;
 
+	// 0. 아직 컴포넌트와 프록시가 살아 있을 때 EndPlay를 알린다.
+	Actor->DispatchEndPlay();
+
 	// 1. BeginPlay 대기열에서 제거
 	TQueue<AActor*> NewBeginPlayList;
 
@@ -540,6 +620,7 @@ bool UWorld::DestroyActor(AActor* Actor)
 	{
 		if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
 		{
+			Primitive->ClearComponentOverlaps();
 			Scene.RemovePrimitive(Primitive);
 		}
 		else if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))
@@ -667,6 +748,18 @@ void UWorld::BeginPlay()
 
 void UWorld::EndPlay()
 {
+	// EndPlay 안에서 다른 액터를 Destroy하면 배열이 줄어들 수 있어 매번 크기를 다시 읽는다.
+	for (ULevel* Level : Levels)
+	{
+		if (!Level)
+			continue;
+
+		for (int32 i = 0; i < Level->Actors.Num(); ++i)
+		{
+			if (AActor* Actor = Level->Actors[i])
+				Actor->DispatchEndPlay();
+		}
+	}
 }
 
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)

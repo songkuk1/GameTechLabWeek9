@@ -7,6 +7,9 @@
 class ADirectionalLightActor final : public AActor
 {
 	DECLARE_CLASS(ADirectionalLightActor, AActor)
+	REFLECT_START(ClassName)
+		FUNCTION(GetLightComponent)
+	REFLECT_END()
 
 public:
 	ADirectionalLightActor();

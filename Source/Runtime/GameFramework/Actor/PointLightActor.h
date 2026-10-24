@@ -7,6 +7,9 @@
 class APointLightActor final : public AActor
 {
 	DECLARE_CLASS(APointLightActor, AActor)
+	REFLECT_START(ClassName)
+		FUNCTION(GetLightComponent)
+	REFLECT_END()
 
 public:
 	APointLightActor();

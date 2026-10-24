@@ -8,6 +8,7 @@
 #include "Component/LightComponentBase.h"
 #include "Core/EngineLog.h"
 #include "UObject/Object.h"
+#include "Script/LuaScriptInstance.h"
 
 enum class EAttachmentRule;
 
@@ -44,10 +45,63 @@ void AActor::BeginPlay()
 
 	for (UActorComponent* Component : Components)
 	{
-		Component->BeginPlay();
+		Component->DispatchBeginPlay();
 	}
 
 	RegisterAllActorTickFunctions(true);
+}
+
+void AActor::EndPlay()
+{
+	for (UActorComponent* Component : Components)
+	{
+		if (Component)
+			Component->DispatchEndPlay();
+	}
+}
+
+void AActor::DispatchBeginPlay()
+{
+	if (bActorHasBegunPlay)
+		return;
+
+	bActorHasBegunPlay = true;
+
+	ScriptInstance = FLuaScriptInstance::CreateAndLoad(this, ScriptPath);
+
+	// 스크립트에 Tick이 있을 때만 켠다. 원래 Tick하는 클래스라면 이미 켜져 있으므로 끄지는 않는다.
+	// BeginPlay가 Tick 함수를 등록하기 전에 켜야 한다.
+	if (ScriptInstance && ScriptInstance->HasFunction("Tick"))
+		PrimaryActorTick.bCanEverTick = true;
+
+	BeginPlay();
+
+	if (ScriptInstance)
+		ScriptInstance->Call("BeginPlay");
+}
+
+void AActor::TickActor(float DeltaTime)
+{
+	Tick(DeltaTime);
+
+	if (ScriptInstance)
+		ScriptInstance->Call("Tick", DeltaTime);
+}
+
+void AActor::DispatchEndPlay()
+{
+	if (!bActorHasBegunPlay)
+		return;
+
+	// EndPlay 안에서 다시 Destroy가 불려도 두 번 들어오지 않도록 먼저 내린다.
+	bActorHasBegunPlay = false;
+
+	if (ScriptInstance)
+		ScriptInstance->Call("EndPlay");
+
+	EndPlay();
+
+	ScriptInstance.reset();
 }
 
 void AActor::RegisterAllActorTickFunctions(bool bRegister)
@@ -214,15 +268,14 @@ FVector AActor::GetActorLocation() const
     return FVector::ZeroVector;
 }
 
-//FRotator AActor::GetActorRotation() const
-//{
-//    if (RootComponent)
-//    {
-//        // USceneComponent의 GetWorldRotation() 호출
-//        return RootComponent->GetWorldRotation();
-//    }
-//    return FRotator::ZeroRotator;
-//}
+FRotator AActor::GetActorRotation() const
+{
+    if (RootComponent)
+    {
+        return RootComponent->GetWorldRotation();
+    }
+    return FRotator(0, 0, 0);
+}
 
 FVector AActor::GetActorScale3D() const
 {
@@ -263,6 +316,39 @@ bool AActor::Destroy()
         return false;
 
     return World->DestroyActor(this);
+}
+
+void AActor::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+    // TODO: Lua 브랜치가 머지되면 스크립트의 OnOverlap(OtherActor) 호출
+    OnActorBeginOverlap.Broadcast(this, OtherActor);
+    HTR_LOG(Info, "ActorBeginOverlap: {} <-> {}", GetName(), OtherActor->GetName());
+}
+
+void AActor::NotifyActorEndOverlap(AActor* OtherActor)
+{
+    OnActorEndOverlap.Broadcast(this, OtherActor);
+    HTR_LOG(Info, "ActorEndOverlap: {} <-> {}", GetName(), OtherActor->GetName());
+}
+
+void AActor::NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit)
+{
+    // TODO: Lua 브랜치가 머지되면 스크립트의 OnHit(OtherActor) 호출
+    OnActorHit.Broadcast(this, OtherActor, Hit);
+    HTR_LOG(Info, "Hit: {} -> {} (Time {:.3f}, StartPenetrating {})", MyComp->GetName(), OtherComp->GetName(), Hit.Time, Hit.bStartPentrating);
+}
+
+bool AActor::IsOverlappingActor(const AActor* Other) const
+{
+    for (UActorComponent* OwnedComp : Components)
+    {
+        if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(OwnedComp))
+        {
+            if (PrimComp->GetOverlapInfos().Num() > 0 && PrimComp->IsOverlappingActor(Other))
+                return true;
+        }
+    }
+    return false;
 }
 
 UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
@@ -307,7 +393,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 
     if (World)
     {
-        NewComponent->BeginPlay();
+        NewComponent->DispatchBeginPlay();
         RegisterAllActorTickFunctions(true);
     }
 
@@ -325,6 +411,11 @@ void AActor::DestroyComponent(UActorComponent* Component)
         return;
     }
 
+    if (bActorHasBegunPlay)
+    {
+        Component->DispatchEndPlay();
+    }
+
     if (USceneComponent* Parent = Cast<USceneComponent>(Component))
     {
         TArray<USceneComponent*> Children = Parent->GetAttachChildren();
@@ -339,6 +430,7 @@ void AActor::DestroyComponent(UActorComponent* Component)
 
     if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
     {
+        Primitive->ClearComponentOverlaps();
         World->GetScene().RemovePrimitive(Primitive);
     }
     else if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))
