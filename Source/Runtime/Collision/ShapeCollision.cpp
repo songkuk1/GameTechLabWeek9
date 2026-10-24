@@ -92,6 +92,22 @@ namespace
 		return Result;
 	}
 
+	// 밖이면 표면까지 거리, 안이면 가장 가까운 면까지 거리의 음수.
+	// 안쪽을 0으로 두면 관통한 구간이 평평해져 가장 깊은 점을 고를 수 없다
+	float SignedDistanceToBox(const FVector& P, const FCollisionBox& Box)
+	{
+		const FVector Closest = ClosestPointOnBox(P, Box);
+		const float OutsideSq = (P - Closest).Dot(P - Closest);
+		if (OutsideSq > SMALL_NUMBER)
+			return std::sqrt(OutsideSq);
+
+		const FVector D = P - Box.Center;
+		float MinFaceDist = FLT_MAX;
+		for (int32 i = 0; i < 3; ++i)
+			MinFaceDist = std::min(MinFaceDist, Box.Extent.V[i] - std::abs(D.Dot(Box.Axis[i])));
+		return -MinFaceDist;
+	}
+
 	// 박스를 축 L에 투영했을 때의 반 길이
 	float ProjectBoxRadius(const FCollisionBox& Box, const FVector& L)
 	{
@@ -195,34 +211,26 @@ namespace ShapeCollision
 
 	bool BoxCapsule(const FCollisionBox& A, const FCollisionCapsule& B, FContact* OutContact)
 	{
-		// 구 간격을 반지름 이하로 두면 구 사이 틈이 반지름의 약 13% 이내로 줄어든다
+		// 선분 위 점에서 박스까지의 부호 있는 거리는 t에 대해 볼록이라 삼분 탐색으로 최소점을 찾는다.
+		// 그 점에 캡슐 반지름의 구를 놓고 구-박스 판정
 		const FVector Segment = B.B - B.A;
 		const float Length = Segment.Size();
-		const int32 Count = FMath::Clamp(
-			static_cast<int32>(std::ceil(Length / std::max(B.Radius, KINDA_SMALL_NUMBER))) + 1, 2, 16);
 
-		bool bHit = false;
-		FContact Deepest;
-		for (int32 i = 0; i < Count; ++i)
+		float Lo = 0.0f;
+		float Hi = 1.0f;
+		// 구간이 2/3씩 줄어 64번이면 float 정밀도를 넘는다
+		for (int32 Iter = 0; Iter < 64 && (Hi - Lo) * Length > KINDA_SMALL_NUMBER; ++Iter)
 		{
-			const float T = static_cast<float>(i) / (Count - 1);
-			const FCollisionSphere Sample{ B.A + Segment * T, B.Radius };
-
-			FContact Contact;
-			if (!BoxSphere(A, Sample, &Contact))
-				continue;
-
-			if (!OutContact)
-				return true;
-
-			if (!bHit || Contact.Depth > Deepest.Depth)
-				Deepest = Contact;
-			bHit = true;
+			const float M1 = Lo + (Hi - Lo) / 3.0f;
+			const float M2 = Hi - (Hi - Lo) / 3.0f;
+			if (SignedDistanceToBox(B.A + Segment * M1, A) < SignedDistanceToBox(B.A + Segment * M2, A))
+				Hi = M2;
+			else
+				Lo = M1;
 		}
 
-		if (bHit)
-			*OutContact = Deepest;
-		return bHit;
+		const float T = (Lo + Hi) * 0.5f;
+		return BoxSphere(A, { B.A + Segment * T, B.Radius }, OutContact);
 	}
 
 	bool BoxSphere(const FCollisionBox& A, const FCollisionSphere& B, FContact* OutContact)
