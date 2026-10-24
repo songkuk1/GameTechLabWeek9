@@ -20,6 +20,9 @@
 
 #include "UObject/UObjectGlobals.h"
 
+#include "Core/Async/TaskPool.h"
+#include "Script/LuaScriptManager.h"
+
 namespace
 {
 	// CPU Frame이 Present보다 크면 CPU 병목, Present가 크면 CPU가 GPU를 기다리는 GPU 병목이다.
@@ -188,6 +191,11 @@ void FEngineLoop::Exit()
 	FRenderResourceManager::Shutdown();
 
 	DestroyAllObjectsExceptEngine();
+
+	// Script Instance는 위에서 Actor와 정리됨.
+	// VM을 참조하는 객체가 없으므로 Shutdown.
+	FLuaScriptManager::Get().Shutdown();
+
 	delete GEngine;
 	GEngine = nullptr;
 
