@@ -1001,6 +1001,9 @@ void UEditorEngine::StartPlayInEditorSession()
 
 	if (PlayWorld)
 	{
+		// 에디터 월드에는 GameMode가 없으므로 복제본에도 없다. 복제 직후 새로 스폰한다.
+		PlayWorld->SetGameMode();
+
 		// 1. 씬에 배치된 ACameraActor가 있으면 해당 카메라를 메인 카메라로 지정
 		ACameraActor* PlacedCamera = nullptr;
 		if (PlayWorld->GetPersistentLevel())
@@ -1054,6 +1057,9 @@ void UEditorEngine::StartPlayInEditorSession()
     PIEViewport->BeginPlay(MakeUnique<FGameViewportClient>(*PlayWorld));
     // BeginPlay는 입력을 차단한다. 아래 일반 프레임 갱신이 첫 World Tick 전에 한 번 허용한다.
 	OnActiveWorldChanged();
+
+	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다.
+	PlayWorld->BeginPlay();
 }
 
 UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext& PIEContext, UWorld* InEditorWorld)
