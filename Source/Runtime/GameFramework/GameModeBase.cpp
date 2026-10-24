@@ -27,4 +27,5 @@ void AGameModeBase::StartPlay()
 {
 	if (GameState)
 		GameState->HandleBeginPlay();
+
 }

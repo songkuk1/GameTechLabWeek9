@@ -3,6 +3,16 @@
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 
+void UGameInstance::Init()
+{
+	HTR_LOG(Info, "[GameInstance] Init");
+}
+
+void UGameInstance::Shutdown()
+{
+	HTR_LOG(Info, "[GameInstance] Shutdown");
+}
+
 AGameModeBase* UGameInstance::CreateGameModeForWorld(UWorld* InWorld)
 {
 	if (!InWorld)

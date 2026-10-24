@@ -105,8 +105,12 @@ void UGameEngine::OnResize(uint32 Width, uint32 Height)
 void UGameEngine::PreExit()
 {
 	Viewport.EndPlay();
+	// UE의 UGameEngine::PreExit처럼 액터 EndPlay → GameInstance Shutdown 순서로 끝낸다.
+	GameWorld->EndPlay();
 	SceneRenderer.EndFrame();
 	ReleaseWorldShadowResources(GameWorld);
+	// 컨텍스트를 지우면서 GameInstance도 Shutdown·해제한다. World는 이후 UObject 일괄 삭제가 지운다.
+	DestroyWorldContext(GameWorld);
 }
 
 void UGameEngine::ReleaseWorldShadowResources(UWorld* World)

@@ -17,8 +17,8 @@ public:
 	virtual ~UGameInstance() = default;
 
 	// UEngine::CreateNewWorldContext가 만든 직후 / DestroyWorldContext가 지우기 직전에 호출한다.
-	virtual void Init() {}
-	virtual void Shutdown() {}
+	virtual void Init();
+	virtual void Shutdown();
 
 	// UE의 CreateGameModeForURL. World에 GameMode 액터를 스폰해 돌려준다.
 	// TODO: 씬·프로젝트 설정에서 GameMode 클래스를 고르는 규칙. 지금은 AGameModeBase 고정이다.
