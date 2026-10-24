@@ -32,6 +32,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Component/SpotLightComponent.h"
 #include "Component/DirectionalLightComponent.h"
+#include "Component/ShapeComponent.h"
 #include "Core/ResourcePaths.h"
 
 #include "Core/EngineLog.h"
@@ -682,6 +683,15 @@ void UEditorEngine::RenderOverlayPass(FEditorViewportClient* OverlayClient, UWor
 			{
 				SpotLight->DrawDebug(LineBatcher.get());
 			}
+		}
+		AActor* SelectedActor = OutlinerPanel ? OutlinerPanel->GetSelectedActor() : nullptr;
+		for (TObjectIterator<UShapeComponent> Shape; Shape; ++Shape)
+		{
+			if (!Shape || !Shape->GetOwner() || Shape->GetOwner()->GetWorld() != &ViewWorld)
+				continue;
+			if (Shape->ShouldDrawOnlyIfSelected() && Shape->GetOwner() != SelectedActor)
+				continue;
+			Shape->DrawDebug(LineBatcher.get());
 		}
 		LineBatcher->OnRender(ViewProjection);
 	}

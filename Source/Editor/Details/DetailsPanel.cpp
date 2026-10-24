@@ -6,6 +6,9 @@
 #include "Component/LightComponent.h"
 #include "Component/DirectionalLightComponent.h"
 #include "Component/PointLightComponent.h"
+#include "Component/BoxComponent.h"
+#include "Component/SphereComponent.h"
+#include "Component/CapsuleComponent.h"
 #include <d3dcompiler.h>
 #include "imgui_internal.h"
 #include "Editor/HitoriEd/EditorDragDrop.h"
@@ -986,6 +989,24 @@ namespace
 			if (ImGui::MenuItem("Projectile Movement Component"))
 			{
 				OutSelectedComponent = Actor->AddComponent(UProjectileMovementComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("Box Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(UBoxComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("Sphere Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(USphereComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("Capsule Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(UCapsuleComponent::StaticClass(), FString(ComponentNameInputBuf));
 				ComponentNameInputBuf[0] = '\0';
 				ImGui::CloseCurrentPopup();
 			}

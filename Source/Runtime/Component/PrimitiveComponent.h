@@ -6,8 +6,12 @@
 #include "Render/RenderPacket.h"
 #include "Render/GeometryGenerator.h"
 #include "Collision/HitResult.h"
+#include "Core/Delegates/Delegate.h"
 
 class FPrimitiveSceneProxy;
+class AActor;
+class UShapeComponent;
+class UWorld;
 
 enum class EPrimitiveType
 {
@@ -30,6 +34,8 @@ class UPrimitiveComponent :public USceneComponent
 		PROPERTY(bVisible)
 		PROPERTY(bCastShadow)
 		PROPERTY(bReceiveShadow)
+		PROPERTY(bGenerateOverlapEvents)
+		PROPERTY(bBlockComponent)
 	REFLECT_END()
 public:
 	UPrimitiveComponent();
@@ -81,7 +87,28 @@ public:
 
 	virtual void OnTransformDirty() override;
 
+	// bSweep이고 이 컴포넌트가 막는 Shape면 가는 길을 검사해 처음 막히는 곳에서 멈춘다.
+	// 회전은 검사하지 않고 끝에서 그대로 적용한다 (UE도 Sweep은 이동만 본다).
 	virtual bool MoveComponent(const FVector& Delta, const FRotator& NewRotation, bool bSweep, FHitResult* Hit = nullptr) override;
+
+	bool GetGenerateOverlapEvents() const { return bGenerateOverlapEvents; }
+	bool IsBlockComponent() const { return bBlockComponent; }
+
+	// 현재 위치에서 겹친 컴포넌트를 다시 구해 기존 목록과 비교하고 Begin/End를 낸다.
+	// 움직인 컴포넌트만 World가 Tick에서 불러준다
+	void UpdateOverlaps();
+	// 사라지기 직전에 부른다. 겹쳐 있던 상대 모두에게 End를 보내고 목록을 비운다.
+	void ClearComponentOverlaps();
+
+	const TArray<UPrimitiveComponent*>& GetOverlapInfos() const { return OverlappingComponents; }
+	bool IsOverlappingComponent(const UPrimitiveComponent* Other) const;
+	bool IsOverlappingActor(const AActor* Other) const;
+
+	// (자신, 상대 액터, 상대 컴포넌트)
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentBeginOverlap;
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*> OnComponentEndOverlap;
+	// (자신, 상대 액터, 상대 컴포넌트, 충돌 정보). Sweep 이동이 bBlockComponent인 상대에 막혔을 때
+	TMulticastDelegate<UPrimitiveComponent*, AActor*, UPrimitiveComponent*, const FHitResult&> OnComponentHit;
 
 protected:
 	bool TraceMesh(const FRay& WorldRay, const FStaticMeshData& Mesh, const FMatrix& WorldMatrix, FHitResult& OutResult);
@@ -89,8 +116,31 @@ protected:
 	bool bVisible = true;
 	bool bCastShadow = true;
 	bool bReceiveShadow = true;
+	// 겹침 시작·끝 이벤트를 받을지. 양쪽 모두 true여야 이벤트가 난다
+	bool bGenerateOverlapEvents = true;
+	// true면 Sweep 이동을 막고 Hit 이벤트를 낸다
+	bool bBlockComponent = false;
 
 private:
+	// 양쪽에 같은 값이 나와야 한다. 한쪽만 겹친다고 보면 매 프레임 Begin/End가 번갈아 난다.
+	bool ShouldGenerateOverlapWith(const UPrimitiveComponent* Other) const;
+	// 양쪽 목록을 함께 고치고 양쪽에 이벤트를 낸다.
+	void BeginComponentOverlap(UPrimitiveComponent* Other);
+	void EndComponentOverlap(UPrimitiveComponent* Other);
+	void MarkOverlapsDirty();
+
+	// 둘 다 bBlockComponent일 때만 Sweep이 막힌다 (ShouldGenerateOverlapWith와 반대 조건).
+	bool ShouldBlockWith(const UPrimitiveComponent* Other) const;
+	// Shape를 Delta만큼 옮기는 길에 처음 막히는 곳을 찾는다. 막히면 OutHit을 채우고 true.
+	bool SweepBlocking(UShapeComponent* Shape, UWorld* World, const FVector& Delta, FHitResult& OutHit) const;
+	// 막혔을 때 양쪽 액터와 컴포넌트에 Hit을 알린다. 상대에게는 뒤집은 Hit을 준다.
+	void DispatchBlockingHit(const FHitResult& Hit);
+
 	friend class FScene;
 	FPrimitiveSceneProxy* SceneProxy = nullptr;
+
+	// 지금 겹쳐 있는 상대. 상대 목록에도 항상 this가 들어 있다.
+	TArray<UPrimitiveComponent*> OverlappingComponents;
+	// BeginPlay 전(스폰 도중)에는 겹침을 계산하지 않는다.
+	bool bHasBegunPlay = false;
 };
