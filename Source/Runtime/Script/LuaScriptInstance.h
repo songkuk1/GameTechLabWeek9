@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/EngineString.h"
 #include "Core/EngineLog.h"
+#include "LuaCoroutineScheduler.h"
 
 // Call이 가변 인자 템플릿이라 헤더에 구현이 있어야 하므로 sol을 여기서 include한다.
 // Actor.h처럼 널리 쓰이는 헤더는 이 파일 대신 전방 선언만 둔다.
@@ -58,5 +59,6 @@ private:
 	UObject* Owner = nullptr;
 	FString Path;
 	sol::environment Env;
+	FLuaCoroutineScheduler* Scheduler;
 	bool bLoaded = false;
 };

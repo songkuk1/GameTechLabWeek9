@@ -13,11 +13,27 @@
 
 TArray<UObject*> GUObjectArray;
 
+namespace
+{
+	// 살아 있는 객체의 UUID -> 주소
+	TMap<uint32, UObject*>& GetUUIDMap()
+	{
+		static TMap<uint32, UObject*> Map;
+		return Map;
+	}
+}
+
+UObject* FindObjectByUUID(uint32 UUID)
+{
+	return UUID != 0 ? GetUUIDMap().FindRef(UUID) : nullptr;
+}
+
 UObject::UObject()
 {
 	ObjectUUID = FEngineStatics::GetUUID();
 	InternalIndex = GUObjectArray.Num();
 	GUObjectArray.Add(this);
+	GetUUIDMap().Add(ObjectUUID, this);
 }
 
 UObject::UObject(bool bRegister)
@@ -29,6 +45,8 @@ UObject::~UObject()
 {
 	if (bIsRegistered)
 	{
+		GetUUIDMap().Remove(ObjectUUID);
+
 		if (ClassPrivate)
 		{
 			UnhashObject(this, ClassPrivate);
@@ -42,6 +60,16 @@ UObject::~UObject()
 		}
 		GUObjectArray.RemoveLast();
 	}
+}
+
+void UObject::SetUUID(uint32 Uid)
+{
+	if (bIsRegistered)
+	{
+		GetUUIDMap().Remove(ObjectUUID);
+		GetUUIDMap().Add(Uid, this);
+	}
+	ObjectUUID = Uid;
 }
 
 UClass* UObject::StaticClass()
