@@ -2,6 +2,7 @@
 #include "Script/LuaBindings.h"
 #include "Engine/HUD.h"
 #include "Math/Color.h"
+#include "Asset/AssetManager.h"
 #include <sol/sol.hpp>
 
 namespace
@@ -38,5 +39,17 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 				return { Size.X, Size.Y };
 			}
 			return { FHUD::ReferenceWidth, FHUD::ReferenceHeight };
+		});
+
+	// DrawHUDImage(path, x, y, w, h [, tint])
+	Env.set_function("DrawHUDImage",
+		[Owner](const FString& Path, float X, float Y, float W, float H, sol::optional<FLinearColor> Tint)
+		{
+			FHUD* HUD = FindHUDForObject(Owner);
+			if (!HUD)
+				return;
+
+			UTexture2D* Texture = UAssetManager::Get().LoadTexture(Path);
+			HUD->AddImage(Texture, FVector2(X, Y), FVector2(W, H), Tint.value_or(DefaultHUDColor));
 		});
 }

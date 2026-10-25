@@ -28,6 +28,10 @@ function Tick(dt)
     local W, H = GetHUDSize()
     DrawHUDText(string.format("%.1f s", Elapsed), W - 160, 28, 28, FLinearColor(1, 0.85, 0.3, 1))
 
+    -- Image Test
+    DrawHUDImage("Assets/Sprites/hitori.png", 20, 130, 300, 300)
+    DrawHUDImage("Assets/Sprites/hitori.png", 350, 130, 300, 300, FLinearColor(1, 0.4, 0.4, 0.6))
+
     -- 체력이 0이면 화면 가운데 메시지
     if HP <= 0 then
         DrawHUDText("GAME OVER", W * 0.5 - 140, H * 0.5 - 30, 56, FLinearColor(1, 0.3, 0.3, 1))

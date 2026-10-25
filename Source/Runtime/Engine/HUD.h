@@ -4,6 +4,7 @@
 #include "Containers/Array.h"
 #include "Math/Vector2.h"
 #include "Math/Color.h"
+#include "Render/Texture2D.h"
 
 class UObject;
 
@@ -12,16 +13,18 @@ enum class EHUDCommandType : uint8
 {
 	Rect,
 	Text,
+    Image,
 };
 
 struct FHUDDrawCommand
 {
 	EHUDCommandType Type = EHUDCommandType::Rect;
-	FVector2 Position;         // 위치 (Pixel)
-	FVector2 Size;             // 너비, 높이 (Pixel)
+	FVector2 Position;              // 위치 (Pixel)
+	FVector2 Size;                  // 너비, 높이 (Pixel)
 	FLinearColor Color;
-	FString Text;              // Text 전용
-	float FontSize = 0.0f;     // Text 전용
+	FString Text;                   // Text 전용
+	float FontSize = 0.0f;          // Text 전용
+    UTexture2D* Texture = nullptr;  // Image 전용
 };
 
 // 월드의 화면 위 UI. 매 프레임 비우고 새로 채움.
@@ -79,6 +82,8 @@ public:
 		const float Scale = GetScale();
 		return FVector2(ScreenSize.X / Scale, ScreenSize.Y / Scale);
 	}
+
+    void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color);
 
 private:
 	TArray<FHUDDrawCommand> Commands;

@@ -5,6 +5,7 @@
 
 class FHUD;
 class UFont;
+class UTexture2D;
 enum class EHUDCommandType : uint8;
 struct FHUDDrawCommand;
 
@@ -25,14 +26,17 @@ public:
 private:
 	void AppendRect(const FHUDDrawCommand& Command);
 	void AppendText(const FHUDDrawCommand& Command);
+	void AppendImage(const FHUDDrawCommand& Command);
 	void AddQuad(float Left, float Top, float Right, float Bottom, const FVector2& UVMin, const FVector2& UVMax, const FVector4& Color);
 	// 지금까지 쌓은 정점을 Type에 맞는 파이프라인으로 그리고 비운다
-	void Flush(EHUDCommandType Type);
+    void Flush(EHUDCommandType Type, UTexture2D* Texture);
+
 
 	static constexpr uint32 MaxQuads = 4096;
 
 	FPipelineState RectPipeline;
 	FPipelineState TextPipeline;
+    FPipelineState ImagePipeline;
 	TUniquePtr<FVertexBuffer> VertexBuffer;
 	TUniquePtr<FConstantBuffer> TransformBuffer;     // b0:  PixelToNDC
 	TUniquePtr<FConstantBuffer> MSDFParamsBuffer;    // b1:  PxRange

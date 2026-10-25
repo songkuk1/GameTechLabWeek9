@@ -2,6 +2,7 @@
 #include "Render/HUDRenderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
+#include "Render/Texture2D.h"
 #include "Engine/HUD.h"
 #include "Text/Font.h"
 #include "Text/TextRenderer.h"
@@ -39,6 +40,8 @@ bool FHUDRenderer::Init()
 	SetupHUDPipeline(RectPipeline, "Resources/Shader/BoundingBoxShader.hlsl");
 	// 텍스트
 	SetupHUDPipeline(TextPipeline, "Resources/Shader/HUDTextShader.hlsl");
+    // 이미지
+	SetupHUDPipeline(ImagePipeline, "Resources/Shader/HUDImageShader.hlsl");
 
 	VertexBuffer = RenderCommand::CreateDynamicVertexBuffer(sizeof(FVertex) * MaxQuads * 6, sizeof(FVertex));
 	TransformBuffer = RenderCommand::CreateConstantBuffer(sizeof(FMatrix));
@@ -47,7 +50,7 @@ bool FHUDRenderer::Init()
 	// 기본 폰트 아틀라스
 	Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
 
-	return RectPipeline.Shader && TextPipeline.Shader;
+	return RectPipeline.Shader && TextPipeline.Shader && ImagePipeline.Shader;
 }
 
 void FHUDRenderer::AddQuad(float Left, float Top, float Right, float Bottom,
@@ -106,7 +109,15 @@ void FHUDRenderer::AppendText(const FHUDDrawCommand& Command)
 	}
 }
 
-void FHUDRenderer::Flush(EHUDCommandType Type)
+void FHUDRenderer::AppendImage(const FHUDDrawCommand& Command)
+{
+	// D3D 텍스처는 왼쪽 위가 UV (0,0)이라 화면 좌표와 방향이 같다
+	AddQuad(Command.Position.X, Command.Position.Y,
+		Command.Position.X + Command.Size.X, Command.Position.Y + Command.Size.Y,
+		FVector2(0.0f, 0.0f), FVector2(1.0f, 1.0f), ToVector4(Command.Color));
+}
+
+void FHUDRenderer::Flush(EHUDCommandType Type, UTexture2D* Texture)
 {
 	if (Vertices.Num() == 0)
 		return;
@@ -122,6 +133,11 @@ void FHUDRenderer::Flush(EHUDCommandType Type)
 		RenderCommand::BindPipelineState(TextPipeline);
 		RenderCommand::BindShaderResource(0, Font->AtlasTexture, EShaderBindFlagBits::Pixel);
 		RenderCommand::BindConstantBuffer(1, MSDFParamsBuffer.get(), EShaderBindFlagBits::Pixel);
+	}
+	else if (Type == EHUDCommandType::Image)
+	{
+		RenderCommand::BindPipelineState(ImagePipeline);
+		RenderCommand::BindShaderResource(0, Texture, EShaderBindFlagBits::Pixel);
 	}
 	else
 	{
@@ -147,24 +163,30 @@ void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeig
 		0.0f,                       -2.0f * Scale / ScreenHeight, 0.0f, 0.0f,
 		0.0f,                       0.0f,                         1.0f, 0.0f,
 		-1.0f,                      1.0f,                         0.0f, 1.0f);
-        
+
 	RenderCommand::UpdateBufferData(TransformBuffer.get(), &PixelToNDC, sizeof(FMatrix));
 
 	// 같은 종류가 이어지는 동안 정점을 쌓고, 종류가 바뀌면 그때까지 쌓은 것을 그린다
 	Vertices.Reset();
-	EHUDCommandType BatchType = HUD.GetCommands()[0].Type;
-	for (const FHUDDrawCommand& Command : HUD.GetCommands())
-	{
-		if (Command.Type != BatchType)
-		{
-			Flush(BatchType);
-			BatchType = Command.Type;
-		}
 
-		if (Command.Type == EHUDCommandType::Rect)
-			AppendRect(Command);
-		else
-			AppendText(Command);
+    EHUDCommandType BatchType = HUD.GetCommands()[0].Type;
+	UTexture2D* BatchTexture = HUD.GetCommands()[0].Texture;
+	
+    for (const FHUDDrawCommand& Command : HUD.GetCommands())
+	{
+		if (Command.Type != BatchType || Command.Texture != BatchTexture)
+		{
+			Flush(BatchType, BatchTexture);
+			BatchType = Command.Type;
+			BatchTexture = Command.Texture;
+		}
+		switch (Command.Type)
+		{
+		case EHUDCommandType::Rect:  AppendRect(Command);  break;
+		case EHUDCommandType::Text:  AppendText(Command);  break;
+		case EHUDCommandType::Image: AppendImage(Command); break;
+		}
 	}
-	Flush(BatchType);
+    
+	Flush(BatchType, BatchTexture);
 }
