@@ -183,6 +183,9 @@ project "HitoriEngine"
 	defines
 	{
 		"SOL_ALL_SAFETIES_ON=1",
+		-- LuaJIT 2.1에서 sol2는 기본으로 C++ 예외를 LuaJIT에 그대로 넘기는데,
+		-- 그러면 메시지가 "C++ exception"으로 바뀐다. sol2가 직접 잡아 e.what()을 Lua 에러로 만들게 한다.
+		"SOL_EXCEPTIONS_SAFE_PROPAGATION=0",
 		"SOL_LUAJIT=1",
 	}
 
@@ -238,6 +241,9 @@ project "HitoriEditor"
 	defines
 	{
 		"SOL_ALL_SAFETIES_ON=1",
+		-- LuaJIT 2.1에서 sol2는 기본으로 C++ 예외를 LuaJIT에 그대로 넘기는데,
+		-- 그러면 메시지가 "C++ exception"으로 바뀐다. sol2가 직접 잡아 e.what()을 Lua 에러로 만들게 한다.
+		"SOL_EXCEPTIONS_SAFE_PROPAGATION=0",
 		"SOL_LUAJIT=1",
 	}
 
@@ -300,6 +306,9 @@ project "HitoriGame"
 	defines
 	{
 		"SOL_ALL_SAFETIES_ON=1",
+		-- LuaJIT 2.1에서 sol2는 기본으로 C++ 예외를 LuaJIT에 그대로 넘기는데,
+		-- 그러면 메시지가 "C++ exception"으로 바뀐다. sol2가 직접 잡아 e.what()을 Lua 에러로 만들게 한다.
+		"SOL_EXCEPTIONS_SAFE_PROPAGATION=0",
 		"SOL_LUAJIT=1",
 	}
 
