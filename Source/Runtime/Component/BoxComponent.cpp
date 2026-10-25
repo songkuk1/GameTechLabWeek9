@@ -15,7 +15,13 @@ void UBoxComponent::PostEditChangeProperty(const FProperty& Property)
 {
 	Super::PostEditChangeProperty(Property);
 
-	// 음수 크기는 Min/Max가 뒤집혀 판정이 깨진다.
 	if (Property.Name == "BoxExtent")
-		BoxExtent = BoxExtent.GetAbs();
+		SetBoxExtent(BoxExtent);
+}
+
+void UBoxComponent::SetBoxExtent(const FVector& InExtent)
+{
+	// 음수 크기는 Min/Max가 뒤집혀 판정이 깨진다.
+	BoxExtent = InExtent.GetAbs();
+	MarkOverlapsDirty();
 }
