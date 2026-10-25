@@ -5,6 +5,8 @@
 #include "Math/Vector2.h"
 #include "Math/Color.h"
 
+class UObject;
+
 // Rect 위에 Text
 enum class EHUDCommandType : uint8
 {
@@ -82,3 +84,7 @@ private:
 	TArray<FHUDDrawCommand> Commands;
 	FVector2 ScreenSize;
 };
+
+// Script가 그릴 HUD 찾기
+// GameWorld가 아니거나 월드 없으면 nullptr
+FHUD* FindHUDForObject(UObject* Object);

@@ -2,6 +2,7 @@
 #include "Script/LuaScriptInstance.h"
 #include "Script/LuaScriptManager.h"
 #include "Script/LuaReflection.h"
+#include "Script/LuaBindings.h"
 #include "GameFramework/Actor.h"
 #include "Component/ActorComponent.h"
 
@@ -41,6 +42,7 @@ bool FLuaScriptInstance::Load()
 
 	// start, stop, wait Script 을 Env에 등록
 	Scheduler.RegisterLuaAPI(Env);
+	RegisterLuaHUDAPI(Env, Owner);
 
 	sol::protected_function_result Result = Lua.safe_script_file(Path, Env, sol::script_pass_on_error);
 	if (!Result.valid())
