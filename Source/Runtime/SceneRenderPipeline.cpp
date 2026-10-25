@@ -9,6 +9,7 @@
 #include "Render/ColorWorkflow.h"
 #include "Render/ViewMode.h"
 #include "Core/ResourcePaths.h"
+#include "Engine/HUD.h"
 
 bool FSceneRenderPipeline::Init(FRenderer* InRenderer)
 {
@@ -26,6 +27,9 @@ bool FSceneRenderPipeline::Init(FRenderer* InRenderer)
 
     GammaEncodeRenderer = MakeUnique<FGammaEncodeRenderer>();
     GammaEncodeRenderer->Init();
+
+    HUDRenderer = MakeUnique<FHUDRenderer>();
+    HUDRenderer->Init();
 
     return true;
 }
@@ -231,4 +235,21 @@ void FSceneRenderPipeline::RenderFXAAPass(FTexture2D* FxaaTarget, const FRenderi
     RenderCommand::UnbindShaderResource(0, EShaderBindFlagBits::Pixel);
 
     RenderCommand::CopyTexture(SceneColor, FxaaTarget);
+}
+
+void FSceneRenderPipeline::RenderHUD(FViewport& Viewport, const FHUD& HUD)
+{
+    if (HUD.GetCommands().Num() == 0)
+        return;
+
+    // 표시용 타깃에 이어서 그린다 (Load). 깊이는 쓰지 않음.
+    FRenderingInfo PassInfo = Viewport.GetRenderingInfo();
+    for (FRenderingDesc& Color : PassInfo.ColorRenderTargets)
+        Color.LoadOp = ERenderTargetLoadOp::Load;
+    PassInfo.DepthStencil.Texture = nullptr;
+
+    RenderCommand::BeginRenderPass(PassInfo);
+    const FVector2 Size = Viewport.GetOutputSize();
+    HUDRenderer->OnRender(HUD, Size.X, Size.Y);
+    RenderCommand::EndRenderPass(PassInfo);
 }

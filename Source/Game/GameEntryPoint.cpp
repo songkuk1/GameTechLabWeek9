@@ -8,3 +8,4 @@ UClass* GetEngineClass()
 {
 	return UGameEngine::StaticClass();
 }
+

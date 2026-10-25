@@ -916,7 +916,7 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 		ScenePipeline.RenderPostProcess(Viewport, ViewWorld, View, SceneSettings);
 	}
 
-	// 표시용 컬러 위에 깊이 기반 Cascade 색상을 합성한다.
+	// 3. 표시용 컬러 위에 깊이 기반 Cascade 색상을 합성한다.
 	if (FShadowCascadeDebugRenderer::IsEnabled() && !View.IsOrthographic() && bDirectionalReady && !DirectionalFrame.CascadeSplits.IsEmpty())
 	{
 		FRenderingInfo PassInfo = ViewRenderingInfo;
@@ -928,9 +928,16 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 		ShadowCascadeDebugRenderer->OnRender(ViewRenderingInfo.DepthStencil.Texture, View, DirectionalFrame);
 		RenderCommand::EndRenderPass(PassInfo);
 	}
-
-	// 5. 오버레이 Pass: Grid·Gizmo·UUID는 sRGB 색으로 지정되므로 인코딩 뒤 표시용 타깃에 그린다
+	
+	// 4. 오버레이 Pass: Grid·Gizmo·UUID는 sRGB 색으로 지정되므로 인코딩 뒤 표시용 타깃에 그린다
 	RenderOverlayPass(OverlayClient, ViewWorld, ViewRenderingInfo, View, RenderQueue);
+	
+	// 5. HUD (PIE 모드)
+	if (Viewport.GetActiveClient() == Viewport.GetGameClient())
+	{
+		ViewWorld.GetHUD().SetScreenSize(Viewport.GetOutputSize());
+		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD());
+	}
 }
 
 

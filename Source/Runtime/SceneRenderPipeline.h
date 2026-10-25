@@ -5,6 +5,7 @@
 #include "Render/FXAARenderer.h"
 #include "Render/GammaEncodeRenderer.h"
 #include "Render/SkyboxRenderer.h"
+#include "Render/HUDRenderer.h"
 #include "Render/ShadowFrameData.h"
 
 class FViewport;
@@ -12,6 +13,7 @@ class UWorld;
 struct FSceneView;
 class FRenderer;
 class FSceneRenderer;
+class FHUD;
 
 // 씬 렌더에 필요한 설정. Editor는 SettingsPanel 값을 채워 넘기고 Game은 기본값을 쓴다.
 struct FSceneRenderSettings
@@ -47,6 +49,9 @@ public:
 	// Fog → Gamma Encode → FXAA. Linear 씬 컬러를 표시용 sRGB로 만든다.
 	void RenderPostProcess(FViewport& Viewport, UWorld& ViewWorld, const FSceneView& View, const FSceneRenderSettings& Settings);
 
+	//  안개, 톤매핑, FXAA 이후 맨 마지막에 UI 그리기
+	void RenderHUD(FViewport& Viewport, const FHUD& HUD);
+
 	//기존 EditorEngine에있는 Renderer들중에는 Editor에서도 써야하고 Game에서도 써야하는 Renderer들이있음
 	//지금까진 EditorEngine에서 모든 Renderer가있어서 둘다 공통으로 진행되는 파이프라인을 FSceneRenderPipeline에 모아서 실행
 private:
@@ -61,4 +66,5 @@ private:
 	TUniquePtr<FFogRenderer> FogRenderer;
 	TUniquePtr<FFXAARenderer> FXAARenderer;
 	TUniquePtr<FGammaEncodeRenderer> GammaEncodeRenderer;
+	TUniquePtr<FHUDRenderer> HUDRenderer;
 };

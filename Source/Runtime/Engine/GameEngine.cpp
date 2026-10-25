@@ -10,6 +10,7 @@
 #include "Render/RenderCommand.h"
 #include "Render/Swapchain.h"
 #include "Render/Texture2D.h"
+#include "Input/InputSystem.h"
 
 FEngineConfig UGameEngine::GetConfig() const
 {
@@ -137,7 +138,12 @@ void UGameEngine::Tick(float DeltaTime)
 
 void UGameEngine::UpdateGameInput()
 {
-
+	// 게임 화면은 창 전체라 창 기준 마우스 좌표가 곧 화면 기준 좌표다
+	FViewportInput Input;
+	Input.MousePosition = FVector2(static_cast<float>(FInputSystem::GetMouseX()),
+		static_cast<float>(FInputSystem::GetMouseY()));
+	Input.bEnabled = true;
+	Viewport.UpdateInput(Input);
 }
 
 void UGameEngine::RenderViewports()
@@ -197,9 +203,9 @@ void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FS
 	ScenePipeline.RenderScene(InViewport, ViewWorld, View, SceneRenderer, ShadowResourceIndex, bShadows, Settings, DirectionalFrame);
 	// 2. 후처리: Fog -> Gamma -> FXAA (표시용 sRGB)
 	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, Settings);
-	// TODO: HUD
-
-
+	// 3. HUD
+	ViewWorld.GetHUD().SetScreenSize(InViewport.GetOutputSize());
+	ScenePipeline.RenderHUD(InViewport, ViewWorld.GetHUD());
 }
 
 void UGameEngine::CopyViewportToBackbuffer()
