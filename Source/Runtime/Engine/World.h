@@ -14,6 +14,7 @@
 #include "Camera/CameraActor.h"
 #include "Asset/LOD/StaticMeshLODSelector.h"
 #include "Engine/EngineTypes.h"
+#include "Engine/HUD.h"
 
 //class ACameraActor;
 class ULevel;
@@ -125,6 +126,10 @@ public:
 	void GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes);
 
 	FScene& GetScene() { return Scene; }
+
+	FHUD& GetHUD() { return HUD; }
+	const FHUD& GetHUD() const { return HUD; }
+
 	FTickTaskManager& GetTickTaskManager() { return TickTaskManager; }
 
 	const FRenderStats& GetRenderStats() const { return RenderStats; }
@@ -183,6 +188,7 @@ private:
 	TArray<ULevel*> Levels;
 
 	FScene Scene;
+	FHUD HUD;
 
 	// GatherRenderPackets가 매 프레임 채우는 컬링 결과. 용량을 재사용한다.
 	TArray<FPrimitiveSceneProxy*> VisibleProxies;

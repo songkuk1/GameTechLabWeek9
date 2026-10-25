@@ -124,6 +124,9 @@ void UWorld::Tick(float DeltaTime)
 	// 에디터 월드면 더이상 틱을 돌리지 않는다.
 	if (WorldType != EWorldType::Editor)
 	{
+		// 지난 Frame 명령 버리고 새로 채우기
+		HUD.BeginFrame();
+
 		// 처음 BeginPlay는 GameMode::StartPlay → NotifyBeginPlay가 한꺼번에 보낸다.
 		// 여기서는 그 뒤에 스폰된 액터만 받는다.
 		while (bBegunPlay && !BeginPlayList.IsEmpty())
