@@ -140,12 +140,14 @@ void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeig
 	if (ScreenWidth <= 0.0f || ScreenHeight <= 0.0f || HUD.GetCommands().Num() == 0)
 		return;
 
-	// 픽셀(왼쪽 위 0,0 / 아래로 +y) -> NDC(-1~1 / 위로 +y)
+	// 기준 단위 -> 실제 픽셀(×Scale) -> NDC(-1~1 / 위로 +y)
+	const float Scale = HUD.GetScale();
 	const FMatrix PixelToNDC(
-		2.0f / ScreenWidth, 0.0f,                 0.0f, 0.0f,
-		0.0f,               -2.0f / ScreenHeight, 0.0f, 0.0f,
-		0.0f,               0.0f,                 1.0f, 0.0f,
-		-1.0f,              1.0f,                 0.0f, 1.0f);
+		2.0f * Scale / ScreenWidth, 0.0f,                         0.0f, 0.0f,
+		0.0f,                       -2.0f * Scale / ScreenHeight, 0.0f, 0.0f,
+		0.0f,                       0.0f,                         1.0f, 0.0f,
+		-1.0f,                      1.0f,                         0.0f, 1.0f);
+        
 	RenderCommand::UpdateBufferData(TransformBuffer.get(), &PixelToNDC, sizeof(FMatrix));
 
 	// 같은 종류가 이어지는 동안 정점을 쌓고, 종류가 바뀌면 그때까지 쌓은 것을 그린다

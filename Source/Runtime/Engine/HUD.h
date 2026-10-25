@@ -59,6 +59,25 @@ public:
 	const FVector2& GetScreenSize() const { return ScreenSize; }
 	void SetScreenSize(const FVector2& InSize) { ScreenSize = InSize; }
 
+    // UI 좌표, 크기의 기준 해상도
+	static constexpr float ReferenceWidth = 1920.0f;
+	static constexpr float ReferenceHeight = 1080.0f;
+
+	// 기준 단위 -> 실제 픽셀 배율. 비율을 유지하도록 가로/세로 중 작은 쪽에 맞춤
+	float GetScale() const
+	{
+		if (ScreenSize.X <= 0.0f || ScreenSize.Y <= 0.0f)
+			return 1.0f;
+		return std::min(ScreenSize.X / ReferenceWidth, ScreenSize.Y / ReferenceHeight);
+	}
+
+	// 기준 단위로 본 화면 크기
+	FVector2 GetVirtualSize() const
+	{
+		const float Scale = GetScale();
+		return FVector2(ScreenSize.X / Scale, ScreenSize.Y / Scale);
+	}
+
 private:
 	TArray<FHUDDrawCommand> Commands;
 	FVector2 ScreenSize;
