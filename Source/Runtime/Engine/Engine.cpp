@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "Engine.h"
+#include "Engine/GameInstance.h"
 #include "Script/LuaScriptManager.h"
 
 UEngine* GEngine = nullptr;
@@ -21,6 +22,13 @@ FWorldContext& UEngine::CreateNewWorldContext(EWorldType WorldType)
 	WorldList.Add(NewWorldContext);
 	NewWorldContext->WorldType = WorldType;
 	NewWorldContext->ContextHandle = FName();
+
+	// 플레이하는 컨텍스트만 GameInstance를 가진다. UE도 에디터 컨텍스트에는 없다.
+	if (WorldType == EWorldType::Game || WorldType == EWorldType::PIE)
+	{
+		NewWorldContext->OwningGameInstance = NewObject<UGameInstance>(this);
+		NewWorldContext->OwningGameInstance->Init();
+	}
 
 	return *NewWorldContext;
 }
@@ -45,7 +53,18 @@ void UEngine::DestroyWorldContext(UWorld* InWorld)
 		{
 			//WorldContextDestroyedEvent.Broadcast(WorldList[idx]);
 
-			WorldList[idx].SetCurrentWorld(NULL);
+			FWorldContext& Context = WorldList[idx];
+			// 월드가 지워진 GameInstance를 가리키지 않도록 먼저 끊는다.
+			if (UWorld* World = Context.World())
+				World->SetGameInstance(nullptr);
+			Context.SetCurrentWorld(NULL);
+
+			if (Context.OwningGameInstance)
+			{
+				Context.OwningGameInstance->Shutdown();
+				delete Context.OwningGameInstance;
+				Context.OwningGameInstance = nullptr;
+			}
 			WorldList.RemoveAt(idx);
 			break;
 		}
@@ -55,6 +74,8 @@ void UEngine::DestroyWorldContext(UWorld* InWorld)
 void FWorldContext::SetCurrentWorld(UWorld* World)
 {
 	ThisCurrentWorld = World;
+	if (World)
+		World->SetGameInstance(OwningGameInstance);
 }
 
 FWorldContext::FWorldContext() : WorldType(EWorldType::None), ContextHandle(NAME_None) {}

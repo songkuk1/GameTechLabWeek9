@@ -35,6 +35,8 @@ bool UGameEngine::Init()
 
 	// 액터는 SpawnActor로 BeginPlay 대기열에 들어가 첫 World Tick에서 BeginPlay가 불린다.
 	LoadStartScene();
+	// 씬 파일에는 GameMode가 없다. 불러온 뒤 플레이 월드마다 새로 스폰한다.
+	GameWorld->SetGameMode();
 
 	// 뷰포트 연결과 입력 설정이 이 카메라에 적용되므로 그 전에 정한다.
 	SetupMainCamera();
@@ -47,6 +49,9 @@ bool UGameEngine::Init()
 	Viewport.SetOutputSize(GetEngineLoop().GetViewportWidth(), GetEngineLoop().GetViewportHeight());
 	// BeginPlay는 입력을 끈 채로 시작하므로 게임 카메라가 입력을 받도록 켠다.
 	Viewport.GetGameClient()->SetInputEnabled(true);
+
+	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다 (UE LoadMap의 마지막 단계).
+	GameWorld->BeginPlay();
 
 	return true;
 }
@@ -100,8 +105,12 @@ void UGameEngine::OnResize(uint32 Width, uint32 Height)
 void UGameEngine::PreExit()
 {
 	Viewport.EndPlay();
+	// UE의 UGameEngine::PreExit처럼 액터 EndPlay → GameInstance Shutdown 순서로 끝낸다.
+	GameWorld->EndPlay();
 	SceneRenderer.EndFrame();
 	ReleaseWorldShadowResources(GameWorld);
+	// 컨텍스트를 지우면서 GameInstance도 Shutdown·해제한다. World는 이후 UObject 일괄 삭제가 지운다.
+	DestroyWorldContext(GameWorld);
 }
 
 void UGameEngine::ReleaseWorldShadowResources(UWorld* World)

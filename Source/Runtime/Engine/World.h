@@ -19,6 +19,9 @@
 class ULevel;
 class UBillboardComponent;
 class UShapeComponent;
+class UGameInstance;
+class AGameModeBase;
+class AGameStateBase;
 class FLuaScriptInsatance;
 
 struct FLODViewContext;
@@ -91,8 +94,26 @@ public:
 	bool LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 		FBillboardTraceTransform ResolveBillboard = nullptr, const void* ViewContext = nullptr);
 
+	// 플레이 월드 준비가 끝나면 엔진이 한 번 부른다. GameMode->StartPlay()로 넘긴다.
 	void BeginPlay();
 	void EndPlay();
+
+	// UE의 AWorldSettings::NotifyBeginPlay. GameState::HandleBeginPlay가 부른다.
+	// Level의 모든 액터에 BeginPlay를 보내고 bBegunPlay를 켠다. 그 뒤 스폰된 액터는 Tick에서 BeginPlay를 받는다.
+	void NotifyBeginPlay();
+	bool HasBegunPlay() const { return bBegunPlay; }
+
+	// FWorldContext::SetCurrentWorld가 연결한다. 에디터 월드는 nullptr.
+	UGameInstance* GetGameInstance() const { return OwningGameInstance; }
+	void SetGameInstance(UGameInstance* InGameInstance) { OwningGameInstance = InGameInstance; }
+
+	// GameInstance에게 GameMode를 만들게 하고, GameMode는 GameState를 스폰한다.
+	// 플레이 월드를 준비한 뒤(씬 로드·PIE 복제 직후) 한 번 부른다. 이미 있으면 아무것도 하지 않는다.
+	bool SetGameMode();
+	AGameModeBase* GetAuthGameMode() const { return AuthorityGameMode; }
+
+	AGameStateBase* GetGameState() const { return GameState; }
+	void SetGameState(AGameStateBase* InGameState) { GameState = InGameState; }
 
 	// 움직인 컴포넌트를 표시해두면 Tick 끝에서 한 번 UpdateOverlaps를 불러준다. 에디터 월드에서는 무시한다.
 	void MarkOverlapDirty(UPrimitiveComponent* Component);
@@ -141,14 +162,21 @@ private:
 	// 등록된 Tick 함수만 실행한다. Actor보다 먼저 사라져도 남은 함수와의 연결을 스스로 끊는다.
 	FTickTaskManager TickTaskManager;
 
+	// Tick은 NotifyBeginPlay 이후 스폰된 액터에게만 BeginPlay를 보낸다. 그 전에 쌓인 것은 NotifyBeginPlay가 비운다.
 	TQueue<AActor*> BeginPlayList;
+	bool bBegunPlay = false;
 
 	void UpdatePendingOverlaps();
 	TArray<UPrimitiveComponent*> PendingOverlapUpdates;
 	TArray<UPrimitiveComponent*> OverlapUpdatesInProgress;
 
-	//메인 카메라 
+	//메인 카메라
 	ACameraActor* MainCamera = nullptr;
+
+	// 소유하지 않는다. GameInstance는 FWorldContext가, GameMode·GameState는 Level이 지운다.
+	UGameInstance* OwningGameInstance = nullptr;
+	AGameModeBase* AuthorityGameMode = nullptr;
+	AGameStateBase* GameState = nullptr;
 
 	ULevel* PersistentLevel = nullptr;
 	ULevel* CurrentLevel = nullptr;

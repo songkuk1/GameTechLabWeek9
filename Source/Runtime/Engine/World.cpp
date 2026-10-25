@@ -9,6 +9,10 @@
 #include "Camera/CameraComponent.h"
 #include "Input/InputSystem.h"
 
+#include "Engine/GameInstance.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameStateBase.h"
+
 #include "UObject/UObjectIterator.h"
 
 #include "Collision/Ray.h"
@@ -120,7 +124,9 @@ void UWorld::Tick(float DeltaTime)
 	// 에디터 월드면 더이상 틱을 돌리지 않는다.
 	if (WorldType != EWorldType::Editor)
 	{
-		while (!BeginPlayList.IsEmpty())
+		// 처음 BeginPlay는 GameMode::StartPlay → NotifyBeginPlay가 한꺼번에 보낸다.
+		// 여기서는 그 뒤에 스폰된 액터만 받는다.
+		while (bBegunPlay && !BeginPlayList.IsEmpty())
 		{
 			BeginPlayList.Peek()->DispatchBeginPlay();
 			BeginPlayList.Dequeue();
@@ -227,6 +233,10 @@ void UWorld::ClearWorld()
 
 	// 모든 액터가 함께 지워지니 겹침 이벤트 없이 대기 목록만 버린다.
 	PendingOverlapUpdates.Empty();
+
+	// GameMode·GameState도 Level의 액터라 아래에서 함께 지워진다.
+	AuthorityGameMode = nullptr;
+	GameState = nullptr;
 
 	// 액터를 지우기 전에 렌더 프록시와 틱 등록부터 푼다. ClearActors는 액터를 delete만 하므로,
 	// 그대로 두면 지워진 컴포넌트를 가리키는 프록시가 FScene에 남아 다음 프레임에 터진다.
@@ -596,6 +606,11 @@ bool UWorld::DestroyActor(AActor* Actor)
 	// 0. 아직 컴포넌트와 프록시가 살아 있을 때 EndPlay를 알린다.
 	Actor->DispatchEndPlay();
 
+	if (Actor == AuthorityGameMode)
+		AuthorityGameMode = nullptr;
+	if (Actor == GameState)
+		GameState = nullptr;
+
 	// 1. BeginPlay 대기열에서 제거
 	TQueue<AActor*> NewBeginPlayList;
 
@@ -827,6 +842,60 @@ bool UWorld::LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 
 void UWorld::BeginPlay()
 {
+	if (WorldType == EWorldType::Editor)
+		return;
+
+	if (!AuthorityGameMode)
+	{
+		HTR_LOG(Error, "[World] BeginPlay: no GameMode; actors will not begin play (call SetGameMode first)");
+		return;
+	}
+	AuthorityGameMode->StartPlay();
+}
+
+void UWorld::NotifyBeginPlay()
+{
+	if (bBegunPlay)
+		return;
+
+	// BeginPlay 안에서 스폰된 액터도 같은 순회에서 받도록 매번 크기를 다시 읽는다.
+	for (ULevel* Level : Levels)
+	{
+		if (!Level)
+			continue;
+
+		for (int32 i = 0; i < Level->Actors.Num(); ++i)
+		{
+			if (AActor* Actor = Level->Actors[i])
+				Actor->DispatchBeginPlay();
+		}
+	}
+
+	// 위에서 모두 받았으므로 대기열을 버린다. 이후 스폰은 Tick에서 처리한다.
+	while (!BeginPlayList.IsEmpty())
+		BeginPlayList.Dequeue();
+
+	bBegunPlay = true;
+}
+
+bool UWorld::SetGameMode()
+{
+	if (WorldType == EWorldType::Editor || AuthorityGameMode)
+		return false;
+	if (!OwningGameInstance)
+	{
+		HTR_LOG(Error, "[World] SetGameMode: no GameInstance (world context was not created for play)");
+		return false;
+	}
+
+	AuthorityGameMode = OwningGameInstance->CreateGameModeForWorld(this);
+	if (!AuthorityGameMode)
+	{
+		HTR_LOG(Error, "[World] failed to spawn GameMode actor");
+		return false;
+	}
+	AuthorityGameMode->PreInitializeComponents();
+	return true;
 }
 
 void UWorld::EndPlay()
@@ -843,6 +912,7 @@ void UWorld::EndPlay()
 				Actor->DispatchEndPlay();
 		}
 	}
+	bBegunPlay = false;
 }
 
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)
