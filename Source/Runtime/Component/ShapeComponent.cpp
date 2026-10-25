@@ -2,6 +2,14 @@
 #include "ShapeComponent.h"
 
 #include "Render/LineBatcher.h"
+#include "Engine/World.h"
+
+void UShapeComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (GetOwner() && GetOwner()->GetWorld())
+		GetOwner()->GetWorld()->AddShape(this);
+}
 
 void UShapeComponent::GetWorldAxes(FVector& OutX, FVector& OutY, FVector& OutZ) const
 {

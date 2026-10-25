@@ -131,13 +131,15 @@ protected:
 	// true면 Sweep 이동을 막고 Hit 이벤트를 낸다
 	bool bBlockComponent = false;
 
+	// 도형 크기처럼 판정 결과가 바뀌는 값을 고친 자식 클래스도 다음 Tick 갱신을 예약할 수 있게 연다.
+	void MarkOverlapsDirty();
+
 private:
 	// 양쪽에 같은 값이 나와야 한다. 한쪽만 겹친다고 보면 매 프레임 Begin/End가 번갈아 난다.
 	bool ShouldGenerateOverlapWith(const UPrimitiveComponent* Other) const;
 	// 양쪽 목록을 함께 고치고 양쪽에 이벤트를 낸다.
 	void BeginComponentOverlap(UPrimitiveComponent* Other);
 	void EndComponentOverlap(UPrimitiveComponent* Other);
-	void MarkOverlapsDirty();
 
 	// 둘 다 bBlockComponent일 때만 Sweep이 막힌다 (ShouldGenerateOverlapWith와 반대 조건).
 	bool ShouldBlockWith(const UPrimitiveComponent* Other) const;

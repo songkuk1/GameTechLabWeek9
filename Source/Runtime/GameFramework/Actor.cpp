@@ -6,6 +6,7 @@
 #include "Component/ParticleSubUVComponent.h"
 #include "Component/ExponentialHeightFogComponent.h"
 #include "Component/LightComponentBase.h"
+#include "Component/ShapeComponent.h"
 #include "Core/EngineLog.h"
 #include "UObject/Object.h"
 #include "Script/LuaScriptInstance.h"
@@ -444,6 +445,8 @@ void AActor::DestroyComponent(UActorComponent* Component)
     if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
     {
         Primitive->ClearComponentOverlaps();
+        if (UShapeComponent* Shape = Cast<UShapeComponent>(Primitive))
+            World->RemoveShape(Shape);
         World->GetScene().RemovePrimitive(Primitive);
     }
     else if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))

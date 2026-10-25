@@ -124,6 +124,9 @@ public:
 	void OverlapMulti(UShapeComponent* Shape, TArray<UPrimitiveComponent*>& OutOverlaps);
 	// 넓은 단계. 월드 AABB가 Bounds와 겹치는 이 월드의 Shape를 모은다 (Ignore 제외). Overlap과 Sweep이 같이 쓴다.
 	void GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes);
+	// Shape는 BeginPlay에서 등록하고, 컴포넌트·액터가 지워질 때 Scene.RemovePrimitive와 같이 뺀다.
+	void AddShape(UShapeComponent* Shape);
+	void RemoveShape(UShapeComponent* Shape);
 
 	FScene& GetScene() { return Scene; }
 
@@ -175,6 +178,8 @@ private:
 	void UpdatePendingOverlaps();
 	TArray<UPrimitiveComponent*> PendingOverlapUpdates;
 	TArray<UPrimitiveComponent*> OverlapUpdatesInProgress;
+	// 이 월드의 Shape만 모아둔다. 전역 순회(TObjectIterator)로 다른 월드까지 훑지 않도록
+	TArray<UShapeComponent*> Shapes;
 
 	//메인 카메라
 	ACameraActor* MainCamera = nullptr;

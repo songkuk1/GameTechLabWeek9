@@ -13,6 +13,9 @@ class UShapeComponent : public UPrimitiveComponent
 	REFLECT_END()
 
 public:
+	// 소유 월드의 Shape 목록에 등록한다. 넓은 단계가 이 목록만 훑는다.
+	virtual void BeginPlay() override;
+
 	virtual void DrawDebug(FLineBatcher* LineBatcher) const = 0;
 
 	// 선택 여부는 에디터만 알기 때문에 그릴지 말지는 에디터가 정한다.
