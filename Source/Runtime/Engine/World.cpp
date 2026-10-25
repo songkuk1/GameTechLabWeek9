@@ -193,9 +193,9 @@ void UWorld::OverlapMulti(UShapeComponent* Shape, TArray<UPrimitiveComponent*>& 
 void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes)
 {
 	OutShapes.Empty();
-	for (TObjectIterator<UShapeComponent> Other; Other; ++Other)
+	for (UShapeComponent* Other : Shapes)
 	{
-		if (*Other == Ignore || !Other->GetOwner() || Other->GetOwner()->GetWorld() != this)
+		if (Other == Ignore)
 			continue;
 
 		const FBox OtherBounds = Other->CalcBounds();
@@ -204,8 +204,22 @@ void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ign
 			|| Bounds.Max.Z < OtherBounds.Min.Z || Bounds.Min.Z > OtherBounds.Max.Z)
 			continue;
 
-		OutShapes.Add(*Other);
+		OutShapes.Add(Other);
 	}
+}
+
+void UWorld::AddShape(UShapeComponent* Shape)
+{
+	// PIE 복제 때는 AddComponent와 액터 BeginPlay에서 BeginPlay가 두 번 불린다
+	if (Shape && Shapes.Find(Shape) == INDEX_NONE)
+		Shapes.Add(Shape);
+}
+
+void UWorld::RemoveShape(UShapeComponent* Shape)
+{
+	const int32 Index = Shapes.Find(Shape);
+	if (Index != INDEX_NONE)
+		Shapes.RemoveAtSwap(Index);
 }
 
 void UWorld::ClearWorld()
@@ -218,6 +232,7 @@ void UWorld::ClearWorld()
 
 	// 모든 액터가 함께 지워지니 겹침 이벤트 없이 대기 목록만 버린다.
 	PendingOverlapUpdates.Empty();
+	Shapes.Empty();
 
 	// 액터를 지우기 전에 렌더 프록시와 틱 등록부터 푼다. ClearActors는 액터를 delete만 하므로,
 	// 그대로 두면 지워진 컴포넌트를 가리키는 프록시가 FScene에 남아 다음 프레임에 터진다.
@@ -621,6 +636,8 @@ bool UWorld::DestroyActor(AActor* Actor)
 		if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
 		{
 			Primitive->ClearComponentOverlaps();
+			if (UShapeComponent* Shape = Cast<UShapeComponent>(Primitive))
+				RemoveShape(Shape);
 			Scene.RemovePrimitive(Primitive);
 		}
 		else if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))
