@@ -2,6 +2,7 @@
 
 #include "Containers/Array.h"
 #include "UObjectHash.h"
+#include "UObject/Object.h" 	// IsPendingKill
 
 #undef GetObject
 
@@ -54,7 +55,9 @@ protected:
 	{
 		while (++Index < ObjectArray.Num())
 		{
-			if (GetObject())
+			// Destroy 예정 객체는 순회하지 않는다
+			UObject* Object = GetObject();
+			if (Object && !Object->IsPendingKill())
 			{
 				return true;
 			}

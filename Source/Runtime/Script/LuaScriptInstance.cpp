@@ -39,11 +39,17 @@ bool FLuaScriptInstance::Load()
 	if (UActorComponent* Component = Cast<UActorComponent>(Owner))
 		Env["owner"] = LuaReflection::MakeObject(Lua, Component->GetOwner());
 
+	// start, stop, wait Script 을 Env에 등록
+	Scheduler.RegisterLuaAPI(Env);
+
 	sol::protected_function_result Result = Lua.safe_script_file(Path, Env, sol::script_pass_on_error);
 	if (!Result.valid())
 	{
 		sol::error Err = Result;
 		HTR_LOG(Error, "[Lua] {} 로드 실패 : {}", Path, Err.what());
+
+		// 실행 도 중 시작된 Coroutine이 있으면 Env 비우기 전에 정리
+		Scheduler.StopAll();
 		Env = sol::environment();
 		return false;
 	}

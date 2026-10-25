@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <sol/sol.hpp>
+#include "UObject/WeakObjectPtr.h"
 
 class UObject;
 class UClass;
@@ -23,6 +24,21 @@ namespace LuaReflection
 	// 이 클래스에 직접 선언된 함수만 담고, 부모 클래스의 함수는 Index가 따라 올라가며 찾는다.
 	sol::table GetClassFunctionTable(sol::state_view Lua, UClass* Class);
 
-	// 실제 클래스에 맞는 usertype으로 넘긴다. 액터는 AActor로, 나머지는 UObject로.
+	// 객체를 Lua 핸들(FLuaObjectRef)로 감싸 넘긴다. null이거나 Destroy 예정이면 nil.
 	sol::object MakeObject(sol::state_view Lua, UObject* Object);
 }
+
+// Lua에 넘기는 객체 참조. 원시 포인터 대신 약한 참조(UUID)를 담는다.
+// 대상이 파괴되면 접근하는 순간 크래시 대신 Lua 에러가 난다.
+struct FLuaObjectRef
+{
+	FWeakObjectPtr Weak;
+
+	// 살아 있으면 객체를 돌려주고, 파괴됐으면 Lua 에러를 낸다.
+	UObject& Resolve() const
+	{
+		if (UObject* Object = Weak.Get())
+			return *Object;
+		throw sol::error("Object has already been destroyed. Check IsValid(obj) first.");
+	}
+};

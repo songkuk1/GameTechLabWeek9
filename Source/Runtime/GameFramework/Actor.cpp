@@ -68,11 +68,15 @@ void AActor::DispatchBeginPlay()
 	bActorHasBegunPlay = true;
 
 	ScriptInstance = FLuaScriptInstance::CreateAndLoad(this, ScriptPath);
-
-	// 스크립트에 Tick이 있을 때만 켠다. 원래 Tick하는 클래스라면 이미 켜져 있으므로 끄지는 않는다.
+    
+    // 스크립트에 Tick이 있을 때만 켠다. 원래 Tick하는 클래스라면 이미 켜져 있으므로 끄지는 않는다.
 	// BeginPlay가 Tick 함수를 등록하기 전에 켜야 한다.
 	if (ScriptInstance && ScriptInstance->HasFunction("Tick"))
 		PrimaryActorTick.bCanEverTick = true;
+
+	// Coroutine은 World가 매 프레임 진행함
+	if (ScriptInstance && World)
+        World->RegisterScriptInstance(ScriptInstance.get());
 
 	BeginPlay();
 
@@ -101,7 +105,16 @@ void AActor::DispatchEndPlay()
 
 	EndPlay();
 
-	ScriptInstance.reset();
+    // Instance의 Lua 함수 (Tick, Coroutine) 에서 Destroy가 불렸을 수도 있으므로
+    // Script Instance 는 여기서 지우지 않는다. 어차피 Actor Member 여서 Frame 끝에서 delete 될 때 함께 delete 됨.
+
+    // 남은 코루틴을 멈추고 World 진행 목록에서 지우기
+	if (ScriptInstance)
+	{
+		ScriptInstance->StopCoroutines();
+		if (World) World->UnregisterScriptInstance(ScriptInstance.get());
+	}
+
 }
 
 void AActor::RegisterAllActorTickFunctions(bool bRegister)
@@ -402,7 +415,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 
 void AActor::DestroyComponent(UActorComponent* Component)
 {
-    if (!Component)
+    if (!Component || Component->IsPendingKill())
         return;
 
     if (Component == RootComponent)
@@ -442,7 +455,14 @@ void AActor::DestroyComponent(UActorComponent* Component)
         World->GetScene().RemoveLight(Light);
     }
     RemoveOwnedComponent(Component);
-    delete Component;
+
+    // delete Component;
+    // 바로 delete 하지 않고, 소멸자가 하던 Tick 등록 해제 지금 하기
+    Component->PrimaryComponentTick.UnRegisterTickFunction();
+
+	if (World) World->DeferDelete(Component);
+	else delete Component;
+    
     return;
 }
 
