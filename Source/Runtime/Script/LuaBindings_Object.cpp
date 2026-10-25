@@ -6,16 +6,34 @@
 
 void RegisterLuaObjectBindings(sol::state& Lua)
 {
-	// 컴포넌트처럼 따로 usertype이 없는 UObject는 이 타입으로 넘어간다.
-	// 명시적 멤버가 없으면 리플렉션(FUNCTION, PROPERTY)에서 찾는다.
-	Lua.new_usertype<UObject>("UObject",
+	// 모든 엔진 객체(액터·컴포넌트)는 이 핸들로 넘어간다.
+	// 멤버는 전부 리플렉션(FUNCTION, PROPERTY)에서 찾고, 접근할 때마다 대상이 살아 있는지 확인한다.
+	Lua.new_usertype<FLuaObjectRef>("UObject",
 		sol::no_constructor,
 
-		// GetUUID·GetName은 UObject::StaticClass에서 FUNCTION으로 등록한다.
-		// 클래스 이름은 UClass*를 거쳐야 해서(FUNCTION이 지원하지 않는 타입) 명시적으로 둔다.
-		"ClassName", sol::readonly_property([](const UObject& O) { return O.GetClass() ? O.GetClass()->Name : FString(); }),
+		sol::meta_function::index, [](const FLuaObjectRef& Ref, const std::string& Key, sol::this_state S) {
+			return LuaReflection::Index(Ref.Resolve(), Key, S);
+		},
+		sol::meta_function::new_index, [](const FLuaObjectRef& Ref, const std::string& Key, sol::stack_object Value) {
+			LuaReflection::SetProperty(Ref.Resolve(), Key, Value);
+		},
 
-		sol::meta_function::index,     [](UObject& O, const std::string& Key, sol::this_state S) { return LuaReflection::Index(O, Key, S); },
-		sol::meta_function::new_index, [](UObject& O, const std::string& Key, sol::stack_object Value) { LuaReflection::SetProperty(O, Key, Value); }
+		// 핸들은 넘길 때마다 새로 만들어지므로, 같은 객체인지는 UUID로 비교한다 (a == b)
+		sol::meta_function::equal_to, [](const FLuaObjectRef& A, const FLuaObjectRef& B) {
+			return A.Weak == B.Weak;
+		},
+
+		// print(obj) → "AActor(Cube_1)" / 파괴됐으면 "<destroyed>"
+		sol::meta_function::to_string, [](const FLuaObjectRef& Ref) {
+			UObject* Object = Ref.Weak.Get();
+			if (!Object)
+				return FString("<destroyed>");
+			return std::format("{}({})", Object->GetClass() ? Object->GetClass()->Name : FString("UObject"), Object->GetName());
+		}
 	);
+
+	// 파괴됐거나 nil이면 false. UE 블루프린트의 IsValid와 같다.
+	Lua.set_function("IsValid", [](sol::object Value) {
+		return Value.is<FLuaObjectRef>() && Value.as<FLuaObjectRef>().Weak.IsValid();
+	});
 }

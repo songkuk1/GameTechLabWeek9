@@ -513,7 +513,10 @@ void UEditorEngine::TickWorldAndEditor(const float DeltaTime)
 	UpdateGizmoAndPicking();
 	//SCOPE_CYCLE_COUNTER(STAT_UpdateAllTransforms);
 	EditorWorld->GetScene().UpdateAllTransforms();
-	if (PlayWorld && bIsPaused)
+
+	// Tick 중에 바뀐 Scene을 렌더 전에 반영
+	// 실행 중에도 반영해야 BVH에 지워진 Proxy가 남지 않는다.
+	if (PlayWorld)
 		PlayWorld->GetScene().UpdateAllTransforms();
 }
 
@@ -913,7 +916,7 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 		ScenePipeline.RenderPostProcess(Viewport, ViewWorld, View, SceneSettings);
 	}
 
-	// 표시용 컬러 위에 깊이 기반 Cascade 색상을 합성한다.
+	// 3. 표시용 컬러 위에 깊이 기반 Cascade 색상을 합성한다.
 	if (FShadowCascadeDebugRenderer::IsEnabled() && !View.IsOrthographic() && bDirectionalReady && !DirectionalFrame.CascadeSplits.IsEmpty())
 	{
 		FRenderingInfo PassInfo = ViewRenderingInfo;
@@ -925,9 +928,16 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 		ShadowCascadeDebugRenderer->OnRender(ViewRenderingInfo.DepthStencil.Texture, View, DirectionalFrame);
 		RenderCommand::EndRenderPass(PassInfo);
 	}
-
-	// 5. 오버레이 Pass: Grid·Gizmo·UUID는 sRGB 색으로 지정되므로 인코딩 뒤 표시용 타깃에 그린다
+	
+	// 4. 오버레이 Pass: Grid·Gizmo·UUID는 sRGB 색으로 지정되므로 인코딩 뒤 표시용 타깃에 그린다
 	RenderOverlayPass(OverlayClient, ViewWorld, ViewRenderingInfo, View, RenderQueue);
+	
+	// 5. HUD (PIE 모드)
+	if (Viewport.GetActiveClient() == Viewport.GetGameClient())
+	{
+		ViewWorld.GetHUD().SetScreenSize(Viewport.GetOutputSize());
+		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD());
+	}
 }
 
 
@@ -1001,6 +1011,9 @@ void UEditorEngine::StartPlayInEditorSession()
 
 	if (PlayWorld)
 	{
+		// 에디터 월드에는 GameMode가 없으므로 복제본에도 없다. 복제 직후 새로 스폰한다.
+		PlayWorld->SetGameMode();
+
 		// 1. 씬에 배치된 ACameraActor가 있으면 해당 카메라를 메인 카메라로 지정
 		ACameraActor* PlacedCamera = nullptr;
 		if (PlayWorld->GetPersistentLevel())
@@ -1054,6 +1067,9 @@ void UEditorEngine::StartPlayInEditorSession()
     PIEViewport->BeginPlay(MakeUnique<FGameViewportClient>(*PlayWorld));
     // BeginPlay는 입력을 차단한다. 아래 일반 프레임 갱신이 첫 World Tick 전에 한 번 허용한다.
 	OnActiveWorldChanged();
+
+	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다.
+	PlayWorld->BeginPlay();
 }
 
 UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext& PIEContext, UWorld* InEditorWorld)

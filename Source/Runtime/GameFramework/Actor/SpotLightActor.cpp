@@ -6,9 +6,9 @@ ASpotLightActor::ASpotLightActor()
 {
 	LightComponent = CreateDefaultSubobject<USpotLightComponent>("USpotLightComponent");
 	SetRootComponent(LightComponent);
-
 	BillboardComponent = CreateDefaultSubobject<UBillboardComponent>("UBillboardComponent");
 	BillboardComponent->SetupAttachment(LightComponent);
 	BillboardComponent->SetHiddenInDetails(true);
 	BillboardComponent->SetTexture(ResourcePaths::SpotLightIcon);
+	PrimaryActorTick.bCanEverTick = true;
 }

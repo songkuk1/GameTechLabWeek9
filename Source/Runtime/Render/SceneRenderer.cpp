@@ -372,7 +372,7 @@ void FSceneRenderer::CaptureWorld(UWorld& World)
         UPrimitiveComponent* Primitive = Scene.Proxies[i]->GetComponent();
         if (!Primitive || !Primitive->IsVisible() || !Primitive->GetOwner() ||
             Primitive->GetOwner()->GetWorld() != &World) continue;
-        if (World.IsPlayInEditor() && Primitive->IsHiddenInGame()) continue;
+        if (World.IsGameWorld() && Primitive->IsHiddenInGame()) continue;
         const uint32 Id = Primitive->GetUUID();
         if (Id == 0) continue;
 
@@ -565,7 +565,7 @@ void FSceneRenderer::BuildShadowCasterQueue(UWorld& World, FShadowDepthPassInfo&
                                         if (!Proxy->IsVisible() || !Proxy->CastsShadow()) return;
                                         UStaticMeshComponent* Component = Cast<UStaticMeshComponent>(Proxy->GetComponent());
                                         if (!Component || !Component->GetOwner() || Component->GetOwner()->GetWorld() != &World) return;
-                                        if (World.IsPlayInEditor() && Component->IsHiddenInGame()) return;
+                                        if (World.IsGameWorld() && Component->IsHiddenInGame()) return;
                                         const FAABB& Bounds = Proxy->GetBounds();
                                         // 프러스텀 판정은 평면마다 따로 하므로, 바닥처럼 넓은 박스는 실제로 겹치지 않아도 통과할 수 있다.
                                         // Point/Spot은 영향 구와 박스 거리로 한 번 더 걸러 라이트 프러스텀 컬링의 일부로 처리한다.

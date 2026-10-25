@@ -9,6 +9,10 @@
 #include "Camera/CameraComponent.h"
 #include "Input/InputSystem.h"
 
+#include "Engine/GameInstance.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameStateBase.h"
+
 #include "UObject/UObjectIterator.h"
 
 #include "Collision/Ray.h"
@@ -28,6 +32,7 @@
 #include "Core/Async/TaskPool.h"
 
 #include "UObject/UObjectGlobals.h"
+#include "Script/LuaScriptInstance.h"
 
 DECLARE_CYCLE_STAT("Actor Tick", STAT_ActorTick); // Actor 틱 측정
 DECLARE_CYCLE_STAT("Update All Transforms", STAT_UpdateAllTransforms); // 각 Transform의 Update 시간 측정
@@ -119,7 +124,12 @@ void UWorld::Tick(float DeltaTime)
 	// 에디터 월드면 더이상 틱을 돌리지 않는다.
 	if (WorldType != EWorldType::Editor)
 	{
-		while (!BeginPlayList.IsEmpty())
+		// 지난 Frame 명령 버리고 새로 채우기
+		HUD.BeginFrame();
+
+		// 처음 BeginPlay는 GameMode::StartPlay → NotifyBeginPlay가 한꺼번에 보낸다.
+		// 여기서는 그 뒤에 스폰된 액터만 받는다.
+		while (bBegunPlay && !BeginPlayList.IsEmpty())
 		{
 			BeginPlayList.Peek()->DispatchBeginPlay();
 			BeginPlayList.Dequeue();
@@ -133,8 +143,13 @@ void UWorld::Tick(float DeltaTime)
 
 		// 이동이 다 끝난 최종 위치로 판정한다.
 		UpdatePendingOverlaps();
+
+		// Coroutine
+		TickScriptCoroutines(DeltaTime);
 	}
 
+	// Frame 끝에서 Destroy 된 객체 실제로 지우기
+	FlushPendingKill();
 
 }
 
@@ -223,7 +238,10 @@ void UWorld::RemoveShape(UShapeComponent* Shape)
 }
 
 void UWorld::ClearWorld()
-{
+{	
+	FlushPendingKill();
+	ScriptInstances.Empty();
+
 	// BeginPlay 대기 중인 Actor 제거
 	while (!BeginPlayList.IsEmpty())
 	{
@@ -233,6 +251,10 @@ void UWorld::ClearWorld()
 	// 모든 액터가 함께 지워지니 겹침 이벤트 없이 대기 목록만 버린다.
 	PendingOverlapUpdates.Empty();
 	Shapes.Empty();
+
+	// GameMode·GameState도 Level의 액터라 아래에서 함께 지워진다.
+	AuthorityGameMode = nullptr;
+	GameState = nullptr;
 
 	// 액터를 지우기 전에 렌더 프록시와 틱 등록부터 푼다. ClearActors는 액터를 delete만 하므로,
 	// 그대로 두면 지워진 컴포넌트를 가리키는 프록시가 FScene에 남아 다음 프레임에 터진다.
@@ -590,7 +612,8 @@ int32 UWorld::GetActorNum()
 
 bool UWorld::DestroyActor(AActor* Actor)
 {
-	if (!Actor)
+	// 이미 Destroy 된 Actor면 재처리 하지 않기
+	if (!Actor || Actor->IsPendingKill() )
 		return false;
 
 	ULevel* Level = Actor->GetLevel();
@@ -600,6 +623,11 @@ bool UWorld::DestroyActor(AActor* Actor)
 
 	// 0. 아직 컴포넌트와 프록시가 살아 있을 때 EndPlay를 알린다.
 	Actor->DispatchEndPlay();
+
+	if (Actor == AuthorityGameMode)
+		AuthorityGameMode = nullptr;
+	if (Actor == GameState)
+		GameState = nullptr;
 
 	// 1. BeginPlay 대기열에서 제거
 	TQueue<AActor*> NewBeginPlayList;
@@ -652,12 +680,85 @@ bool UWorld::DestroyActor(AActor* Actor)
 
 	Actor->RegisterAllActorTickFunctions(false);
 
+	/*
 	// 4. Actor 삭제
 	delete Actor;
+	*/
+
+	// 바로 delete 하지 않기
+	// Component 파괴 예정으로 표시 ( Actor 소멸자가 delete 할 예정 )
+	for (UActorComponent* Component : Actor->GetComponents())
+		if (Component) Component->MarkPendingKill();
+	
+	DeferDelete(Actor);
 
 	HTR_LOG(Info, "Destroy Actor : {} UUID {}", ActorName, ActorUUID);
 
 	return true;
+}
+
+// Delete 예정임을 표시
+void UWorld::DeferDelete(UObject* Object)
+{
+	if (!Object || Object->IsPendingKill())
+		return;
+
+	Object->MarkPendingKill();
+	PendingKillObjects.Add(Object);
+}
+
+void UWorld::FlushPendingKill()
+{
+	// 소멸자 안에서 또 Destroy가 불려 목록이 늘어날 수 있으므로, 목록을 옮겨 놓고 지운 뒤 다시 확인
+	while (PendingKillObjects.Num() > 0)
+	{
+		TArray<UObject*> ToDelete = std::move(PendingKillObjects);
+		PendingKillObjects.Empty();
+
+		for (UObject* Object : ToDelete)
+			delete Object;
+	}
+}
+
+void UWorld::RegisterScriptInstance(FLuaScriptInstance* Instance)
+{
+	if (Instance && ScriptInstances.Find(Instance) == INDEX_NONE)
+		ScriptInstances.Add(Instance);
+}
+
+void UWorld::UnregisterScriptInstance(FLuaScriptInstance* Instance)
+{
+	const int32 Index = ScriptInstances.Find(Instance);
+	if (Index == INDEX_NONE)
+		return;
+
+	// 순회 중 ( 코루틴 안에서 Destroy ) 이면 Index 가 밀리지 않게 비워만 두고, 순회가 끝난 뒤 정리
+	if (bTickingScripts)
+		ScriptInstances[Index] = nullptr;
+	else
+		ScriptInstances.RemoveAtSwap(static_cast<uint32>(Index));
+}
+
+void UWorld::TickScriptCoroutines(float DeltaTime)
+{
+	bTickingScripts = true;
+
+	// 순회 중 새로 등록된 Instance 는 다음 프레임부터 돈다
+	const int32 Count = ScriptInstances.Num();
+	for (int32 i = 0; i < Count; ++i)
+	{
+		if (FLuaScriptInstance* Instance = ScriptInstances[i])
+			Instance->TickCoroutines(DeltaTime);
+	}
+
+	bTickingScripts = false;
+
+	// 순회 중 비워 둔 칸을 정리한다
+	for (int32 i = ScriptInstances.Num() - 1; i >= 0; --i)
+	{
+		if (!ScriptInstances[i])
+			ScriptInstances.RemoveAt(i);
+	}
 }
 
 // 다른 World의 객체를 제외하고 Component 교차 중 최근접 결과를 선택한다.
@@ -761,6 +862,60 @@ bool UWorld::LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 
 void UWorld::BeginPlay()
 {
+	if (WorldType == EWorldType::Editor)
+		return;
+
+	if (!AuthorityGameMode)
+	{
+		HTR_LOG(Error, "[World] BeginPlay: no GameMode; actors will not begin play (call SetGameMode first)");
+		return;
+	}
+	AuthorityGameMode->StartPlay();
+}
+
+void UWorld::NotifyBeginPlay()
+{
+	if (bBegunPlay)
+		return;
+
+	// BeginPlay 안에서 스폰된 액터도 같은 순회에서 받도록 매번 크기를 다시 읽는다.
+	for (ULevel* Level : Levels)
+	{
+		if (!Level)
+			continue;
+
+		for (int32 i = 0; i < Level->Actors.Num(); ++i)
+		{
+			if (AActor* Actor = Level->Actors[i])
+				Actor->DispatchBeginPlay();
+		}
+	}
+
+	// 위에서 모두 받았으므로 대기열을 버린다. 이후 스폰은 Tick에서 처리한다.
+	while (!BeginPlayList.IsEmpty())
+		BeginPlayList.Dequeue();
+
+	bBegunPlay = true;
+}
+
+bool UWorld::SetGameMode()
+{
+	if (WorldType == EWorldType::Editor || AuthorityGameMode)
+		return false;
+	if (!OwningGameInstance)
+	{
+		HTR_LOG(Error, "[World] SetGameMode: no GameInstance (world context was not created for play)");
+		return false;
+	}
+
+	AuthorityGameMode = OwningGameInstance->CreateGameModeForWorld(this);
+	if (!AuthorityGameMode)
+	{
+		HTR_LOG(Error, "[World] failed to spawn GameMode actor");
+		return false;
+	}
+	AuthorityGameMode->PreInitializeComponents();
+	return true;
 }
 
 void UWorld::EndPlay()
@@ -777,6 +932,7 @@ void UWorld::EndPlay()
 				Actor->DispatchEndPlay();
 		}
 	}
+	bBegunPlay = false;
 }
 
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)

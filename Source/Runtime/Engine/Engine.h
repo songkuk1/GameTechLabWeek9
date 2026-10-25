@@ -10,6 +10,8 @@
 
 #include "Asset/AssetManager.h"
 
+class UGameInstance;
+
 struct FWorldContext
 {
 	EWorldType WorldType;
@@ -17,6 +19,10 @@ struct FWorldContext
 	// Renderer 소유 World별 그림자 자원 슬롯의 비소유 번호. 저장/복제하지 않는다.
 	uint32 ShadowResourceIndex = InvalidShadowResourceIndex;
 
+	// Game·PIE 컨텍스트만 가진다(에디터 컨텍스트는 nullptr). 컨텍스트와 함께 만들어지고 지워진다.
+	UGameInstance* OwningGameInstance = nullptr;
+
+	// 월드를 바꿔 끼우면 새 월드에 OwningGameInstance를 연결한다.
 	void SetCurrentWorld(UWorld* World);
 
 	inline UWorld* World() const

@@ -27,13 +27,13 @@ public:
 	virtual ~ULightComponentBase() override = default;
 
 	const FColor& GetLightColor() const { return LightColor; }
-	void SetLightColor(const FColor& InColor) { LightColor = InColor; }
+	void SetLightColor(const FColor& InColor) { LightColor = InColor; MarkSceneProxyDirty(); }
 
 	float GetIntensity() const { return Intensity; }
-	void SetIntensity(float InIntensity) { Intensity = InIntensity; }
+	void SetIntensity(float InIntensity) { Intensity = InIntensity; MarkSceneProxyDirty(); }
 
 	bool IsLightVisible() const { return bVisible; }
-	void SetLightVisible(bool bInVisible) { bVisible = bInVisible; }
+	void SetLightVisible(bool bInVisible) { bVisible = bInVisible; MarkSceneProxyDirty(); }
 
 	// 감마 모드에서는 sRGB 색을 디코딩하지 않은 채 Intensity를 곱한다.
 	FVector GetShaderColorWithIntensity() const

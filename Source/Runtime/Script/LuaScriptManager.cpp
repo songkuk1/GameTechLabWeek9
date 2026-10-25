@@ -15,6 +15,8 @@ FLuaScriptManager::~FLuaScriptManager() = default;   // sol::state가 완전한 
 
 sol::state& FLuaScriptManager::GetState()
 {
+	// Initialize 전이나 Shutdown 후에 Script Load 하려고 할 때
+	assert(Lua && "Lua VM is not initialized or already shut down");
 	return *Lua;
 }
 

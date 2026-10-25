@@ -14,11 +14,16 @@
 #include "Camera/CameraActor.h"
 #include "Asset/LOD/StaticMeshLODSelector.h"
 #include "Engine/EngineTypes.h"
+#include "Engine/HUD.h"
 
 //class ACameraActor;
 class ULevel;
 class UBillboardComponent;
 class UShapeComponent;
+class UGameInstance;
+class AGameModeBase;
+class AGameStateBase;
+class FLuaScriptInsatance;
 
 struct FLODViewContext;
 
@@ -75,14 +80,41 @@ public:
 
 	bool DestroyActor(AActor* Actor);
 
+	// 파괴 예정으로 표시. Frame 끝에서 delete
+	void DeferDelete(UObject* Object);
+	// 실제로 delete. Tick 끝과 ClearWorld 에서 호출
+	void FlushPendingKill();
+
+	// Coroutine을 World가 매 Frame 진행하도록 등록 / 해제 ( BeginPlay, EndPlay에서 호출 )
+	void RegisterScriptInstance(FLuaScriptInstance* Instance);
+	void UnregisterScriptInstance(FLuaScriptInstance* Instance);
+
 	// View별 Billboard 행렬 공급자는 이 동기 호출 동안만 사용하며 저장하지 않는다.
 	using FBillboardTraceTransform = FMatrix(*)(const UBillboardComponent&, const void*);
 	// 현재 World의 Component에 Ray를 전달하고 가장 가까운 유효 교차를 반환한다.
 	bool LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 		FBillboardTraceTransform ResolveBillboard = nullptr, const void* ViewContext = nullptr);
 
+	// 플레이 월드 준비가 끝나면 엔진이 한 번 부른다. GameMode->StartPlay()로 넘긴다.
 	void BeginPlay();
 	void EndPlay();
+
+	// UE의 AWorldSettings::NotifyBeginPlay. GameState::HandleBeginPlay가 부른다.
+	// Level의 모든 액터에 BeginPlay를 보내고 bBegunPlay를 켠다. 그 뒤 스폰된 액터는 Tick에서 BeginPlay를 받는다.
+	void NotifyBeginPlay();
+	bool HasBegunPlay() const { return bBegunPlay; }
+
+	// FWorldContext::SetCurrentWorld가 연결한다. 에디터 월드는 nullptr.
+	UGameInstance* GetGameInstance() const { return OwningGameInstance; }
+	void SetGameInstance(UGameInstance* InGameInstance) { OwningGameInstance = InGameInstance; }
+
+	// GameInstance에게 GameMode를 만들게 하고, GameMode는 GameState를 스폰한다.
+	// 플레이 월드를 준비한 뒤(씬 로드·PIE 복제 직후) 한 번 부른다. 이미 있으면 아무것도 하지 않는다.
+	bool SetGameMode();
+	AGameModeBase* GetAuthGameMode() const { return AuthorityGameMode; }
+
+	AGameStateBase* GetGameState() const { return GameState; }
+	void SetGameState(AGameStateBase* InGameState) { GameState = InGameState; }
 
 	// 움직인 컴포넌트를 표시해두면 Tick 끝에서 한 번 UpdateOverlaps를 불러준다. 에디터 월드에서는 무시한다.
 	void MarkOverlapDirty(UPrimitiveComponent* Component);
@@ -97,6 +129,10 @@ public:
 	void RemoveShape(UShapeComponent* Shape);
 
 	FScene& GetScene() { return Scene; }
+
+	FHUD& GetHUD() { return HUD; }
+	const FHUD& GetHUD() const { return HUD; }
+
 	FTickTaskManager& GetTickTaskManager() { return TickTaskManager; }
 
 	const FRenderStats& GetRenderStats() const { return RenderStats; }
@@ -107,6 +143,7 @@ public:
 	static UWorld* CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName = NAME_None); /*, UPackage* InWorldPackage = NULL, bool bAddToRoot = true, ERHIFeatureLevel::Type InFeatureLevel = ERHIFeatureLevel::Num, const InitializationValues* InIVS = nullptr, bool bInSkipInitWorld = false);*/
 
 	bool IsPlayInEditor() const { return WorldType == EWorldType::PIE; }
+	bool IsGameWorld() const { return WorldType == EWorldType::PIE || WorldType == EWorldType::Game; }
 
 	static UWorld* GetDuplicatedWorldForPIE(UWorld* InWorld);
 
@@ -134,7 +171,9 @@ private:
 	// 등록된 Tick 함수만 실행한다. Actor보다 먼저 사라져도 남은 함수와의 연결을 스스로 끊는다.
 	FTickTaskManager TickTaskManager;
 
+	// Tick은 NotifyBeginPlay 이후 스폰된 액터에게만 BeginPlay를 보낸다. 그 전에 쌓인 것은 NotifyBeginPlay가 비운다.
 	TQueue<AActor*> BeginPlayList;
+	bool bBegunPlay = false;
 
 	void UpdatePendingOverlaps();
 	TArray<UPrimitiveComponent*> PendingOverlapUpdates;
@@ -142,14 +181,20 @@ private:
 	// 이 월드의 Shape만 모아둔다. 전역 순회(TObjectIterator)로 다른 월드까지 훑지 않도록
 	TArray<UShapeComponent*> Shapes;
 
-	//메인 카메라 
+	//메인 카메라
 	ACameraActor* MainCamera = nullptr;
+
+	// 소유하지 않는다. GameInstance는 FWorldContext가, GameMode·GameState는 Level이 지운다.
+	UGameInstance* OwningGameInstance = nullptr;
+	AGameModeBase* AuthorityGameMode = nullptr;
+	AGameStateBase* GameState = nullptr;
 
 	ULevel* PersistentLevel = nullptr;
 	ULevel* CurrentLevel = nullptr;
 	TArray<ULevel*> Levels;
 
 	FScene Scene;
+	FHUD HUD;
 
 	// GatherRenderPackets가 매 프레임 채우는 컬링 결과. 용량을 재사용한다.
 	TArray<FPrimitiveSceneProxy*> VisibleProxies;
@@ -158,4 +203,12 @@ private:
 
 	FRenderStats RenderStats;
 
+	// Destroy 되었지만 아직 delete 하지 않은 객체 모아두는 배열 ( Frame 끝에서 지울 수 있도록 )
+	TArray<UObject*> PendingKillObjects;
+
+	void TickScriptCoroutines(float DeltaTime);
+
+	// 비소유. Instance 는 Actor/Component 가 소유
+	TArray<FLuaScriptInstance*> ScriptInstances;
+	bool bTickingScripts = false;
 };

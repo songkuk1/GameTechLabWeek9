@@ -449,3 +449,7 @@ editor.ini
 
 # 셰이더 컴파일 캐시 (실행 시 자동 생성)
 /Intermediate/
+
+# LuaJIT 정적 lib은 빌드 결과물이 아니라 저장소에 넣어 두는 외부 라이브러리
+!Source/ThirdParty/LuaJIT/lib/Debug/
+!Source/ThirdParty/LuaJIT/lib/Release

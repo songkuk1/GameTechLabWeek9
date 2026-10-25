@@ -3,6 +3,9 @@
 #include "Render/Buffer.h"
 #include "Render/PipelineState.h"
 
+// UTF-8 문자열을 유니코드 코드포인트 배열로 바꾼다. 잘못된 바이트는 건너뛴다.
+TArray<uint32> DecodeUTF8(const FString& Str);
+
 struct FTextVertex;
 class UFont;
 class UCameraComponent;

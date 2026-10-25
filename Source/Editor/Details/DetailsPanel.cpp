@@ -1086,12 +1086,13 @@ bool FDetailsPanel::Init()
 
 	io.Fonts->AddFontDefault();
 
-	const char* fontPath = EditorResourcePaths::UIFont;
+	const char* fontPath = EditorResourcePaths::UIFontPretendard;
 	float fontSize = 15.0f;
 	const ImWchar* koreanRanges = io.Fonts->GetGlyphRangesKorean();
 
 	CustomFont = io.Fonts->AddFontFromFileTTF(fontPath, fontSize, nullptr, koreanRanges);
 	assert(CustomFont != nullptr);
+	io.FontDefault = CustomFont;
 
 	return true;
 }

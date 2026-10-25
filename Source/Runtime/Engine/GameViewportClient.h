@@ -14,7 +14,7 @@ public:
 	UCameraComponent* GetCamera() const;
 	bool HasCamera() const override { return GetCamera() != nullptr; }
 	void SetInputEnabled(bool bEnabled) override;
-	void UpdateInput(const FViewportInput& Input, FVector2 OutputSize) override { SetInputEnabled(Input.bEnabled); }
+	void UpdateInput(const FViewportInput& Input, FVector2 OutputSize) override;
 	FSceneView CreateSceneView(FVector2 OutputSize) const override;
 
 

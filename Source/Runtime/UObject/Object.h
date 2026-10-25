@@ -95,24 +95,29 @@ public:
 	bool IsA(const UClass* Class);
 
 	uint32 GetUUID() const { return ObjectUUID; }
-	void SetUUID(uint32 Uid) { ObjectUUID = Uid; }
+	void SetUUID(uint32 Uid);
 
+	
 	const FName& GetFName() const { return Name; }         // FName 비교용
 	FString GetName() const { return Name.ToString(); }    // Name 출력용
-
+	
 	UObject* GetOuter() const { return Outer; }
 	void SetOuter(UObject* InOuter) { Outer = InOuter; }
-
+	
 	void SetName(const FName& InName) { Name = FName(InName); }
-
+	
 	inline static void RegisterProperties(UClass* InClass) {};
-
+	
 	inline void SetFlags(EObjectFlags NewFlags) { Flags |= NewFlags; }
 	inline void ClearFlags(EObjectFlags FlagsToClear) { Flags &= ~FlagsToClear; }
 	inline bool HasAnyFlags(EObjectFlags FlagsToCheck) const { return HasFlag(Flags, FlagsToCheck); }
 	inline bool HasAllFlags(EObjectFlags FlagsToCheck) const { return (Flags & FlagsToCheck) == FlagsToCheck; }
 	inline EObjectFlags GetFlags() const { return Flags; }
 	EObjectFlags GetMaskedFlags(EObjectFlags Mask = EObjectFlags::RF_AllFlags) const{return EObjectFlags(GetFlags() & Mask);}
+	
+	// UE의 IsGarbage() 역할. Destroy된 뒤 실제로 delete 되기 전까지 true
+	bool IsPendingKill() const { return HasAnyFlags(EObjectFlags::RF_PendingKill); }
+	void MarkPendingKill() { SetFlags(EObjectFlags::RF_PendingKill); }
 
 	virtual void Serialize(json& Handle, bool bIsLoading);
 	virtual void Serialize(FArchive& Ar);
@@ -169,7 +174,11 @@ private:
 
 extern TArray<UObject*> GUObjectArray;
 
+// 살아있는 객체 UUID로 검색 ( delete 된 객체면 nullptr )
+UObject* FindObjectByUUID(uint32 UUID);
+
+// nullptr 이거나 destroy 예정이면 invalid
 inline bool IsValid(const UObject* Test)
 {
-	return Test != nullptr;
+	return Test != nullptr && !Test->IsPendingKill();
 }

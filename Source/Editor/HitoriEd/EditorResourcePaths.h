@@ -6,6 +6,7 @@ namespace EditorResourcePaths
 {
 	// ImGui 한글 UI 폰트
 	constexpr const char* UIFont = "Resources/Fonts/HMKMRHD.TTF";
+	constexpr const char* UIFontPretendard = "Resources/Fonts/Pretendard-Regular.otf";
 
 	constexpr const char* FolderIcon = "Resources/Icons/Folder.png";
 	constexpr const char* FileIcon = "Resources/Icons/File.png";
