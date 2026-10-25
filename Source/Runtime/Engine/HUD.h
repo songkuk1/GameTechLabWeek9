@@ -27,6 +27,23 @@ struct FHUDDrawCommand
     UTexture2D* Texture = nullptr;  // Image 전용
 };
 
+// GameViewportClient가 매 프레임 채우는 HUD 입력
+struct FHUDInput
+{
+	FVector2 MousePosition;
+	bool bMouseDown = false;      // 왼쪽 버튼을 누르고 있는지
+	bool bMousePressed = false;   // 이번 프레임에 왼쪽 버튼을 눌렀는지
+	bool bEnabled = false;        // 이 화면에 입력 권한이 있는지 (포커스)
+};
+
+// 버튼 영역의 이번 프레임 입력 상태. 그리기와 별개로 판정만 한다.
+struct FHUDButtonState
+{
+	bool bHovered = false;   // 마우스가 버튼 위에 있음
+	bool bHeld = false;      // 버튼 위에서 왼쪽 버튼을 누르고 있음
+	bool bClicked = false;   // 이번 프레임에 버튼 위에서 눌렀음
+};
+
 // 월드의 화면 위 UI. 매 프레임 비우고 새로 채움.
 // 무엇을 그릴지 담아둠. ( FHUDRenderer 가 그림 )
 class FHUD
@@ -85,9 +102,24 @@ public:
 
     void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color);
 
+	void SetInput(const FHUDInput& InInput) { Input = InInput; }
+	void ClearInput() { Input = FHUDInput{}; }
+	const FHUDInput& GetInput() const { return Input; }
+
+	// 버튼 영역의 이번 프레임 입력 상태. 아무것도 그리지 않는다.
+	FHUDButtonState GetButtonState(const FVector2& Position, const FVector2& Size) const;
+
+	// 배경과 라벨을 그리고, 이번 프레임에 버튼 위에서 왼쪽 버튼을 눌렀으면 true
+	bool Button(const FString& Label, const FVector2& Position, const FVector2& Size, float FontSize);
+
+	// 이미지 버튼. 상태는 틴트로 표현한다 (Hover: 밝게, Pressed: 어둡게). Label이 비어 있으면 글자를 그리지 않는다.
+	bool ImageButton(UTexture2D* Texture, const FVector2& Position, const FVector2& Size,
+		const FString& Label = FString(), float FontSize = 24.0f);
+
 private:
 	TArray<FHUDDrawCommand> Commands;
 	FVector2 ScreenSize;
+    FHUDInput Input;
 };
 
 // Script가 그릴 HUD 찾기

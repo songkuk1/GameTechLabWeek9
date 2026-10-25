@@ -52,4 +52,28 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 			UTexture2D* Texture = UAssetManager::Get().LoadTexture(Path);
 			HUD->AddImage(Texture, FVector2(X, Y), FVector2(W, H), Tint.value_or(DefaultHUDColor));
 		});
+
+    // HUDButton(label, x, y, w, h [, size])
+	Env.set_function("HUDButton",
+		[Owner](const FString& Label, float X, float Y, float W, float H, sol::optional<float> Size) -> bool
+		{
+			if (FHUD* HUD = FindHUDForObject(Owner))
+				return HUD->Button(Label, FVector2(X, Y), FVector2(W, H), Size.value_or(DefaultHUDFontSize));
+			return false;
+		});
+
+	// HUDImageButton(path, x, y, w, h [, label [, size]])
+	// 이미지 하나로 만든 버튼. Hover면 밝게, 누르는 중이면 어둡게 그린다.
+	Env.set_function("HUDImageButton",
+		[Owner](const FString& Path, float X, float Y, float W, float H,
+			sol::optional<FString> Label, sol::optional<float> Size) -> bool
+		{
+			FHUD* HUD = FindHUDForObject(Owner);
+			if (!HUD)
+				return false;
+
+			UTexture2D* Texture = UAssetManager::Get().LoadTexture(Path);
+			return HUD->ImageButton(Texture, FVector2(X, Y), FVector2(W, H),
+				Label.value_or(FString()), Size.value_or(DefaultHUDFontSize));
+		});
 }

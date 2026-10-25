@@ -1,6 +1,8 @@
 #include "EnginePCH.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "Engine/HUD.h"
+#include "Input/InputSystem.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include <cassert>
@@ -16,6 +18,10 @@ void FGameViewportClient::SetInputEnabled(const bool bEnabled)
 {
 	if (UCameraComponent* Camera = GetCamera())
 		Camera->SetExternalInputManaged(!bEnabled);
+
+	// 입력 권한을 잃으면 HUD 입력도 비운다. 다른 화면을 클릭한 것이 버튼에 남지 않게 한다.
+	if (!bEnabled)
+		World->GetHUD().ClearInput();
 }
 
 FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
@@ -40,4 +46,21 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	FCameraProjection Projection = Camera->GetProjectionSettings();
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
 	return FSceneView(Camera->GetWorldLocation(), Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+}
+
+void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 OutputSize)
+{
+	SetInputEnabled(Input.bEnabled);
+
+	// 렌더할 때와 같은 화면 크기로 배율을 맞추고, 화면 기준 마우스(픽셀)를 HUD 기준 단위로 바꾼다
+	FHUD& HUD = World->GetHUD();
+	HUD.SetScreenSize(OutputSize);
+	const float Scale = HUD.GetScale();
+
+	FHUDInput HUDInput;
+	HUDInput.bEnabled = Input.bEnabled;
+	HUDInput.MousePosition = FVector2(Input.MousePosition.X / Scale, Input.MousePosition.Y / Scale);
+	HUDInput.bMouseDown = FInputSystem::IsMouseDown(EMouseButton::Left);
+	HUDInput.bMousePressed = FInputSystem::IsMousePressed(EMouseButton::Left);
+	HUD.SetInput(HUDInput);
 }
