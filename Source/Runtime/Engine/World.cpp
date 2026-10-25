@@ -127,6 +127,10 @@ void UWorld::Tick(float DeltaTime)
 		// 지난 Frame 명령 버리고 새로 채우기
 		HUD.BeginFrame();
 
+		// HUD Test
+		HUD.AddRect(FVector2(20.0f, 20.0f), FVector2(240.0f, 32.0f), FLinearColor(0.1f, 0.1f, 0.1f, 0.7f));   // 반투명 배경
+		HUD.AddRect(FVector2(24.0f, 24.0f), FVector2(160.0f, 24.0f), FLinearColor(0.9f, 0.2f, 0.2f, 1.0f));   // 빨간 바
+
 		// 처음 BeginPlay는 GameMode::StartPlay → NotifyBeginPlay가 한꺼번에 보낸다.
 		// 여기서는 그 뒤에 스폰된 액터만 받는다.
 		while (bBegunPlay && !BeginPlayList.IsEmpty())

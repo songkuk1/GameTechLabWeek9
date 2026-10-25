@@ -197,9 +197,9 @@ void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FS
 	ScenePipeline.RenderScene(InViewport, ViewWorld, View, SceneRenderer, ShadowResourceIndex, bShadows, Settings, DirectionalFrame);
 	// 2. 후처리: Fog -> Gamma -> FXAA (표시용 sRGB)
 	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, Settings);
-	// TODO: HUD
-
-
+	// 3. HUD
+	ViewWorld.GetHUD().SetScreenSize(InViewport.GetOutputSize());
+	ScenePipeline.RenderHUD(InViewport, ViewWorld.GetHUD());
 }
 
 void UGameEngine::CopyViewportToBackbuffer()
