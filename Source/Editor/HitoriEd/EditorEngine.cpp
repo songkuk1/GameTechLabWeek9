@@ -513,7 +513,10 @@ void UEditorEngine::TickWorldAndEditor(const float DeltaTime)
 	UpdateGizmoAndPicking();
 	//SCOPE_CYCLE_COUNTER(STAT_UpdateAllTransforms);
 	EditorWorld->GetScene().UpdateAllTransforms();
-	if (PlayWorld && bIsPaused)
+
+	// Tick 중에 바뀐 Scene을 렌더 전에 반영
+	// 실행 중에도 반영해야 BVH에 지워진 Proxy가 남지 않는다.
+	if (PlayWorld)
 		PlayWorld->GetScene().UpdateAllTransforms();
 }
 
