@@ -128,8 +128,9 @@ void UWorld::Tick(float DeltaTime)
 		HUD.BeginFrame();
 
 		// HUD Test
-		HUD.AddRect(FVector2(20.0f, 20.0f), FVector2(240.0f, 32.0f), FLinearColor(0.1f, 0.1f, 0.1f, 0.7f));   // 반투명 배경
-		HUD.AddRect(FVector2(24.0f, 24.0f), FVector2(160.0f, 24.0f), FLinearColor(0.9f, 0.2f, 0.2f, 1.0f));   // 빨간 바
+		HUD.AddRect(FVector2(20.0f, 20.0f), FVector2(260.0f, 40.0f), FLinearColor(0.1f, 0.1f, 0.1f, 0.7f));
+		HUD.AddText("Score: 1234 점수", FVector2(30.0f, 28.0f), 24.0f, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
+		HUD.AddText("HP", FVector2(30.0f, 70.0f), 18.0f, FLinearColor(1.0f, 0.3f, 0.3f, 1.0f));
 
 		// 처음 BeginPlay는 GameMode::StartPlay → NotifyBeginPlay가 한꺼번에 보낸다.
 		// 여기서는 그 뒤에 스폰된 액터만 받는다.

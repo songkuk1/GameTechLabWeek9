@@ -3,55 +3,141 @@
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
 #include "Engine/HUD.h"
+#include "Text/Font.h"
+#include "Text/TextRenderer.h"
+#include "Asset/AssetManager.h"
+#include "Core/ResourcePaths.h"
+
+namespace
+{
+	// Text Shader b1
+	struct FHUDMSDFParams
+	{
+		float PxRange = 2.0f;
+		float Padding[3] = {};
+	};
+
+	// 반투명 UI : Culling off, Alpha Blend, Depth off (항상 맨 위)
+	void SetupHUDPipeline(FPipelineState& Pipeline, const char* ShaderPath)
+	{
+		Pipeline.Shader = FRenderResourceManager::GetShaderProgram(ShaderPath);
+		Pipeline.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		Pipeline.RasterizerState = ERasterizerState::SolidNone;
+		Pipeline.BlendState = EBlendState::AlphaBlend;
+		Pipeline.DepthStencilState = EDepthStencilState::Disabled;
+	}
+
+	FVector4 ToVector4(const FLinearColor& Color)
+	{
+		return FVector4(Color.R, Color.G, Color.B, Color.A);
+	}
+}
 
 bool FHUDRenderer::Init()
 {
-	// 위치, UV, 색 정점을 행렬 하나로 변환하고 색만 출력하는 셰이더
-	PipelineState.Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/BoundingBoxShader.hlsl");
-	PipelineState.Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	PipelineState.RasterizerState = ERasterizerState::SolidNone;        // Culling 끔
-	PipelineState.BlendState = EBlendState::AlphaBlend;                 // 반투명 패널
-	PipelineState.DepthStencilState = EDepthStencilState::Disabled;     // 항상 맨 위
+	// 사각형
+	SetupHUDPipeline(RectPipeline, "Resources/Shader/BoundingBoxShader.hlsl");
+	// 텍스트
+	SetupHUDPipeline(TextPipeline, "Resources/Shader/HUDTextShader.hlsl");
 
 	VertexBuffer = RenderCommand::CreateDynamicVertexBuffer(sizeof(FVertex) * MaxQuads * 6, sizeof(FVertex));
-	ConstantBuffer = RenderCommand::CreateConstantBuffer(sizeof(FMatrix));
+	TransformBuffer = RenderCommand::CreateConstantBuffer(sizeof(FMatrix));
+	MSDFParamsBuffer = RenderCommand::CreateConstantBuffer(sizeof(FHUDMSDFParams));
 
-	return PipelineState.Shader != nullptr;
+	// 기본 폰트 아틀라스
+	Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
+
+	return RectPipeline.Shader && TextPipeline.Shader;
 }
 
-void FHUDRenderer::AddQuad(const FVector2& Position, const FVector2& Size, const FVector4& Color)
+void FHUDRenderer::AddQuad(float Left, float Top, float Right, float Bottom,
+	const FVector2& UVMin, const FVector2& UVMax, const FVector4& Color)
 {
 	if (static_cast<uint32>(Vertices.Num()) + 6 > MaxQuads * 6)
 		return;   // 넘치면 버린다
 
-	const float L = Position.X;
-	const float T = Position.Y;
-	const float R = Position.X + Size.X;
-	const float B = Position.Y + Size.Y;
-	const FVector2 UV;
+	// 왼쪽 위 오른쪽 위 → 오른쪽 아래 / 왼쪽 위 → 오른쪽 아래 → 왼쪽 아래
+	Vertices.Add({ FVector(Left,  Top,    0.0f), FVector2(UVMin.X, UVMin.Y), Color });  // 좌상
+	Vertices.Add({ FVector(Right, Top,    0.0f), FVector2(UVMax.X, UVMin.Y), Color });  // 우상
+	Vertices.Add({ FVector(Right, Bottom, 0.0f), FVector2(UVMax.X, UVMax.Y), Color });  // 우하
 
-	// 왼쪽 위 -> 오른쪽 위 ->  오른쪽 아래 / 왼쪽 위 ->  오른쪽 아래 ->  왼쪽 아래
-	Vertices.Add({ FVector(L, T, 0.0f), UV, Color });
-	Vertices.Add({ FVector(R, T, 0.0f), UV, Color });
-	Vertices.Add({ FVector(R, B, 0.0f), UV, Color });
-	Vertices.Add({ FVector(L, T, 0.0f), UV, Color });
-	Vertices.Add({ FVector(R, B, 0.0f), UV, Color });
-	Vertices.Add({ FVector(L, B, 0.0f), UV, Color });
+	Vertices.Add({ FVector(Left,  Top,    0.0f), FVector2(UVMin.X, UVMin.Y), Color });  // 좌상
+	Vertices.Add({ FVector(Right, Bottom, 0.0f), FVector2(UVMax.X, UVMax.Y), Color });  // 우하
+	Vertices.Add({ FVector(Left,  Bottom, 0.0f), FVector2(UVMin.X, UVMax.Y), Color });  // 좌하
+}
+
+void FHUDRenderer::AppendRect(const FHUDDrawCommand& Command)
+{
+	AddQuad(Command.Position.X, Command.Position.Y,
+		Command.Position.X + Command.Size.X, Command.Position.Y + Command.Size.Y,
+		FVector2(), FVector2(), ToVector4(Command.Color));
+}
+
+void FHUDRenderer::AppendText(const FHUDDrawCommand& Command)
+{
+	if (!Font || !Font->AtlasTexture || Command.Text.empty())
+		return;
+
+	// 글리프 좌표는 위로 + 픽셀은 아래로 +
+    // 기준선을 FontSize만큼 아래에 둔다.
+	const float Size = Command.FontSize;
+	const float Baseline = Command.Position.Y + Size;
+	float PenX = Command.Position.X;
+	const FVector4 Color = ToVector4(Command.Color);
+
+	for (uint32 CodePoint : DecodeUTF8(Command.Text))
+	{
+		const FGlyphInfo* Glyph = Font->GlyphMap.Find(CodePoint);
+		if (!Glyph)	continue;    // 아틀라스에 없는 글자는 건너뛴다
+		if (Glyph->bHasBounds)   // 공백은 그릴 것 없이 펜만 옮긴다
+		{
+			const float Left   = PenX + Glyph->PlaneLeft * Size;
+			const float Right  = PenX + Glyph->PlaneRight * Size;
+			const float Top    = Baseline - Glyph->PlaneTop * Size;
+			const float Bottom = Baseline - Glyph->PlaneBottom * Size;
+
+			// 아틀라스 픽셀 좌표 -> UV. 아틀라스는 아래가 0이라 V를 뒤집음.
+			const FVector2 UVMin(Glyph->AtlasLeft / Font->Width, 1.0f - Glyph->AtlasTop / Font->Height);
+			const FVector2 UVMax(Glyph->AtlasRight / Font->Width, 1.0f - Glyph->AtlasBottom / Font->Height);
+
+			AddQuad(Left, Top, Right, Bottom, UVMin, UVMax, Color);
+		}
+		PenX += Glyph->Advance * Size;
+	}
+}
+
+void FHUDRenderer::Flush(EHUDCommandType Type)
+{
+	if (Vertices.Num() == 0)
+		return;
+
+	RenderCommand::UpdateBufferData(VertexBuffer.get(), Vertices.GetData(), sizeof(FVertex) * Vertices.Num());
+
+	if (Type == EHUDCommandType::Text)
+	{
+		FHUDMSDFParams Params;
+		Params.PxRange = Font->DistanceRange;
+		RenderCommand::UpdateBufferData(MSDFParamsBuffer.get(), &Params, sizeof(Params));
+
+		RenderCommand::BindPipelineState(TextPipeline);
+		RenderCommand::BindShaderResource(0, Font->AtlasTexture, EShaderBindFlagBits::Pixel);
+		RenderCommand::BindConstantBuffer(1, MSDFParamsBuffer.get(), EShaderBindFlagBits::Pixel);
+	}
+	else
+	{
+		RenderCommand::BindPipelineState(RectPipeline);
+	}
+
+	RenderCommand::BindConstantBuffer(0, TransformBuffer.get(), EShaderBindFlagBits::Vertex);
+	RenderCommand::BindVertexBuffer(VertexBuffer.get());
+	RenderCommand::Draw(Vertices.Num(), 0);
+
+	Vertices.Reset();
 }
 
 void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeight)
 {
-	if (ScreenWidth <= 0.0f || ScreenHeight <= 0.0f)
-		return;
-
-	Vertices.Reset();
-	for (const FHUDDrawCommand& Command : HUD.GetCommands())
-	{
-		if (Command.Type == EHUDCommandType::Rect)
-			AddQuad(Command.Position, Command.Size, FVector4(Command.Color.R, Command.Color.G, Command.Color.B, Command.Color.A));
-		// Text는 3단계에서 처리한다
-	}
-	if (Vertices.Num() == 0)
+	if (ScreenWidth <= 0.0f || ScreenHeight <= 0.0f || HUD.GetCommands().Num() == 0)
 		return;
 
 	// 픽셀(왼쪽 위 0,0 / 아래로 +y) -> NDC(-1~1 / 위로 +y)
@@ -60,12 +146,23 @@ void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeig
 		0.0f,               -2.0f / ScreenHeight, 0.0f, 0.0f,
 		0.0f,               0.0f,                 1.0f, 0.0f,
 		-1.0f,              1.0f,                 0.0f, 1.0f);
+	RenderCommand::UpdateBufferData(TransformBuffer.get(), &PixelToNDC, sizeof(FMatrix));
 
-	RenderCommand::UpdateBufferData(VertexBuffer.get(), Vertices.GetData(), sizeof(FVertex) * Vertices.Num());
-	RenderCommand::UpdateBufferData(ConstantBuffer.get(), &PixelToNDC, sizeof(FMatrix));
+	// 같은 종류가 이어지는 동안 정점을 쌓고, 종류가 바뀌면 그때까지 쌓은 것을 그린다
+	Vertices.Reset();
+	EHUDCommandType BatchType = HUD.GetCommands()[0].Type;
+	for (const FHUDDrawCommand& Command : HUD.GetCommands())
+	{
+		if (Command.Type != BatchType)
+		{
+			Flush(BatchType);
+			BatchType = Command.Type;
+		}
 
-	RenderCommand::BindPipelineState(PipelineState);
-	RenderCommand::BindVertexBuffer(VertexBuffer.get());
-	RenderCommand::BindConstantBuffer(0, ConstantBuffer.get(), EShaderBindFlagBits::Vertex);
-	RenderCommand::Draw(Vertices.Num(), 0);
+		if (Command.Type == EHUDCommandType::Rect)
+			AppendRect(Command);
+		else
+			AppendText(Command);
+	}
+	Flush(BatchType);
 }

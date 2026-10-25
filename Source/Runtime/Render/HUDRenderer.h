@@ -4,8 +4,12 @@
 #include "Render/Vertex.h"
 
 class FHUD;
+class UFont;
+enum class EHUDCommandType : uint8;
+struct FHUDDrawCommand;
 
-// FHUD Command를 화면 픽셀 좌표로 그림.
+// FHUD의 그리기 명령을 화면 픽셀 좌표로 그린다. 렌더 패스는 호출하는 쪽이 연다.
+// 같은 종류의 명령이 연속된 구간을 한 번에 그려서, 명령 순서(겹치는 순서)를 지킨다.
 class FHUDRenderer
 {
 public:
@@ -15,16 +19,23 @@ public:
 	FHUDRenderer& operator=(const FHUDRenderer&) = delete;
 
 	bool Init();
-	// 바인딩된 렌더 타깃( ScreenWidth x ScreenHeight )에 HUD를 그림.
+	// 바인딩된 렌더 타깃(ScreenWidth x ScreenHeight)에 HUD를 그린다.
 	void OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeight);
 
 private:
-	void AddQuad(const FVector2& Position, const FVector2& Size, const FVector4& Color);
+	void AppendRect(const FHUDDrawCommand& Command);
+	void AppendText(const FHUDDrawCommand& Command);
+	void AddQuad(float Left, float Top, float Right, float Bottom, const FVector2& UVMin, const FVector2& UVMax, const FVector4& Color);
+	// 지금까지 쌓은 정점을 Type에 맞는 파이프라인으로 그리고 비운다
+	void Flush(EHUDCommandType Type);
 
 	static constexpr uint32 MaxQuads = 4096;
 
-	FPipelineState PipelineState;
+	FPipelineState RectPipeline;
+	FPipelineState TextPipeline;
 	TUniquePtr<FVertexBuffer> VertexBuffer;
-	TUniquePtr<FConstantBuffer> ConstantBuffer;
+	TUniquePtr<FConstantBuffer> TransformBuffer;     // b0:  PixelToNDC
+	TUniquePtr<FConstantBuffer> MSDFParamsBuffer;    // b1:  PxRange
 	TArray<FVertex> Vertices;
+    UFont* Font = nullptr;                           // 에셋 매니저 소유
 };
