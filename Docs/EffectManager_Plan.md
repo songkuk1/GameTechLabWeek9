@@ -39,7 +39,7 @@ Lua (충돌 이벤트 등)
 | 중간점검 수정 | 완료 | Init을 `NotifyBeginPlay` 맨 앞으로, 프리셋 표를 Init/Shutdown과 분리(생성자에서 기본 등록), 풀 액터 이름 고유화 |
 | 3. SpawnEffectAttached·대상 파괴 처리 | 완료 | `TWeakObjectPtr`, 떼어내기는 `ReleaseSlot` 한 곳. 자동 점검 22개 통과 |
 | 4. 텍스트 이펙트 | 완료 | `FHUD::AddWorldText` + `RenderHUD(…, View)`에서 투영, 렌더러에서 글자 폭으로 가운데 맞춤. 상승·페이드·처음 크게 시작·그림자. 게임 화면 캡처로 확인 (4-3) |
-| 5. Lua 바인딩 | 다음 | Lua용 `RegisterEffect(이름, 테이블)` 추가해 C++ 재빌드 없이 튜닝 |
+| 5. Lua 바인딩 | 완료 | 5개 함수 + `RegisterEffect(이름, 테이블)`(C++ 재빌드 없이 튜닝). 게임 스크립트 연결까지. Lua 점검 15개 통과, 실제 맵(GameJamMap0)에서 발밑 연기·튀김·`-3` 확인 (7장) |
 | 6. Shutdown | 완료 | 2단계에서 처리. PIE 종료·Travel 모두 `EndPlay` → `ClearWorld` 순서 |
 | 7. 실제 아틀라스·튜닝 | 남음 | 지금 `PopcornCatch`/`HitSplash`는 기본 아틀라스 임시 사용 |
 
@@ -492,33 +492,38 @@ Slot.State = Free; ++Slot.Generation; FreeSlots.Add(i);
 
 ## 7. Lua 바인딩: `LuaBindings_Effect.cpp`
 
-[LuaBindings_HUD.cpp](../Source/Runtime/Script/LuaBindings_HUD.cpp)와 같은 방식으로 만든다.
+[LuaBindings_Effect.cpp](../Source/Runtime/Script/LuaBindings_Effect.cpp) (구현 완료). [LuaBindings_HUD.cpp](../Source/Runtime/Script/LuaBindings_HUD.cpp)와 같은 방식으로, 스크립트 environment마다 `Owner`를 잡아 그 월드의 매니저를 찾는다. 게임 월드가 아니면 아무것도 하지 않는다.
 
-```cpp
-void RegisterLuaEffectAPI(sol::environment& Env, UObject* Owner)
-{
-    // local h = SpawnEffect("HitSplash", pos [, rot [, loop [, duration]]])
-    Env.set_function("SpawnEffect", [Owner](const FString& Name, const FVector& Loc, sol::optional<FRotator> Rot,
-                                            sol::optional<bool> bLoop, sol::optional<float> Duration) -> int64 { ... });
+### Lua API
 
-    // local h = SpawnEffectAttached("FootSmoke", actor, offset [, loop [, duration]])
-    // SpawnTextEffect("-3", pos [, color [, duration]])
-    // StopEffect(h [, immediate])
-}
+```lua
+local h = SpawnEffect(name, location [, rotation [, loop [, duration]]])           -- 실패하면 -1
+local h = SpawnEffectAttached(name, actor [, offset [, loop [, duration [, rotation]]]])
+SpawnTextEffect(text, location [, color [, duration]])
+StopEffect(h [, immediate])         -- immediate가 아니면 남은 입자가 사라진 뒤 정리
+IsEffectActive(h)                   -- 재생 중이거나 남은 입자가 사라지는 중이면 true
+
+-- 키 이름은 FEffectDesc 필드와 같다. Base가 있으면 그 프리셋에서 시작한다. 같은 이름은 덮어쓴다.
+RegisterEffect("BigSplash", {
+    Base = "HitSplash",
+    ParticleCount = 20,
+    MinVelocity = FVector(-2, -2, 2), MaxVelocity = FVector(2, 2, 4),
+    Acceleration = FVector(0, 0, -8),
+})
 ```
 
-- **월드 찾기:** `FindHUDForObject`처럼 `Owner` → `AActor` → `GetWorld()`. 게임 월드가 아니면 아무것도 하지 않는다. 공용 헬퍼 `FindEffectManagerForObject`를 만들면 깔끔하다.
-- **핸들:** Lua에 구조체를 넘기기보다 `int64 Packed = (int64(Generation) << 32) | Index`로 숫자 하나를 넘긴다. 무효면 `-1`.
-- **등록:** 다른 `RegisterLua*API`를 부르는 곳(LuaBindings.cpp 또는 LuaScriptInstance)에 한 줄 추가한다.
+- **핸들:** 숫자 하나 (`FEffectHandle::Pack`). LuaJIT는 숫자를 double로 들고 있어 2^53까지만 정확하므로, 처음 계획한 `Generation << 32 | Index` 대신 `Generation * 65536 + Index`로 넣는다(Index는 MaxPoolSize 미만). 무효면 `-1`.
+- **RegisterEffect 검사:** 타입이 틀리거나(`MinVelocity = 3`), `Cols`/`Rows`가 1 미만이거나, 없는 `Base`면 어느 키인지 알려 주는 Lua 에러를 낸다. 모르는 키는 오타일 가능성이 커서 경고 로그만 남기고 등록한다.
+- **주의:** 이 함수들은 스크립트 environment에 등록된다. `dofile`로 읽은 라이브러리(`Lib/*.lua`)에서는 보이지 않으므로, 라이브러리는 상태만 알려 주고(`Controller.IsMoving()`) 호출은 액터 스크립트에서 한다.
 
-### 연결할 곳
+### 연결한 곳
 
 | 위치 | 호출 |
 |---|---|
-| `PopcornSpawner.lua` — 받았을 때 (지금 `print("... got ...")` 하는 곳) | `SpawnEffect("PopcornCatch", 컵 위치)` |
-| 팝콘 아닌 것이 바닥/캐릭터에 부딪혔을 때 | `SpawnEffect("HitSplash", 충돌 위치)` + `SpawnTextEffect("-3", 캐릭터 머리 위, 분홍)` |
-| `PlayerController.lua` — 이동 시작 | `SmokeHandle = SpawnEffectAttached("FootSmoke", self, 발밑, true)` |
-| `PlayerController.lua` — 이동 정지 | `StopEffect(SmokeHandle)` (매 프레임 스폰하지 않도록 시작/정지 순간에만) |
+| `PopcornSpawner.lua` `Collect` — 팝콘을 받았을 때 | `SpawnEffect("PopcornCatch", 낙하물 위치)` |
+| `PopcornSpawner.lua` `Collect` — 팝콘이 아닌 것에 맞았을 때 | `SpawnEffect("HitSplash", 낙하물 위치)` + `SpawnTextEffect("-3", 플레이어 위치 + 1.4, 분홍)` (표시만, 점수는 따로) |
+| `PopcornSpawner.lua` `Tick` — 팝콘이 아닌 것이 바닥에 처음 닿을 때 | `SpawnEffect("HitSplash", 바닥 위치)` |
+| `Player1.lua` / `Player2.lua` `Tick` — 걷기 시작 / 멈춤 | `SpawnEffectAttached("FootSmoke", obj, FVector(0, 0, -0.5), true)` / `StopEffect(h)`. 이동 여부는 `Lib/PlayerController.lua`의 `Controller.IsMoving()` |
 
 ---
 

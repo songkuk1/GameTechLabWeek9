@@ -21,6 +21,16 @@ struct FEffectHandle
 	uint32 Generation = 0;
 
 	bool IsValid() const { return Index >= 0; }
+
+	// Lua에 숫자 하나로 넘긴다. LuaJIT는 숫자를 double로 들고 있어 2^53까지만 정확하므로
+	// Generation을 32비트 위로 올리지 않고 Index(MaxPoolSize 미만)를 아래 16비트에 넣는다. 무효면 -1
+	int64 Pack() const { return IsValid() ? static_cast<int64>(Generation) * 65536 + Index : -1; }
+	static FEffectHandle Unpack(int64 Packed)
+	{
+		if (Packed < 0)
+			return FEffectHandle();
+		return FEffectHandle{ static_cast<int32>(Packed % 65536), static_cast<uint32>(Packed / 65536) };
+	}
 };
 
 // 월드의 이펙트를 파티클 컴포넌트 풀에서 꺼내 재생하고, 끝나면 돌려받는다.
@@ -40,6 +50,8 @@ public:
 	// 같은 이름이 있으면 덮어쓴다. Init 전에도 등록할 수 있다.
 	void RegisterEffect(FName Name, const FEffectDesc& Desc);
 	bool HasEffect(FName Name) const;
+	// 등록된 프리셋. 없으면 nullptr. 기존 프리셋을 바탕으로 새 프리셋을 만들 때 쓴다.
+	const FEffectDesc* FindEffect(FName Name) const;
 
 	// Duration > 0: 그 시간 뒤 방출을 멈춘다.
 	// Duration <= 0: 루프면 StopEffect까지 계속, 루프가 아니면 한 번 방출하고 끝난다.
@@ -108,6 +120,7 @@ private:
 	// 동시에 보일 이펙트 수 정도. 모자라면 MaxPoolSize까지 늘린다.
 	static constexpr int32 InitialPoolSize = 16;
 	static constexpr int32 MaxPoolSize = 64;
+	static_assert(MaxPoolSize <= 65536, "FEffectHandle::Pack는 Index를 16비트에 넣는다");
 
 	// 텍스트 이펙트 모양. 크기는 HUD 기준 단위(1920x1080)
 	static constexpr float TextFontSize = 44.0f;

@@ -160,6 +160,11 @@ bool FEffectManager::HasEffect(FName Name) const
 	return Descs.Find(Name) != nullptr;
 }
 
+const FEffectDesc* FEffectManager::FindEffect(FName Name) const
+{
+	return Descs.Find(Name);
+}
+
 FEffectHandle FEffectManager::SpawnEffect(FName Effect, const FVector& Location, const FRotator& Rotation, bool bLoop, float Duration)
 {
 	if (!World)
