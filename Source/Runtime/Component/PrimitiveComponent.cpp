@@ -204,6 +204,12 @@ void UPrimitiveComponent::BeginComponentOverlap(UPrimitiveComponent* Other)
 	Other->OnComponentBeginOverlap.Broadcast(Other, MyActor, this);
 	HTR_LOG(Info, "BeginOverlap: {} <-> {}", GetName(), Other->GetName());
 
+	if (MyActor && OtherActor)
+	{
+		MyActor->NotifyComponentBeginOverlap(this, OtherActor, Other);
+		OtherActor->NotifyComponentBeginOverlap(Other, MyActor, this);
+	}
+
 	if (!bActorsWereOverlapping && MyActor && OtherActor)
 	{
 		MyActor->NotifyActorBeginOverlap(OtherActor);

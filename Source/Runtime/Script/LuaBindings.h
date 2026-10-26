@@ -10,6 +10,8 @@ void RegisterLuaBindings(sol::state& Lua);
 // 분야별 등록 함수. 타입 의존 순서대로 RegisterLuaBindings가 호출한다.
 void RegisterLuaMathBindings(sol::state& Lua);
 void RegisterLuaObjectBindings(sol::state& Lua);
+void RegisterLuaInputBindings(sol::state& Lua);
+void RegisterLuaGameBindings(sol::state& Lua);
 
 // HUD 그리기 함수 등록 (DrawHUDRect, DrawHUDText, GetHUDSize)
 void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner);

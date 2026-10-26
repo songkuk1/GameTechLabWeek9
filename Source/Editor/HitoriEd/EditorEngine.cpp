@@ -34,6 +34,8 @@
 #include "Component/DirectionalLightComponent.h"
 #include "Component/ShapeComponent.h"
 #include "Core/ResourcePaths.h"
+#include "Core/ProjectSettings.h"
+#include "Serialization/JsonArchive.h"
 
 #include "Core/EngineLog.h"
 #include "Core/Stats/LightweightStats.h"
@@ -376,8 +378,15 @@ void UEditorEngine::Tick(const float DeltaTime)
 	}
 	if (bRequestEndPlayMapQueued) 
 	{ 
-		bRequestEndPlayMapQueued = false; 
-		EndPlayMap(); 
+		bRequestEndPlayMapQueued = false;
+		EndPlayMap();
+	}
+	if (!PendingPIEScenePath.empty())
+	{
+		const FString ScenePath = PendingPIEScenePath;
+		PendingPIEScenePath.clear();
+		if (PlayWorld)
+			TravelPIEToScene(ScenePath);
 	}
 	if (bPlaySessionRequested)	
 	{
@@ -1013,41 +1022,7 @@ void UEditorEngine::StartPlayInEditorSession()
 	{
 		// 에디터 월드에는 GameMode가 없으므로 복제본에도 없다. 복제 직후 새로 스폰한다.
 		PlayWorld->SetGameMode();
-
-		// 1. 씬에 배치된 ACameraActor가 있으면 해당 카메라를 메인 카메라로 지정
-		ACameraActor* PlacedCamera = nullptr;
-		if (PlayWorld->GetPersistentLevel())
-		{
-			for (AActor* Actor : PlayWorld->GetPersistentLevel()->GetActors())
-			{
-				if (ACameraActor* CamActor = Cast<ACameraActor>(Actor))
-				{
-					PlacedCamera = CamActor;
-					break;
-				}
-			}
-		}
-
-		if (PlacedCamera)
-		{
-			PlayWorld->SetMainCamera(PlacedCamera);
-		}
-		else if (PlayWorld->GetMainCamera())
-		{
-			// 2. 배치된 카메라가 없으면 현재 활성 에디터 뷰포트 시점에서 시작
-			const int32 SourceViewIndex = ViewportsPanel->GetEditorViewIndex();
-			const FEditorCameraState& EditorCam = ViewportsPanel->GetEditorClient(SourceViewIndex)->GetCamera();
-			if (UCameraComponent* GameCam = PlayWorld->GetMainCamera()->GetCameraComponent())
-			{
-				GameCam->SetRelativeLocation(EditorCam.Location);
-				GameCam->SetRelativeRotation(EditorCam.Rotation.ToFRotator());
-				GameCam->SetFieldOfView(EditorCam.Projection.FovDegrees);
-				GameCam->SetNearZ(EditorCam.Projection.NearClip);
-				GameCam->SetFarZ(EditorCam.Projection.FarClip);
-				GameCam->SetIsOrthogonal(EditorCam.Projection.Mode == EProjectionMode::Orthographic);
-				GameCam->SetOrthoWidth(EditorCam.Projection.OrthoWidth);
-			}
-		}
+		SetupPIEMainCamera();
 	}
 
 	if (!PlayWorld)
@@ -1080,6 +1055,86 @@ UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext& PIEContext, UW
 	return NewPIEWorld;
 }
 
+void UEditorEngine::SetupPIEMainCamera()
+{
+	// 1. 씬에 배치된 ACameraActor가 있으면 해당 카메라를 메인 카메라로 지정
+	ACameraActor* PlacedCamera = nullptr;
+	if (PlayWorld->GetPersistentLevel())
+	{
+		for (AActor* Actor : PlayWorld->GetPersistentLevel()->GetActors())
+		{
+			if (ACameraActor* CamActor = Cast<ACameraActor>(Actor))
+			{
+				PlacedCamera = CamActor;
+				break;
+			}
+		}
+	}
+
+	if (PlacedCamera)
+	{
+		PlayWorld->SetMainCamera(PlacedCamera);
+	}
+	else if (PlayWorld->GetMainCamera())
+	{
+		// 2. 배치된 카메라가 없으면 현재 활성 에디터 뷰포트 시점에서 시작
+		const int32 SourceViewIndex = ViewportsPanel->GetEditorViewIndex();
+		const FEditorCameraState& EditorCam = ViewportsPanel->GetEditorClient(SourceViewIndex)->GetCamera();
+		if (UCameraComponent* GameCam = PlayWorld->GetMainCamera()->GetCameraComponent())
+		{
+			GameCam->SetRelativeLocation(EditorCam.Location);
+			GameCam->SetRelativeRotation(EditorCam.Rotation.ToFRotator());
+			GameCam->SetFieldOfView(EditorCam.Projection.FovDegrees);
+			GameCam->SetNearZ(EditorCam.Projection.NearClip);
+			GameCam->SetFarZ(EditorCam.Projection.FarClip);
+			GameCam->SetIsOrthogonal(EditorCam.Projection.Mode == EProjectionMode::Orthographic);
+			GameCam->SetOrthoWidth(EditorCam.Projection.OrthoWidth);
+		}
+	}
+}
+
+void UEditorEngine::TravelToScene(const FString& ScenePath)
+{
+	if (!IsPlaying())
+	{
+		HTR_LOG(Warning, "[PIE] TravelToScene({}) ignored: not playing", ScenePath);
+		return;
+	}
+	PendingPIEScenePath = ScenePath;
+}
+
+// EndPlayMap과 같은 순서로 이전 PlayWorld를 지우되, PIE 창·패널·뷰포트는 그대로 두고 새 월드를 다시 붙인다.
+// 에디터 월드는 건드리지 않으므로 PIE를 끝내면 원래 편집 중이던 씬으로 돌아간다.
+void UEditorEngine::TravelPIEToScene(const FString& ScenePath)
+{
+	ResetSceneSelection();
+	SceneRenderer.EndFrame();
+	PIEViewport->EndPlay();
+	PlayWorld->EndPlay();
+	ReleaseWorldShadowResources(PlayWorld);
+	PlayWorld->ClearWorld();
+	DestroyWorldContext(PlayWorld);
+	delete PlayWorld;
+	PlayWorld = nullptr;
+
+	FWorldContext& PIEContext = CreateNewWorldContext(EWorldType::PIE);
+	PIEContext.SetCurrentWorld(UWorld::CreateWorld(EWorldType::PIE, false));
+	PlayWorld = PIEContext.World();
+	// 씬을 못 불러와도 PIE는 빈 월드로 이어 간다. 원인은 경고 로그로 남긴다.
+	if (!FJsonArchive::LoadWorld(PlayWorld, FProjectSettings::ToNativePath(ScenePath)))
+		HTR_LOG(Warning, "[PIE] failed to load scene {}; continuing with an empty world", ScenePath);
+	else
+		HTR_LOG(Info, "[PIE] traveled to scene: {}", ScenePath);
+
+	// 씬 파일에는 GameMode가 없다. 불러온 뒤 새로 스폰한다.
+	PlayWorld->SetGameMode();
+	SetupPIEMainCamera();
+
+	PIEViewport->BeginPlay(MakeUnique<FGameViewportClient>(*PlayWorld));
+	OnActiveWorldChanged();
+	PlayWorld->BeginPlay();
+}
+
 void UEditorEngine::OnActiveWorldChanged()
 {
 	ResetSceneSelection();
@@ -1087,6 +1142,7 @@ void UEditorEngine::OnActiveWorldChanged()
 
 void UEditorEngine::EndPlayMap()
 {
+	PendingPIEScenePath.clear();
 	if (!PlayWorld)
 		return;
 

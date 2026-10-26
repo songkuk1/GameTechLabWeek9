@@ -14,10 +14,12 @@ UCameraComponent* FGameViewportClient::GetCamera() const
 	return Actor ? Actor->GetCameraComponent() : nullptr;
 }
 
+// 게임 카메라는 입력과 상관없이 기본 자유 비행(WASD·우클릭·휠)을 쓰지 않는다.
+// WASD는 Lua 스크립트(플레이어 등)가 쓰고, 카메라를 움직이려면 스크립트가 위치·회전을 직접 바꾼다.
 void FGameViewportClient::SetInputEnabled(const bool bEnabled)
 {
 	if (UCameraComponent* Camera = GetCamera())
-		Camera->SetExternalInputManaged(!bEnabled);
+		Camera->SetExternalInputManaged(true);
 
 	// 입력 권한을 잃으면 HUD 입력도 비운다. 다른 화면을 클릭한 것이 버튼에 남지 않게 한다.
 	if (!bEnabled)

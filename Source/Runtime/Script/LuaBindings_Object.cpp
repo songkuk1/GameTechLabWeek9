@@ -3,6 +3,8 @@
 #include "Script/LuaReflection.h"
 #include "UObject/Object.h"
 #include "UObject/Class.h"
+#include "Asset/AssetManager.h"
+#include "Render/Mesh.h"
 
 void RegisterLuaObjectBindings(sol::state& Lua)
 {
@@ -35,5 +37,11 @@ void RegisterLuaObjectBindings(sol::state& Lua)
 	// 파괴됐거나 nil이면 false. UE 블루프린트의 IsValid와 같다.
 	Lua.set_function("IsValid", [](sol::object Value) {
 		return Value.is<FLuaObjectRef>() && Value.as<FLuaObjectRef>().Weak.IsValid();
+	});
+
+	// FindStaticMesh("Models/Garlic/garlic.obj") → 메시 핸들, 없으면 nil.
+	// 씬 파일의 "StaticMesh" 값과 같은 키를 쓴다. 엔진 시작 때 스캔한 에셋에서 찾기만 하고 새로 로드하지 않는다.
+	Lua.set_function("FindStaticMesh", [](const FString& Path, sol::this_state S) {
+		return LuaReflection::MakeObject(S, UAssetManager::GetAssetByPath<UStaticMesh>(Path));
 	});
 }

@@ -10,6 +10,8 @@
 #include "Core/EngineLog.h"
 #include "UObject/Object.h"
 #include "Script/LuaScriptInstance.h"
+#include "Script/LuaReflection.h"
+#include "Component/ShapeComponent.h"
 
 enum class EAttachmentRule;
 
@@ -332,24 +334,78 @@ bool AActor::Destroy()
     return World->DestroyActor(this);
 }
 
+namespace
+{
+    // 스크립트에는 원시 포인터 대신 약한 참조 핸들로 넘긴다 (LuaReflection::MakeObject와 같다)
+    FLuaObjectRef ToLua(UObject* Object)
+    {
+        return FLuaObjectRef{ FWeakObjectPtr(Object) };
+    }
+}
+
+bool AActor::AddActorWorldOffset(const FVector& Delta, bool bSweep)
+{
+    if (!RootComponent)
+        return false;
+
+    FHitResult BestHit;
+    BestHit.Init(RootComponent->GetWorldLocation(), RootComponent->GetWorldLocation() + Delta);
+    UPrimitiveComponent* BestComponent = nullptr;
+
+    if (bSweep && World && Delta.Size() > KINDA_SMALL_NUMBER)
+    {
+        // 막는 Shape마다 같은 Delta로 검사해 가장 먼저 막히는 것을 고른다
+        for (UActorComponent* Component : Components)
+        {
+            UShapeComponent* Shape = Cast<UShapeComponent>(Component);
+            if (!Shape || !Shape->bHasBegunPlay || !Shape->IsBlockComponent())
+                continue;
+
+            FHitResult Hit;
+            Hit.Init(Shape->GetWorldLocation(), Shape->GetWorldLocation() + Delta);
+            if (Shape->SweepBlocking(Shape, World, Delta, Hit) && Hit.Time < BestHit.Time)
+            {
+                BestHit = Hit;
+                BestComponent = Shape;
+            }
+        }
+    }
+
+    RootComponent->SetWorldLocation(RootComponent->GetWorldLocation() + Delta * BestHit.Time, false);
+
+    if (BestComponent)
+        BestComponent->DispatchBlockingHit(BestHit);
+    return BestComponent != nullptr;
+}
+
 void AActor::NotifyActorBeginOverlap(AActor* OtherActor)
 {
-    // TODO: Lua 브랜치가 머지되면 스크립트의 OnOverlap(OtherActor) 호출
     OnActorBeginOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorBeginOverlap: {} <-> {}", GetName(), OtherActor->GetName());
+    if (ScriptInstance)
+        ScriptInstance->Call("OnOverlap", ToLua(OtherActor));
 }
 
 void AActor::NotifyActorEndOverlap(AActor* OtherActor)
 {
     OnActorEndOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorEndOverlap: {} <-> {}", GetName(), OtherActor->GetName());
+    if (ScriptInstance)
+        ScriptInstance->Call("OnEndOverlap", ToLua(OtherActor));
+}
+
+void AActor::NotifyComponentBeginOverlap(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp)
+{
+    if (ScriptInstance)
+        ScriptInstance->Call("OnComponentOverlap", ToLua(MyComp), ToLua(OtherActor), ToLua(OtherComp));
 }
 
 void AActor::NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit)
 {
-    // TODO: Lua 브랜치가 머지되면 스크립트의 OnHit(OtherActor) 호출
     OnActorHit.Broadcast(this, OtherActor, Hit);
     HTR_LOG(Info, "Hit: {} -> {} (Time {:.3f}, StartPenetrating {})", MyComp->GetName(), OtherComp->GetName(), Hit.Time, Hit.bStartPentrating);
+    if (ScriptInstance)
+        ScriptInstance->Call("OnHit", ToLua(OtherActor));
 }
 
 bool AActor::IsOverlappingActor(const AActor* Other) const

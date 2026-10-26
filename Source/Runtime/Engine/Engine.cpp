@@ -16,6 +16,16 @@ bool UEngine::Init()
  	return true;
 }
 
+void UEngine::TravelToScene(const FString& ScenePath)
+{
+	HTR_LOG(Warning, "[Engine] TravelToScene({}) is not supported by this engine mode", ScenePath);
+}
+
+void UEngine::QuitGame()
+{
+	HTR_LOG(Warning, "[Engine] QuitGame is not supported by this engine mode");
+}
+
 FWorldContext& UEngine::CreateNewWorldContext(EWorldType WorldType)
 {
 	FWorldContext* NewWorldContext = new FWorldContext();

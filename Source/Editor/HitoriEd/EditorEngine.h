@@ -52,6 +52,11 @@ public:
 	void Tick(float DeltaTime) override;
 	void PreExit() override;
 
+	// PIE에서 게임 종료는 에디터가 아니라 PIE 세션만 끝낸다 (UE QuitGame과 같다).
+	void QuitGame() override { if (IsPlaying()) RequestEndPlayMap(); }
+	// PIE에서 씬 전환은 요청만 받고, 다음 프레임 시작에 PIE 세션(창·뷰포트)을 유지한 채 PlayWorld만 바꾼다.
+	void TravelToScene(const FString& ScenePath) override;
+
 	// Active View의 입력과 Picking 결과만 Gizmo 및 선택 상태에 반영한다.
 	void UpdateGizmoAndPicking();
 	// View 하나의 Scene·Grid·Gizmo·텍스트를 해당 ViewProjection으로 렌더한다.
@@ -69,6 +74,10 @@ public:
 	//실제 PIE 를 실행
 	void StartPlayInEditorSession();
 	UWorld* CreatePIEWorldByDuplication(FWorldContext& PIEContext, UWorld* InEditorWorld);
+	// 씬에 배치된 카메라가 있으면 메인 카메라로, 없으면 활성 에디터 뷰포트 시점에서 시작한다.
+	void SetupPIEMainCamera();
+	// 지금 PlayWorld를 지우고 씬 파일에서 불러온 새 PIE 월드로 바꿔 BeginPlay까지 한다.
+	void TravelPIEToScene(const FString& ScenePath);
 
 	void OnActiveWorldChanged();
 
@@ -185,6 +194,8 @@ private:
 
 	bool bPlaySessionRequested = false;
 	bool bRequestEndPlayMapQueued = false;
+	// Lua OpenScene이 요청한 다음 PIE 씬. World Tick 도중에는 월드를 지울 수 없어 다음 프레임 시작에 처리한다.
+	FString PendingPIEScenePath;
 	bool bStepRequested = false;
 	bool bIsPaused = false;
 

@@ -76,6 +76,11 @@ public:
 	// UObject 일괄 정리와 GPU 자원 해제 전에 호출된다.
 	virtual void PreExit() {};
 
+	// 게임 코드(Lua)가 다른 씬으로 넘어가기를 요청한다. 실제 전환은 다음 프레임 시작에 한다 (UE OpenLevel).
+	virtual void TravelToScene(const FString& ScenePath);
+	// 게임 종료 요청. 게임은 앱을 끝내고, 에디터는 PIE 세션만 끝낸다 (UE QuitGame).
+	virtual void QuitGame();
+
 	//UWorld* GetWorld() const { return World; }
 
 	FWorldContext& CreateNewWorldContext(EWorldType WorldType);

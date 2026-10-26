@@ -26,6 +26,7 @@ class AActor : public UObject
 		FUNCTION(HasActorBegunPlay)
 		FUNCTION(Destroy)
 		FUNCTION(DestroyComponent)
+		FUNCTION(AddActorWorldOffset)
 		REFLECT_END()
 public:
 	AActor();
@@ -63,9 +64,18 @@ public:
 
 	bool Destroy();
 
+	// 루트를 Delta만큼 옮긴다 (UE AddActorWorldOffset). bSweep이면 이 액터의 막는 Shape(bBlockComponent)들로
+	// 가는 길을 검사해 가장 먼저 막히는 곳에서 멈추고 Hit을 알린다. 막혔으면 true.
+	// UE는 루트 Shape만 Sweep하지만, 씬 파일에서 루트를 바꿀 수 없어 자식 Shape도 검사한다.
+	bool AddActorWorldOffset(const FVector& Delta, bool bSweep);
+
 	// 두 액터 사이의 첫 컴포넌트 겹침이 시작될 때 / 마지막 겹침이 끝날 때 불린다 (UE와 같은 이름).
+	// 스크립트의 OnOverlap(OtherActor) / OnEndOverlap(OtherActor)도 부른다.
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor);
 	virtual void NotifyActorEndOverlap(AActor* OtherActor);
+	// 내 컴포넌트 하나가 상대 컴포넌트와 겹치기 시작할 때마다 불린다. 스크립트의 OnComponentOverlap(MyComp, OtherActor, OtherComp)를 부른다.
+	// 한 액터의 여러 컴포넌트(풀링한 낙하물 등)가 각각 겹치는 것을 구분할 때 쓴다.
+	void NotifyComponentBeginOverlap(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp);
 	bool IsOverlappingActor(const AActor* Other) const;
 
 	// (자신, 상대 액터)

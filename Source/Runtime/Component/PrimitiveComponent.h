@@ -149,6 +149,8 @@ private:
 	void DispatchBlockingHit(const FHitResult& Hit);
 
 	friend class FScene;
+	// AActor::AddActorWorldOffset가 자식 Shape로 Sweep하고 Hit을 알린다
+	friend class AActor;
 	FPrimitiveSceneProxy* SceneProxy = nullptr;
 
 	// 지금 겹쳐 있는 상대. 상대 목록에도 항상 this가 들어 있다.

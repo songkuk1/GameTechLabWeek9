@@ -27,57 +27,92 @@ FEngineConfig UGameEngine::GetConfig() const
 
 bool UGameEngine::Init()
 {
-	if (!Super::Init()) 
+	if (!Super::Init())
 		return false;
 
-	FWorldContext& InitialWorldContext = CreateNewWorldContext(EWorldType::Game);
-	InitialWorldContext.SetCurrentWorld(UWorld::CreateWorld(EWorldType::Game, true));
-	GameWorld = InitialWorldContext.World();
+	// Skybox·Fog·FXAA·Gamma는 Editor와 공용인 파이프라인이 소유한다.
+	ScenePipeline.Init(GetEngineLoop().GetRenderer());
+
+	BeginWorld(GetStartScenePath());
+	return true;
+}
+
+// Config/Project.json의 StartScene 경로. 설정이 없으면 빈 문자열이고 원인은 경고 로그로 남긴다.
+FString UGameEngine::GetStartScenePath() const
+{
+	FProjectSettings Settings;
+	if (!Settings.Load(FProjectSettings::DefaultPath))
+		return {};
+	if (Settings.StartScene.empty())
+		HTR_LOG(Warning, "[Game] StartScene is not set in {}", FProjectSettings::DefaultPath);
+	return Settings.StartScene;
+}
+
+void UGameEngine::BeginWorld(const FString& ScenePath)
+{
+	FWorldContext& WorldContext = CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(UWorld::CreateWorld(EWorldType::Game, true));
+	GameWorld = WorldContext.World();
 
 	// 액터는 SpawnActor로 BeginPlay 대기열에 들어가 첫 World Tick에서 BeginPlay가 불린다.
-	LoadStartScene();
+	// 씬이 없어도 게임은 빈 월드로 뜨게 하고, 원인은 경고 로그로 남긴다.
+	if (ScenePath.empty())
+		HTR_LOG(Warning, "[Game] no scene given; starting with an empty world");
+	else if (!FJsonArchive::LoadWorld(GameWorld, FProjectSettings::ToNativePath(ScenePath)))
+		HTR_LOG(Warning, "[Game] failed to load scene {}; starting with an empty world", ScenePath);
+	else
+		HTR_LOG(Info, "[Game] scene loaded: {}", ScenePath);
+
 	// 씬 파일에는 GameMode가 없다. 불러온 뒤 플레이 월드마다 새로 스폰한다.
 	GameWorld->SetGameMode();
 
 	// 뷰포트 연결과 입력 설정이 이 카메라에 적용되므로 그 전에 정한다.
 	SetupMainCamera();
 
-	// Skybox·Fog·FXAA·Gamma는 Editor와 공용인 파이프라인이 소유한다.
-	ScenePipeline.Init(GetEngineLoop().GetRenderer());
-
 	// 게임 화면은 창 전체를 덮는 뷰포트 하나다. 창은 PreInit에서 이미 만들어져 크기가 정해져 있다.
 	Viewport.BeginPlay(MakeUnique<FGameViewportClient>(*GameWorld));
 	Viewport.SetOutputSize(GetEngineLoop().GetViewportWidth(), GetEngineLoop().GetViewportHeight());
-	// BeginPlay는 입력을 끈 채로 시작하므로 게임 카메라가 입력을 받도록 켠다.
+	// 게임 화면이 입력을 받는다. 카메라 기본 자유 비행은 FGameViewportClient가 꺼 두고, 조작은 Lua 스크립트가 한다.
 	Viewport.GetGameClient()->SetInputEnabled(true);
 
 	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다 (UE LoadMap의 마지막 단계).
 	GameWorld->BeginPlay();
-
-	return true;
 }
 
-// Config/Project.json의 StartScene을 불러온다.
-// 설정이나 씬이 없어도 게임은 빈 월드로 뜨게 하고, 원인은 경고 로그로 남긴다.
-void UGameEngine::LoadStartScene()
+// 클라이언트가 World의 카메라를 빌려 쓰므로, 뷰포트의 게임 클라이언트를 World보다 먼저 놓는다.
+void UGameEngine::EndWorld()
 {
-	FProjectSettings Settings;
-	if (!Settings.Load(FProjectSettings::DefaultPath))
-	{
-		HTR_LOG(Warning, "[Game] starting with an empty world");
-		return;
-	}
-	if (Settings.StartScene.empty())
-	{
-		HTR_LOG(Warning, "[Game] StartScene is not set in {}; starting with an empty world", FProjectSettings::DefaultPath);
-		return;
-	}
-	if (!FJsonArchive::LoadWorld(GameWorld, FProjectSettings::ToNativePath(Settings.StartScene)))
-	{
-		HTR_LOG(Warning, "[Game] failed to load start scene {}; starting with an empty world", Settings.StartScene);
-		return;
-	}
-	HTR_LOG(Info, "[Game] start scene loaded: {}", Settings.StartScene);
+	Viewport.EndPlay();
+	// UE의 UGameEngine::PreExit처럼 액터 EndPlay → GameInstance Shutdown 순서로 끝낸다.
+	GameWorld->EndPlay();
+	SceneRenderer.EndFrame();
+	ReleaseWorldShadowResources(GameWorld);
+	// 컨텍스트를 지우면서 GameInstance도 Shutdown·해제한다.
+	DestroyWorldContext(GameWorld);
+}
+
+void UGameEngine::TravelToScene(const FString& ScenePath)
+{
+	PendingScenePath = ScenePath;
+}
+
+void UGameEngine::QuitGame()
+{
+	GetEngineLoop().RequestExit();
+}
+
+// PIE 종료(UEditorEngine::EndPlayMap)와 같은 순서로 이전 월드를 지우고 새 씬으로 시작한다.
+void UGameEngine::TravelToPendingScene()
+{
+	const FString ScenePath = PendingScenePath;
+	PendingScenePath.clear();
+
+	EndWorld();
+	GameWorld->ClearWorld();
+	delete GameWorld;
+	GameWorld = nullptr;
+
+	BeginWorld(ScenePath);
 }
 
 // 씬에 배치된 첫 ACameraActor를 메인 카메라로 지정한다. PIE 시작과 같은 규칙이다.
@@ -101,17 +136,10 @@ void UGameEngine::OnResize(uint32 Width, uint32 Height)
 	Viewport.SetOutputSize(Width, Height);
 }
 
-// UObject(World) 일괄 삭제 전에 뷰포트의 게임 클라이언트를 놓는다.
-// 클라이언트가 World의 카메라를 빌려 쓰므로, World가 먼저 사라지면 뷰포트 소멸자가 해제된 메모리를 건드린다.
+// UObject(World) 일괄 삭제 전에 월드를 정리한다. World는 이후 UObject 일괄 삭제가 지운다.
 void UGameEngine::PreExit()
 {
-	Viewport.EndPlay();
-	// UE의 UGameEngine::PreExit처럼 액터 EndPlay → GameInstance Shutdown 순서로 끝낸다.
-	GameWorld->EndPlay();
-	SceneRenderer.EndFrame();
-	ReleaseWorldShadowResources(GameWorld);
-	// 컨텍스트를 지우면서 GameInstance도 Shutdown·해제한다. World는 이후 UObject 일괄 삭제가 지운다.
-	DestroyWorldContext(GameWorld);
+	EndWorld();
 }
 
 void UGameEngine::ReleaseWorldShadowResources(UWorld* World)
@@ -127,6 +155,10 @@ void UGameEngine::ReleaseWorldShadowResources(UWorld* World)
 
 void UGameEngine::Tick(float DeltaTime)
 {
+	// 지난 프레임에 요청된 씬 전환은 월드가 돌고 있지 않은 프레임 시작에 처리한다.
+	if (!PendingScenePath.empty())
+		TravelToPendingScene();
+
 	UpdateGameInput();
 	GameWorld->Tick(DeltaTime);
 	//TODO: LUA가 들어갈자리?
