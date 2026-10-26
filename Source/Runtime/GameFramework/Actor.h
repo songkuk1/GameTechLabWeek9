@@ -79,12 +79,9 @@ public:
 	bool AddActorWorldOffset(const FVector& Delta, bool bSweep);
 
 	// 두 액터 사이의 첫 컴포넌트 겹침이 시작될 때 / 마지막 겹침이 끝날 때 불린다 (UE와 같은 이름).
-	// 스크립트의 OnOverlap(OtherActor) / OnEndOverlap(OtherActor)도 부른다.
+	// OnActorBeginOverlap / OnActorEndOverlap을 Broadcast한다. 스크립트 함수는 그 Delegate의 구독자로 불린다.
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor);
 	virtual void NotifyActorEndOverlap(AActor* OtherActor);
-	// 내 컴포넌트 하나가 상대 컴포넌트와 겹치기 시작할 때마다 불린다. 스크립트의 OnComponentOverlap(MyComp, OtherActor, OtherComp)를 부른다.
-	// 한 액터의 여러 컴포넌트(풀링한 낙하물 등)가 각각 겹치는 것을 구분할 때 쓴다.
-	void NotifyComponentBeginOverlap(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp);
 	bool IsOverlappingActor(const AActor* Other) const;
 
 	// (자신, 상대 액터)
@@ -127,6 +124,16 @@ private:
 	// 플레이 중에만 존재한다. DispatchBeginPlay에서 만들고 Actor가 delete 될 때 지워진다.
 	// EndPlay에서 지우지 않는 이유는 Script 안에서 Destroy가 호출되었을 수 있기 때문.
 	TUniquePtr<FLuaScriptInstance> ScriptInstance;
+
+	// 스크립트에 이벤트 함수가 있으면 해당 Delegate에 구독시킨다 (UE의 BeginPlay에서 AddDynamic 하는 것과 같다).
+	//   OnOverlap(Other)                         → OnActorBeginOverlap
+	//   OnEndOverlap(Other)                      → OnActorEndOverlap
+	//   OnHit(Other)                             → OnActorHit
+	//   OnComponentOverlap(MyComp, Other, OtherComp) → 내 PrimitiveComponent마다 OnComponentBeginOverlap
+	// 한 액터의 여러 컴포넌트(풀링한 낙하물 등)가 각각 겹치는 것은 OnComponentOverlap으로 구분한다.
+	void BindScriptEvents();
+	// 위에서 구독한 것을 모두 끊는다 (Owner = this). EndPlay에서 부른다.
+	void UnbindScriptEvents();
 
 	// 바인딩이 Lua 함수를 붙잡고 있을 수 있어 ScriptInstance처럼 Actor가 delete 될 때 함께 지운다.
 	// 선언의 역순으로 파괴되므로 ScriptInstance보다 먼저 지워진다.
