@@ -9,7 +9,7 @@
 
 local GameState = {
 	ReadyTime = 3,       -- 시작 전 대기 (초). 이동·낙하·점수 모두 멈춘다
-	TimeLimit = 60,      -- 제한 시간 (초)
+	TimeLimit = 15,      -- 제한 시간 (초)
 
 	Phase = "Ready",     -- "Ready" | "Playing" | "Result"
 	PhaseTime = 0,       -- 지금 단계에 들어온 뒤 지난 시간 (초)
