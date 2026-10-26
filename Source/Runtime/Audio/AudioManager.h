@@ -35,6 +35,6 @@ private:
 	struct FImpl;
 	std::unique_ptr<FImpl> Impl;
 	uint32 NextSoundId = 1;
-	float BGMVolume = 0.2f;
+	float BGMVolume = 0.6f;
 	float SFXVolume = 1.0f;
 };
