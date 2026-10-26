@@ -1152,6 +1152,11 @@ void UEditorEngine::TravelPIEToScene(const FString& ScenePath)
 void UEditorEngine::OnActiveWorldChanged()
 {
 	ResetSceneSelection();
+
+	// 아웃라이너·디테일이 지금 활성 월드를 보게 한다. PIE 중이면 PIE 월드, 아니면 에디터 월드
+	UWorld* ActiveWorld = GetActiveWorld();
+	OutlinerPanel->SetWorld(ActiveWorld);
+	DetailsPanel->SetWorld(ActiveWorld);
 }
 
 void UEditorEngine::EndPlayMap()
