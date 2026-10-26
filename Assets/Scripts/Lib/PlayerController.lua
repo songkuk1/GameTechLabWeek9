@@ -11,7 +11,8 @@
 -- Lua 5.1·LuaJIT는 math.atan2, 5.3 이상은 math.atan(y, x)를 쓴다
 local Atan2 = math.atan2 or math.atan
 
--- 바닥 범위 (월드 좌표). 시작 위치를 정할 때만 쓴다. 이동 제한은 벽 Box가 한다
+-- 바닥 범위 (월드 좌표). 시작 위치와 이동 범위에 쓴다.
+-- 벽 Box가 1차로 막지만, 밀려날 때처럼 빠르면 넘어갈 수 있어서 원형 플레이 영역(PlayerRadius) 안으로 한 번 더 가둔다
 local Floor = dofile("Assets/Scripts/Lib/Floor.lua")
 
 -- 시작 대기·결과 화면에서는 움직이지 않는다
@@ -91,6 +92,20 @@ return function(Config)
 		GameState.PushPlayer(3 - PlayerNumber, DX / Distance, DY / Distance)
 	end
 
+	-- 원형 플레이 영역 밖으로 나갔으면 중심 방향으로 원 위까지 되돌린다.
+	-- 원을 따라 미끄러지듯 움직인다. 루트가 부모 없는 최상위라 Relative = 월드 위치
+	local function ClampToFloor()
+		local Location = Root:GetRelativeLocation()
+		local DX, DY = Location.X - Floor.CenterX, Location.Y - Floor.CenterY
+		local Distance = math.sqrt(DX * DX + DY * DY)
+		if Distance > Floor.PlayerRadius then
+			local Scale = Floor.PlayerRadius / Distance
+			Location.X = Floor.CenterX + DX * Scale
+			Location.Y = Floor.CenterY + DY * Scale
+			Root:SetRelativeLocation(Location)
+		end
+	end
+
 	-- 밀려나는 중이면 한 프레임만큼 밀고 true. 처음엔 빠르고 점점 느려진다
 	local function UpdateKnockback(dt)
 		local Incoming = GameState.TakeKnockback(PlayerNumber)
@@ -109,6 +124,7 @@ return function(Config)
 		-- 벽에 닿으면 멈추도록 Sweep한다. 이동처럼 축을 나눠 벽을 따라 미끄러지게 한다
 		if MoveX ~= 0 then Actor:AddActorWorldOffset(FVector(MoveX, 0, 0), true) end
 		if MoveY ~= 0 then Actor:AddActorWorldOffset(FVector(0, MoveY, 0), true) end
+		ClampToFloor()
 
 		Knockback.Remaining = Knockback.Remaining - dt
 		if Knockback.Remaining <= 0 then
@@ -186,6 +202,7 @@ return function(Config)
 			-- 나눠 옮기면 막힌 축만 멈추고 나머지 축으로는 벽을 따라 미끄러진다
 			if MoveX ~= 0 then Actor:AddActorWorldOffset(FVector(MoveX, 0, 0), true) end
 			if MoveY ~= 0 then Actor:AddActorWorldOffset(FVector(0, MoveY, 0), true) end
+			ClampToFloor()
 
 			-- 엔진은 Yaw 0이 +X, Yaw 90이 +Y (단위는 도)
 			TargetYaw = math.deg(Atan2(DY, DX)) + MeshYawOffset
