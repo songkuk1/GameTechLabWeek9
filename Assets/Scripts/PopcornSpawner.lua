@@ -7,6 +7,7 @@
 -- 액터 루트는 원점에 두므로 컴포넌트의 Relative 위치 = 월드 위치다.
 
 local Floor = dofile("Assets/Scripts/Lib/Floor.lua")
+local Match = require("Assets.Scripts.Lib.PopcornMatch")
 
 local PoolSize = 8               -- 씬에 넣어 둔 Drop 컴포넌트 개수와 같아야 한다
 local SpawnIntervalMin = 0.5     -- 다음 낙하까지 대기 시간 (초, 이 범위에서 랜덤)
@@ -57,10 +58,12 @@ local function Hide(Slot)
 	Slot.Drop:SetRelativeLocation(FVector(0, 0, HiddenZ))
 end
 
--- 플레이어가 낙하물을 주웠을 때. 점수·효과는 여기에 붙이면 된다 (Slot.Type.Name으로 팝콘/마늘 구분)
+-- 팝콘만 1점. 먼저 3점을 얻은 플레이어의 영상을 재생한다.
 local function Collect(Slot, Player)
+	if Match.IsFinished() or not Match.GetPlayerIndex(Player) then return end
 	print("[PopcornSpawner] " .. tostring(Player) .. " got " .. Slot.Type.Name)
 	Hide(Slot)
+	if Slot.Type.Name == "Popcorn" then Match.AddPopcorn(Player) end
 end
 
 local function NextInterval()
@@ -93,6 +96,7 @@ local function Spawn()
 end
 
 function BeginPlay()
+	Match.Reset()
 	-- 메시는 매번 찾지 않고 시작할 때 한 번 찾아 둔다. 못 찾은 종류는 뽑지 않는다
 	local Valid = {}
 	for _, Type in ipairs(DropTypes) do
@@ -121,6 +125,22 @@ function BeginPlay()
 end
 
 function Tick(dt)
+	Match.Update(dt)
+	local W, H = GetHUDSize()
+	if Match.IsFinished() then
+		DrawHUDRect(0, 0, W, H, FLinearColor(0, 0, 0, 1))
+		local Texture, U0, V0, U1, V1 = Match.GetVideoFrame()
+		if Texture then
+			local Clip = Match.Clip
+			local Scale = math.min(960 / Clip.FrameWidth, W / Clip.FrameWidth, H / Clip.FrameHeight)
+			local Width, Height = Clip.FrameWidth * Scale, Clip.FrameHeight * Scale
+			DrawHUDImageRegion(Texture, (W - Width) * 0.5, (H - Height) * 0.5, Width, Height, U0, V0, U1, V1)
+		end
+		return
+	end
+	DrawHUDText("Chiikawa: " .. Match.Scores[1] .. " / " .. Match.WinningScore, 32, 28, 32)
+	DrawHUDText("Usagi: " .. Match.Scores[2] .. " / " .. Match.WinningScore, W - 280, 28, 32)
+
 	if #DropTypes == 0 then
 		return
 	end
@@ -166,6 +186,7 @@ function Tick(dt)
 end
 
 function EndPlay()
+	Match.Reset()
 	Slots = {}   -- 컴포넌트 참조를 놓아서 삭제된 뒤 접근하지 않게 함
 end
 
