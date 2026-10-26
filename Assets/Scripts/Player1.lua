@@ -6,6 +6,7 @@ local GameState = require("Assets.Scripts.Lib.GameState")
 local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({
 	Forward = "W", Back = "S", Left = "A", Right = "D",
 	PlayerNumber = 1, PushKey = "Space",   -- 앞의 상대를 밀친다 (쿨타임 2초)
+	KnockbackSound = "Assets/Audio/PushCry.wav",
 	MeshYawOffset = 180,   -- 메시 정면이 -X를 보고 있어서 180도 돌려 맞춘다
 	SpawnOffsetY = -1.0,   -- 시작 위치: 바닥 중앙에서 화면 왼쪽으로
 })

@@ -22,6 +22,7 @@
 
 #include "Core/Async/TaskPool.h"
 #include "Script/LuaScriptManager.h"
+#include "Audio/AudioManager.h"
 
 namespace
 {
@@ -149,6 +150,7 @@ bool FEngineLoop::Tick()
 	}
 
 	HandleResize();
+	FAudioManager::Get().Update();
 
 	// 최소화 중에는 그릴 대상이 없다.
 	if (MainWindow->GetWidth() == 0 || MainWindow->GetHeight() == 0)
@@ -176,6 +178,8 @@ bool FEngineLoop::Tick()
 // UObject(에셋 포함)의 GPU 자원은 Device가 살아 있을 때 해제한다.
 void FEngineLoop::Exit()
 {
+	// 워커 대기나 월드/GPU 정리가 길어져도 종료한 게임의 소리가 남지 않게 먼저 멈춘다.
+	FAudioManager::Get().StopAll();
 	FTaskPool::Get().Shutdown();
 
 
@@ -195,6 +199,7 @@ void FEngineLoop::Exit()
 	// Script Instance는 위에서 Actor와 정리됨.
 	// VM을 참조하는 객체가 없으므로 Shutdown.
 	FLuaScriptManager::Get().Shutdown();
+	FAudioManager::Get().Shutdown();
 
 	delete GEngine;
 	GEngine = nullptr;

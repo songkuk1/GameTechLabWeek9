@@ -85,6 +85,19 @@ local function DrawCreditPanel(W, H)
     end
 end
 
+local ActionPending = false
+local StartSound = nil
+local QuitSound = nil
+
+function BeginPlay()
+    ActionPending = false
+    StartSound = nil
+    QuitSound = nil
+    OpenPanel = nil
+    OpenBoard = nil
+    Audio.PlayBGM("Assets/Audio/BGM.wav")
+end
+
 function Tick(dt)
     local W, H = GetHUDSize()
 
@@ -111,6 +124,45 @@ function Tick(dt)
         return
     end
 
+    -- 두 열을 가운데 기준으로 나란히 둔다
+    local LeftX = W * 0.5 - ButtonGap * 0.5 - ButtonWidth
+    local RightX = W * 0.5 + ButtonGap * 0.5
+
+    -- 첫 줄: 시작 / 나가기
+    local ButtonH = ButtonWidth / ButtonAspect
+    local Y = H * ButtonTopY
+    local StartClicked = HUDImageButton(StartImage, LeftX, Y, ButtonWidth, ButtonH)
+    local ExitClicked = HUDImageButton(ExitImage, RightX, Y, ButtonWidth, ButtonH)
+
+    if ActionPending then
+        if StartSound ~= nil and not Audio.IsPlaying(StartSound) then
+            StartSound = nil
+            OpenScene(GameScene)
+        elseif QuitSound ~= nil and not Audio.IsPlaying(QuitSound) then
+            QuitSound = nil
+            QuitGame()
+        end
+        return
+    end
+
+    if StartClicked then
+        ActionPending = true
+        StartSound = Audio.Play("Assets/Audio/Start_Oi.wav")
+        if StartSound == 0 then
+            StartSound = nil
+            OpenScene(GameScene)
+        end
+        return
+    elseif ExitClicked then
+        ActionPending = true
+        Audio.StopBGM()
+        QuitSound = Audio.Play("Assets/Audio/Quit.wav")
+        if QuitSound == 0 then
+            QuitSound = nil
+            QuitGame()
+        end
+        return
+    end
     -- 왼쪽 아래: 시작 위에 나가기를 겹쳐 그린다. 판정이 살짝 겹치는 곳은 위에 그려진 나가기가 이긴다
     local bStart = LayoutButton(Buttons.Start, W, H)
     local bExit = LayoutButton(Buttons.Exit, W, H)
@@ -120,15 +172,14 @@ function Tick(dt)
         OpenScene(GameScene)
     end
 
-    -- 아래 줄: 순위 / 조작법 / 크레딧
-    if LayoutButton(Buttons.Rank, W, H) then
+    -- 둘째 줄: 순위 / 조작법
+    local RankH = ButtonWidth / RankAspect
+    local Row2Y = Y + ButtonH + RowGap
+    if HUDImageButton(RankImage, LeftX, Row2Y, ButtonWidth, RankH) then
         OpenBoard = Scoreboard.Load()
         OpenPanel = "Scoreboard"
     end
-    if LayoutButton(Buttons.HowTo, W, H) then
-        OpenPanel = "HowTo"
-    end
-    if LayoutButton(Buttons.Credit, W, H) then
-        OpenPanel = "Credit"
+    if HUDButton("CONTROLS", RightX, Row2Y + (RankH - ControlsButtonH) * 0.5, ButtonWidth, ControlsButtonH, 40) then
+        OpenPanel = "Controls"
     end
 end

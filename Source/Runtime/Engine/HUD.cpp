@@ -44,7 +44,8 @@ FHUD* FindHUDForObject(UObject* Object)
 }
 
 // Color는 틴트. 흰색이면 텍스처 원래 색
-void FHUD::AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color)
+void FHUD::AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color,
+	const FVector2& UVMin, const FVector2& UVMax)
 {
     if (!Texture)
         return;
@@ -55,6 +56,8 @@ void FHUD::AddImage(UTexture2D* Texture, const FVector2& Position, const FVector
     Command.Size = Size;
     Command.Color = Color;
     Command.Texture = Texture;
+	Command.UVMin = UVMin;
+	Command.UVMax = UVMax;
     Commands.Add(std::move(Command));
 }
 

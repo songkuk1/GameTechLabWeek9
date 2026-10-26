@@ -111,6 +111,9 @@ return function(Config)
 		local Incoming = GameState.TakeKnockback(PlayerNumber)
 		if Incoming then
 			Knockback = { X = Incoming.X, Y = Incoming.Y, Remaining = KnockbackTime }
+			if Config.KnockbackSound then
+				Audio.Play(Config.KnockbackSound)
+			end
 		end
 		if not Knockback then
 			return false

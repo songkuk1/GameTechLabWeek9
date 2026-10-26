@@ -6,6 +6,7 @@ local GameState = require("Assets.Scripts.Lib.GameState")
 local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({
 	Forward = "Up", Back = "Down", Left = "Left", Right = "Right",
 	PlayerNumber = 2, PushKey = "Enter",   -- 앞의 상대를 밀친다 (쿨타임 2초)
+	KnockbackSound = "Assets/Audio/UsagiPush.wav",
 	MeshYawOffset = 0,     -- usagi_chiikawa.obj는 정면이 +X를 보도록 변환했다
 	SpawnOffsetY = 1.0,    -- 시작 위치: 바닥 중앙에서 화면 오른쪽으로
 })

@@ -2,6 +2,7 @@
 #include "Engine.h"
 #include "Engine/GameInstance.h"
 #include "Script/LuaScriptManager.h"
+#include "Audio/AudioManager.h"
 
 UEngine* GEngine = nullptr;
 
@@ -11,6 +12,7 @@ bool UEngine::Init()
 
 	if (!World || !World->Init()) return false;*/
 
+	FAudioManager::Get().Initialize();
 	FLuaScriptManager::Get().Initialize();
 
  	return true;
