@@ -31,7 +31,7 @@ return function(Config)
 
 	-- 밀쳐내기: 앞쪽 부채꼴 안에 상대가 있으면 상대를 뒤로 밀어낸다
 	local PlayerNumber = Config.PlayerNumber        -- 1 = P1, 2 = P2
-	local PushCooldown = Config.PushCooldown or 2.0 -- 다시 밀 수 있을 때까지 (초). 헛쳐도 돈다
+	local PushCooldown = Config.PushCooldown or 2.0 -- 다시 밀 수 있을 때까지 (초). 실제로 밀었을 때만 돈다
 	local PushRange = Config.PushRange or 1.5       -- 이 거리 안의 상대만 민다
 	local PushHalfAngle = Config.PushHalfAngle or 60 -- 바라보는 방향에서 좌우 이 각도(도) 안의 상대만 민다
 	local KnockbackDistance = Config.KnockbackDistance or 2.0 -- 밀려나는 총 거리
@@ -61,11 +61,6 @@ return function(Config)
 		if not GameState.IsPlaying() or PushCooldownLeft > 0 or (Knockback and not bTrade) then
 			return
 		end
-		PushCooldownLeft = PushCooldown
-		if bTrade then
-			Knockback.bTraded = true
-		end
-
 		local Other = GameState.Players[3 - PlayerNumber]
 		if not IsValid(Other) then
 			return
@@ -86,6 +81,12 @@ return function(Config)
 		local Dot = (DX * math.cos(FacingRad) + DY * math.sin(FacingRad)) / Distance
 		if Dot < math.cos(math.rad(PushHalfAngle)) then
 			return
+		end
+
+		-- 실제로 밀었을 때만 쿨타임이 돈다. 헛치면 바로 다시 누를 수 있다
+		PushCooldownLeft = PushCooldown
+		if bTrade then
+			Knockback.bTraded = true
 		end
 
 		-- 나에게서 상대 쪽으로 민다

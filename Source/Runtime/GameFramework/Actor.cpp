@@ -85,6 +85,9 @@ void AActor::DispatchBeginPlay()
 
 	BeginPlay();
 
+	// 스크립트 BeginPlay보다 먼저 구독해서, BeginPlay 안에서 생긴 겹침도 받는다
+	BindScriptEvents();
+
 	if (ScriptInstance)
 		ScriptInstance->Call("BeginPlay");
 }
@@ -132,6 +135,8 @@ void AActor::DispatchEndPlay()
 	EndPlay();
 
 	DisableInput();
+	// Broadcast 도중(겹침 콜백 안에서 Destroy)이어도 Delegate가 해제를 미뤄 처리한다
+	UnbindScriptEvents();
 
     // Instance의 Lua 함수 (Tick, Coroutine) 에서 Destroy가 불렸을 수도 있으므로
     // Script Instance 는 여기서 지우지 않는다. 어차피 Actor Member 여서 Frame 끝에서 delete 될 때 함께 delete 됨.
@@ -405,32 +410,84 @@ bool AActor::AddActorWorldOffset(const FVector& Delta, bool bSweep)
 
 void AActor::NotifyActorBeginOverlap(AActor* OtherActor)
 {
-    OnActorBeginOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorBeginOverlap: {} <-> {}", GetName(), OtherActor->GetName());
-    if (ScriptInstance)
-        ScriptInstance->Call("OnOverlap", ToLua(OtherActor));
+    OnActorBeginOverlap.Broadcast(this, OtherActor);
 }
 
 void AActor::NotifyActorEndOverlap(AActor* OtherActor)
 {
-    OnActorEndOverlap.Broadcast(this, OtherActor);
     HTR_LOG(Info, "ActorEndOverlap: {} <-> {}", GetName(), OtherActor->GetName());
-    if (ScriptInstance)
-        ScriptInstance->Call("OnEndOverlap", ToLua(OtherActor));
-}
-
-void AActor::NotifyComponentBeginOverlap(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp)
-{
-    if (ScriptInstance)
-        ScriptInstance->Call("OnComponentOverlap", ToLua(MyComp), ToLua(OtherActor), ToLua(OtherComp));
+    OnActorEndOverlap.Broadcast(this, OtherActor);
 }
 
 void AActor::NotifyHit(UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult& Hit)
 {
-    OnActorHit.Broadcast(this, OtherActor, Hit);
     HTR_LOG(Info, "Hit: {} -> {} (Time {:.3f}, StartPenetrating {})", MyComp->GetName(), OtherComp->GetName(), Hit.Time, Hit.bStartPentrating);
-    if (ScriptInstance)
-        ScriptInstance->Call("OnHit", ToLua(OtherActor));
+    OnActorHit.Broadcast(this, OtherActor, Hit);
+}
+
+void AActor::BindScriptEvents()
+{
+    if (!ScriptInstance)
+        return;
+
+    // 핸들러는 부를 때마다 ScriptInstance를 다시 확인한다. 등록은 Owner = this라 UnbindScriptEvents가 한 번에 끊는다.
+    if (ScriptInstance->HasFunction("OnOverlap"))
+    {
+        OnActorBeginOverlap.Add([this](AActor*, AActor* OtherActor)
+            {
+                if (ScriptInstance)
+                    ScriptInstance->Call("OnOverlap", ToLua(OtherActor));
+            }, this);
+    }
+
+    if (ScriptInstance->HasFunction("OnEndOverlap"))
+    {
+        OnActorEndOverlap.Add([this](AActor*, AActor* OtherActor)
+            {
+                if (ScriptInstance)
+                    ScriptInstance->Call("OnEndOverlap", ToLua(OtherActor));
+            }, this);
+    }
+
+    if (ScriptInstance->HasFunction("OnHit"))
+    {
+        OnActorHit.Add([this](AActor*, AActor* OtherActor, const FHitResult&)
+            {
+                if (ScriptInstance)
+                    ScriptInstance->Call("OnHit", ToLua(OtherActor));
+            }, this);
+    }
+
+    // 컴포넌트 겹침은 컴포넌트마다 명단이 따로 있어서, 내 PrimitiveComponent 전부에 구독한다
+    if (ScriptInstance->HasFunction("OnComponentOverlap"))
+    {
+        for (UActorComponent* Component : Components)
+        {
+            UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component);
+            if (!Primitive)
+                continue;
+
+            Primitive->OnComponentBeginOverlap.Add([this](UPrimitiveComponent* MyComp, AActor* OtherActor, UPrimitiveComponent* OtherComp)
+                {
+                    if (ScriptInstance)
+                        ScriptInstance->Call("OnComponentOverlap", ToLua(MyComp), ToLua(OtherActor), ToLua(OtherComp));
+                }, this);
+        }
+    }
+}
+
+void AActor::UnbindScriptEvents()
+{
+    OnActorBeginOverlap.RemoveAll(this);
+    OnActorEndOverlap.RemoveAll(this);
+    OnActorHit.RemoveAll(this);
+
+    for (UActorComponent* Component : Components)
+    {
+        if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
+            Primitive->OnComponentBeginOverlap.RemoveAll(this);
+    }
 }
 
 bool AActor::IsOverlappingActor(const AActor* Other) const

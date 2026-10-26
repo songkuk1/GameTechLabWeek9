@@ -52,6 +52,11 @@ local function LayoutButton(Button, W, H)
         Hit[1], Hit[2], Hit[3], Hit[4])
 end
 
+-- 버튼 그림만 그린다 (누를 수 없음). 시작·나가기 소리를 기다리는 동안 나머지 버튼이 사라지지 않게 쓴다
+local function DrawButtonImage(Button, W, H)
+    DrawHUDImage(Button.Path, Button.X * W / ReferenceW, Button.Y * H / ReferenceH, Button.Width, Button.Width / Button.Aspect)
+end
+
 -- RANK 팝업. 테두리 상자 오른쪽 위에 X
 local function DrawScoreboardPanel(W, H)
     local PopupH = 820
@@ -125,9 +130,13 @@ function Tick(dt)
     end
 
     -- 시작·나가기 소리가 끝나길 기다리는 중. 버튼은 그리기만 하고 다시 받지 않는다
+    -- HUD는 매 프레임 그린 것만 보이므로 아래 줄 버튼도 그림으로 계속 그린다
     if ActionPending then
         LayoutButton(Buttons.Start, W, H)
         LayoutButton(Buttons.Exit, W, H)
+        DrawButtonImage(Buttons.Rank, W, H)
+        DrawButtonImage(Buttons.HowTo, W, H)
+        DrawButtonImage(Buttons.Credit, W, H)
         if StartSound ~= nil and not Audio.IsPlaying(StartSound) then
             StartSound = nil
             OpenScene(GameScene)
@@ -142,6 +151,12 @@ function Tick(dt)
     -- 소리를 재생하고, 소리가 끝나면 장면을 바꾸거나 종료한다. 재생에 실패하면(0) 바로 한다
     local bStart = LayoutButton(Buttons.Start, W, H)
     local bExit = LayoutButton(Buttons.Exit, W, H)
+    if bExit or bStart then
+        -- 이번 프레임에 아래 줄 버튼을 건너뛰면 한 프레임 깜빡이므로 그림은 먼저 그려 둔다
+        DrawButtonImage(Buttons.Rank, W, H)
+        DrawButtonImage(Buttons.HowTo, W, H)
+        DrawButtonImage(Buttons.Credit, W, H)
+    end
     if bExit then
         ActionPending = true
         Audio.StopBGM()

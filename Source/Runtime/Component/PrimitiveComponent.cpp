@@ -200,15 +200,10 @@ void UPrimitiveComponent::BeginComponentOverlap(UPrimitiveComponent* Other)
 	OverlappingComponents.Add(Other);
 	Other->OverlappingComponents.Add(this);
 
+	// 컴포넌트 명단에 알린다. 스크립트의 OnComponentOverlap도 이 명단의 구독자로 불린다 (AActor::BindScriptEvents)
 	OnComponentBeginOverlap.Broadcast(this, OtherActor, Other);
 	Other->OnComponentBeginOverlap.Broadcast(Other, MyActor, this);
 	HTR_LOG(Info, "BeginOverlap: {} <-> {}", GetName(), Other->GetName());
-
-	if (MyActor && OtherActor)
-	{
-		MyActor->NotifyComponentBeginOverlap(this, OtherActor, Other);
-		OtherActor->NotifyComponentBeginOverlap(Other, MyActor, this);
-	}
 
 	if (!bActorsWereOverlapping && MyActor && OtherActor)
 	{
