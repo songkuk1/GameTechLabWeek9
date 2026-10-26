@@ -22,7 +22,13 @@ public:
 	static std::unique_ptr<FLuaScriptInstance> CreateAndLoad(UObject* InOwner, const FString& InPath);
 
 	// environment를 만들고 파일을 실행해 함수들을 등록한다. 실패하면 로그를 남기고 false.
+	// 실패하면 이전 environment를 그대로 둔다.
 	bool Load();
+
+	// PIE 중 파일이 바뀌었을 때 다시 로드한다. 문법 에러면 이전 스크립트를 그대로 둔다.
+	// 스크립트 전역 값은 새 environment에서 다시 시작하고, BeginPlay는 다시 부르지 않는다.
+	// 새로 추가한 Tick, OnOverlap 같은 함수는 BeginPlay 때 등록이 끝나서 PIE를 다시 시작해야 불린다.
+	bool Reload();
 	bool IsLoaded() const { return bLoaded; }
 	const FString& GetPath() const { return Path; }
 

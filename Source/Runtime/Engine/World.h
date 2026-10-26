@@ -91,6 +91,9 @@ public:
 	void RegisterScriptInstance(FLuaScriptInstance* Instance);
 	void UnregisterScriptInstance(FLuaScriptInstance* Instance);
 
+	// Path 스크립트를 쓰는 모든 Instance를 다시 로드한다 ( PIE 중 Hot Reload ). 다시 로드한 개수를 반환
+	int32 ReloadScripts(const FString& Path);
+
 	// View별 Billboard 행렬 공급자는 이 동기 호출 동안만 사용하며 저장하지 않는다.
 	using FBillboardTraceTransform = FMatrix(*)(const UBillboardComponent&, const void*);
 	// 현재 World의 Component에 Ray를 전달하고 가장 가까운 유효 교차를 반환한다.

@@ -43,6 +43,9 @@ public:
 
 	void SetWorld(UWorld* InWorld) { World = InWorld; }
 
+	// PIE 중이면 PIE 월드, 아니면 nullptr. 스크립트 Reload 버튼을 PIE 중에만 보여준다.
+	void SetPlayWorldQuery(std::function<UWorld*()> InQuery) { PlayWorldQuery = std::move(InQuery); }
+
 	ImFont* GetCustomFont() { return CustomFont; }
 
 private:
@@ -57,6 +60,7 @@ private:
 	void TryReparent(USceneComponent* DroppedComponent, USceneComponent* DragComponent);
 
 	UWorld* World = nullptr;
+	std::function<UWorld*()> PlayWorldQuery;
 	ImFont* CustomFont = nullptr;
 
 	AActor* TargetActor = nullptr;

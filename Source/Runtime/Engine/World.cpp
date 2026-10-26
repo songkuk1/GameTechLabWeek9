@@ -35,6 +35,8 @@
 #include "UObject/UObjectGlobals.h"
 #include "Script/LuaScriptInstance.h"
 
+#include <filesystem>
+
 DECLARE_CYCLE_STAT("Actor Tick", STAT_ActorTick); // Actor 틱 측정
 DECLARE_CYCLE_STAT("Update All Transforms", STAT_UpdateAllTransforms); // 각 Transform의 Update 시간 측정
 DECLARE_CYCLE_STAT("Gather Render Packets", STAT_GatherRenderPackets);
@@ -812,6 +814,48 @@ void UWorld::UnregisterScriptInstance(FLuaScriptInstance* Instance)
 		ScriptInstances[Index] = nullptr;
 	else
 		ScriptInstances.RemoveAtSwap(static_cast<uint32>(Index));
+}
+
+int32 UWorld::ReloadScripts(const FString& Path)
+{
+	// 코루틴 순회 도중(스크립트 안)에서 불리면 순회 중인 Instance를 바꾸게 되므로 막는다
+	if (bTickingScripts)
+	{
+		HTR_LOG(Warning, "[Lua] 스크립트 실행 중에는 리로드할 수 없습니다 : {}", Path);
+		return 0;
+	}
+
+	// 상대/절대 경로, 구분자 차이가 있어도 같은 파일이면 같게 본다
+	auto Normalize = [](const FString& InPath)
+	{
+		std::error_code Ec;
+		std::filesystem::path Absolute = std::filesystem::absolute(InPath, Ec);
+		return (Ec ? std::filesystem::path(InPath) : Absolute).lexically_normal();
+	};
+
+	const std::filesystem::path Target = Normalize(Path);
+	int32 Reloaded = 0;
+
+	// 스크립트 최상위 코드가 Spawn / Destroy를 부를 수 있으므로 Coroutine 순회와 같은 방식으로 돈다
+	bTickingScripts = true;
+
+	const int32 Count = ScriptInstances.Num();
+	for (int32 i = 0; i < Count; ++i)
+	{
+		FLuaScriptInstance* Instance = ScriptInstances[i];
+		if (Instance && Normalize(Instance->GetPath()) == Target && Instance->Reload())
+			++Reloaded;
+	}
+
+	bTickingScripts = false;
+
+	for (int32 i = ScriptInstances.Num() - 1; i >= 0; --i)
+	{
+		if (!ScriptInstances[i])
+			ScriptInstances.RemoveAt(i);
+	}
+
+	return Reloaded;
 }
 
 void UWorld::TickScriptCoroutines(float DeltaTime)

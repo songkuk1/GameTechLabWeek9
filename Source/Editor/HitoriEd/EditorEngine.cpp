@@ -224,6 +224,7 @@ bool UEditorEngine::Init()
 	LineBatcher->Init(Renderer, GetActiveWorld());
 
 	DetailsPanel->SetWorld(GetActiveWorld());
+	DetailsPanel->SetPlayWorldQuery([this]() { return PlayWorld; });
 
 	EditorControlsPanel->SetWorld(GetActiveWorld());
 	EditorControlsPanel->SetIsPlayingQuery([this]() { return IsPlaying(); });

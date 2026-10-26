@@ -1,4 +1,4 @@
-#include "EnginePCH.h"
+﻿#include "EnginePCH.h"
 #include "Editor/Details/DetailsPanel.h"
 
 #include "Render/ShadowResources.h"
@@ -706,7 +706,7 @@ namespace
 	}
 
 	// UClass에 등록된 프로퍼티를 타입에 맞는 위젯으로 그린다
-	void DrawProperty(UObject* Object, const FProperty& Property, ImFont* CustomFont)
+	void DrawProperty(UObject* Object, const FProperty& Property, ImFont* CustomFont, UWorld* PlayWorld)
 	{
 		void* ValuePtr = reinterpret_cast<char*>(Object) + Property.Offset;
 		const FString Label = "##" + Property.Name;
@@ -829,9 +829,12 @@ namespace
 			const float BrowseButtonWidth = ImGui::CalcTextSize("...").x + ImGui::GetStyle().FramePadding.x * 2.0f;
 			// 경로가 있으면 Edit, 없으면 Create. 글자가 바뀌어도 칸이 흔들리지 않게 긴 쪽 폭으로 고정한다
 			const float CreateButtonWidth = (std::max)(ImGui::CalcTextSize("Create").x, ImGui::CalcTextSize("Edit").x) + ImGui::GetStyle().FramePadding.x * 2.0f;
+			// PIE 중이고 경로가 있을 때만 Reload 버튼을 보여준다
+			UWorld* ReloadWorld = (bBrowseLua && !Value->empty()) ? PlayWorld : nullptr;
+			const float ReloadButtonWidth = ReloadWorld ? ImGui::CalcTextSize("Reload").x + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetStyle().ItemSpacing.x : 0.0f;
 			if (bBrowseLua)
 			{
-				ImGui::SetNextItemWidth(-(BrowseButtonWidth + CreateButtonWidth + ImGui::GetStyle().ItemSpacing.x * 2.0f));
+				ImGui::SetNextItemWidth(-(BrowseButtonWidth + CreateButtonWidth + ReloadButtonWidth + ImGui::GetStyle().ItemSpacing.x * 2.0f));
 			}
 
 			char Buffer[256] = {};
@@ -876,6 +879,17 @@ namespace
 					if (ImGui::Button(("Edit" + Label).c_str(), ImVec2(CreateButtonWidth, 0.0f)))
 					{
 						FEditorFileUtils::OpenScriptInEditor(*Value);
+					}
+
+					// PIE 월드에서 이 파일을 쓰는 모든 액터·컴포넌트 스크립트를 다시 로드한다
+					if (ReloadWorld)
+					{
+						ImGui::SameLine();
+						if (ImGui::Button(("Reload" + Label).c_str()))
+						{
+							if (ReloadWorld->ReloadScripts(*Value) == 0)
+								HTR_LOG(Warning, "[Lua] {} : 다시 로드한 스크립트가 없습니다", *Value);
+						}
 					}
 				}
 			}
@@ -955,7 +969,7 @@ namespace
 	}
 
 	// 클래스 계층을 따라 올라가며 각 단계의 프로퍼티를 표시
-	void DrawProperties(UObject* Object, ImFont* CustomFont)
+	void DrawProperties(UObject* Object, ImFont* CustomFont, UWorld* PlayWorld)
 	{
 		if (!Object)
 		{
@@ -1000,7 +1014,7 @@ namespace
 
 					const bool bReadOnly = Property.HasAnyFlags(CPF_EditConst);
 					if (bReadOnly) ImGui::BeginDisabled();
-					DrawProperty(Object, Property, CustomFont);
+					DrawProperty(Object, Property, CustomFont, PlayWorld);
 					if (bReadOnly) ImGui::EndDisabled();
 				}
 			}
@@ -1124,15 +1138,18 @@ void FDetailsPanel::OnRender()
 		ImGui::Separator();
 
 		// 액터 -> 컴포넌트 순으로, 클래스별 프로퍼티 표시
+		// PIE 중이면 스크립트 경로 옆에 Reload 버튼이 붙는다
+		UWorld* PlayWorld = PlayWorldQuery ? PlayWorldQuery() : nullptr;
+
 		ImGui::PushID(TargetActor);
-		DrawProperties(TargetActor, CustomFont);
+		DrawProperties(TargetActor, CustomFont, PlayWorld);
 		ImGui::PopID();
 
 		if (TargetComponent)
 		{
 			ImGui::PushID(TargetComponent);
 			ImGui::SeparatorText("Component Properties");
-			DrawProperties(TargetComponent, CustomFont);
+			DrawProperties(TargetComponent, CustomFont, PlayWorld);
             if (auto* Light = Cast<ULightComponent>(TargetComponent)) DrawShadowPreview(Light);
 
 			if(SelectCandidateComponent != TargetComponent)
