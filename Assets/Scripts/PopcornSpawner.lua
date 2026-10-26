@@ -32,7 +32,6 @@ local DropTypes = {
 local HiddenZ = -10.0           -- 쉬는 슬롯을 숨겨 둘 바닥 아래 높이. 플레이어와 겹치지 않게 Box째 내려 둔다
 
 -- 이펙트 (프리셋은 EffectManager.cpp의 RegisterDefaultEffects)
-local PenaltyText = "-3"                              -- 팝콘이 아닌 것에 맞았을 때 머리 위에 뜨는 글자 (표시만, 점수는 따로)
 local PenaltyColor = FLinearColor(1.0, 0.45, 0.75, 1.0)
 local PenaltyTextHeight = 1.4                         -- 플레이어 위치에서 글자를 띄울 높이
 
@@ -73,14 +72,13 @@ local function Collect(Slot, Player)
 		print("[PopcornSpawner] 등록되지 않은 액터가 주웠습니다: " .. tostring(Player))
 	end
 
-	print("[PopcornSpawner] " .. tostring(Player) .. " got " .. Slot.Type.Name)
-
 	local Location = Slot.Drop:GetWorldLocation()
 	if Slot.Type.Name == "Popcorn" then
 		SpawnEffect("PopcornCatch", Location)
 	else
+		-- 머리 위 글자는 실제로 깎이는 점수를 보여 준다 (예: -1)
 		SpawnEffect("HitSplash", Location)
-		SpawnTextEffect(PenaltyText, Player:GetActorLocation() + FVector(0, 0, PenaltyTextHeight), PenaltyColor)
+		SpawnTextEffect(tostring(Slot.Type.Score), Player:GetActorLocation() + FVector(0, 0, PenaltyTextHeight), PenaltyColor)
 	end
 
 	Hide(Slot)

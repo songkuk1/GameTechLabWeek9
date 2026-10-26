@@ -151,6 +151,7 @@ return function(Config)
 	function Controller.Tick(dt)
 		-- 제한 시간 안에서만 움직인다 (시작 대기·결과 화면에서는 멈춤)
 		if not GameState.IsPlaying() then
+			bMoving = false
 			return
 		end
 
@@ -158,10 +159,6 @@ return function(Config)
 
 		-- 밀려나는 동안은 입력으로 움직이지 않는다
 		if UpdateKnockback(dt) then
-
-		-- 시작 대기 중에는 입력을 받지 않는다
-		if LockTimer > 0 then
-			LockTimer = LockTimer - dt
 			bMoving = false
 			return
 		end
