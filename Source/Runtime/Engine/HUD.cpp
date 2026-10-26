@@ -4,6 +4,26 @@
 #include "GameFramework/Actor.h"
 #include "Component/ActorComponent.h"
 #include "UObject/Casts.h"
+#include "Asset/AssetManager.h"
+#include "Text/Font.h"
+#include "Core/ResourcePaths.h"
+
+UFont* FHUD::GetFont()
+{
+	// 보통은 에셋 스캔 때 이미 읽혀 있다. 없으면 한 번만 직접 읽어 보고, 실패하면 매 프레임 다시 읽지 않는다
+	if (UFont* Font = UAssetManager::GetAssetByPath<UFont>(FontPath))
+		return Font;
+
+	static bool bTriedLoad = false;
+	if (!bTriedLoad)
+	{
+		bTriedLoad = true;
+		if (UFont* Font = UAssetManager::Get().LoadFontAtlas(FontPath, FontAtlasPath))
+			return Font;
+		HTR_LOG(Warning, "[HUD] font not found: {} (using default font)", FontPath);
+	}
+	return UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
+}
 
 FHUD* FindHUDForObject(UObject* Object)
 {

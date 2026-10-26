@@ -15,6 +15,7 @@
 #include "Asset/LOD/StaticMeshLODSelector.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/HUD.h"
+#include "Engine/EffectManager.h"
 
 //class ACameraActor;
 class ULevel;
@@ -138,6 +139,8 @@ public:
 
 	FScene& GetScene() { return Scene; }
 
+	FEffectManager& GetEffectManager() { return EffectManager; }
+
 	FHUD& GetHUD() { return HUD; }
 	const FHUD& GetHUD() const { return HUD; }
 
@@ -204,6 +207,8 @@ private:
 
 	FScene Scene;
 	FHUD HUD;
+	// 게임 월드에서만 NotifyBeginPlay 때 초기화된다.
+	FEffectManager EffectManager;
 
 	// GatherRenderPackets가 매 프레임 채우는 컬링 결과. 용량을 재사용한다.
 	TArray<FPrimitiveSceneProxy*> VisibleProxies;

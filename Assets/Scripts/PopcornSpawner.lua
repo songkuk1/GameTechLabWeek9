@@ -24,12 +24,17 @@ local EdgeMargin = 0.6          -- 벽에 붙어 떨어지지 않게 경계에�
 -- Scale: 모델 원본 크기가 달라서 둘 다 지름 약 0.9가 되도록 맞춘 값
 -- Bottom: 모델 원점에서 바닥까지 거리(Scale 적용 후). 착지 높이를 맞출 때 쓴다
 -- Score: 주운 플레이어에게 더할 점수
+-- Sound: 제한 시간 안에 주웠을 때 재생할 효과음
 local DropTypes = {
-	{ Name = "Popcorn", Weight = 1, Mesh = "Models/Popcorn/T_1.obj",    Scale = 0.24, Bottom = 0.53, Score = 1 },
-	{ Name = "Garlic",  Weight = 1, Mesh = "Models/Garlic/garlic.obj",  Scale = 0.30, Bottom = 0.39, Score = -1 },
+	{ Name = "Popcorn", Weight = 1, Mesh = "Models/Popcorn/T_1.obj",    Scale = 0.24, Bottom = 0.53, Score = 1, Sound = "Assets/Audio/PopcornEat.wav" },
+	{ Name = "Garlic",  Weight = 1, Mesh = "Models/Garlic/garlic.obj",  Scale = 0.30, Bottom = 0.39, Score = -1, Sound = "Assets/Audio/GarlicEat.mp3" },
 }
 
 local HiddenZ = -10.0           -- 쉬는 슬롯을 숨겨 둘 바닥 아래 높이. 플레이어와 겹치지 않게 Box째 내려 둔다
+
+-- 이펙트 (프리셋은 EffectManager.cpp의 RegisterDefaultEffects)
+local PenaltyColor = FLinearColor(1.0, 0.45, 0.75, 1.0)
+local PenaltyTextHeight = 1.4                         -- 플레이어 위치에서 글자를 띄울 높이
 
 local Slots = {}                 -- { Drop(Box), Mesh, Active, Type, X, Y, Time }
 local SpawnTimer = 0
@@ -64,9 +69,22 @@ local function Collect(Slot, Player)
 	local PlayerNumber = GameState.FindPlayerNumber(Player)
 	if PlayerNumber then
 		GameState.AddScore(PlayerNumber, Slot.Type.Score)
+		if GameState.IsPlaying() then
+			Audio.Play(Slot.Type.Sound)
+		end
 	else
 		print("[PopcornSpawner] 등록되지 않은 액터가 주웠습니다: " .. tostring(Player))
 	end
+
+	local Location = Slot.Drop:GetWorldLocation()
+	if Slot.Type.Name == "Popcorn" then
+		SpawnEffect("PopcornCatch", Location)
+	else
+		-- 머리 위 글자는 실제로 깎이는 점수를 보여 준다 (예: -1)
+		SpawnEffect("HitSplash", Location)
+		SpawnTextEffect(tostring(Slot.Type.Score), Player:GetActorLocation() + FVector(0, 0, PenaltyTextHeight), PenaltyColor)
+	end
+
 	Hide(Slot)
 end
 
@@ -80,6 +98,7 @@ local function Spawn()
 		if not Slot.Active then
 			Slot.Active = true
 			Slot.Time = 0
+			Slot.Landed = false
 			Slot.Type = PickType()
 			Slot.Mesh:SetStaticMesh(Slot.Type.MeshAsset)
 			Slot.Mesh:SetRelativeScale3D(FVector(Slot.Type.Scale, Slot.Type.Scale, Slot.Type.Scale))
@@ -156,6 +175,13 @@ function Tick(dt)
 				local U = math.min((Slot.Time - FallTime) / BounceTime, 1.0)   -- 0(착지) ~ 1(재착지)
 				Z = GroundZ + BounceHeight * 4 * U * (1 - U)
 
+				-- 팝콘이 아닌 것이 바닥에 처음 닿는 순간 튄다
+				if not Slot.Landed then
+					Slot.Landed = true
+					if Slot.Type.Name ~= "Popcorn" then
+						SpawnEffect("HitSplash", FVector(Slot.X, Slot.Y, Floor.Z))
+					end
+				end
 			end
 
 			Slot.Drop:SetRelativeLocation(FVector(Slot.X, Slot.Y, Z))

@@ -3,10 +3,12 @@
 #include "Core/EngineString.h"
 #include "Containers/Array.h"
 #include "Math/Vector2.h"
+#include "Math/Vector.h"
 #include "Math/Color.h"
 #include "Render/Texture2D.h"
 
 class UObject;
+class UFont;
 
 // Rect 위에 Text
 enum class EHUDCommandType : uint8
@@ -27,6 +29,12 @@ struct FHUDDrawCommand
     UTexture2D* Texture = nullptr;  // Image 전용
 	FVector2 UVMin = FVector2(0.0f, 0.0f);
 	FVector2 UVMax = FVector2(1.0f, 1.0f);
+
+	// Text 전용. true면 Position 대신 WorldPosition을 렌더 시점에 그 뷰포트의 View로 투영하고,
+	// 투영된 점에 글자 중심을 맞춘 뒤 ScreenOffset(기준 단위)만큼 더 옮긴다.
+	bool bWorldSpace = false;
+	FVector WorldPosition;
+	FVector2 ScreenOffset;
 };
 
 // GameViewportClient가 매 프레임 채우는 HUD 입력
@@ -77,6 +85,22 @@ public:
 		Commands.Add(std::move(Command));
 	}
 
+	// 월드 위치에 뜨는 텍스트. 화면 좌표는 렌더할 때 뷰포트의 FSceneView로 구하므로 실제 그려진 화면과 맞는다.
+	// 카메라 뒤면 그리지 않는다. ScreenOffset은 투영 뒤 기준 단위로 더하는 값이다 (그림자 등).
+	void AddWorldText(const FString& Text, const FVector& WorldPosition, float FontSize, const FLinearColor& Color,
+		const FVector2& ScreenOffset = FVector2())
+	{
+		FHUDDrawCommand Command;
+		Command.Type = EHUDCommandType::Text;
+		Command.bWorldSpace = true;
+		Command.WorldPosition = WorldPosition;
+		Command.ScreenOffset = ScreenOffset;
+		Command.Text = Text;
+		Command.FontSize = FontSize;
+		Command.Color = Color;
+		Commands.Add(std::move(Command));
+	}
+
 	const TArray<FHUDDrawCommand>& GetCommands() const { return Commands; }
 
 	// HUD가 그려지는 화면 크기. ( Viewport가 채움 )
@@ -86,6 +110,12 @@ public:
     // UI 좌표, 크기의 기준 해상도
 	static constexpr float ReferenceWidth = 1920.0f;
 	static constexpr float ReferenceHeight = 1080.0f;
+
+	// HUD 글자 폰트 (게임 콘텐츠라 Assets에 있다). 없으면 엔진 기본 폰트로 그린다.
+	// FHUDRenderer와 Lua의 MeasureHUDText가 같이 써야 글자 폭이 맞는다.
+	static constexpr const char* FontPath = "Assets/Fonts/CookieRun.json";
+	static constexpr const char* FontAtlasPath = "Assets/Fonts/CookieRun.png";
+	static UFont* GetFont();
 
 	// 기준 단위 -> 실제 픽셀 배율. 비율을 유지하도록 가로/세로 중 작은 쪽에 맞춤
 	float GetScale() const

@@ -19,3 +19,6 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner);
 
 // 입력 함수 등록 (EnableInput, DisableInput, GetPlayerController)
 void RegisterLuaInputAPI(sol::environment& Env, UObject* Owner);
+
+// 이펙트 함수 등록 (SpawnEffect, SpawnEffectAttached, SpawnTextEffect, StopEffect, IsEffectActive, RegisterEffect)
+void RegisterLuaEffectAPI(sol::environment& Env, UObject* Owner);

@@ -8,6 +8,7 @@
 #include "Text/TextRenderer.h"
 #include "Asset/AssetManager.h"
 #include "Core/ResourcePaths.h"
+#include "Render/SceneView.h"
 
 namespace
 {
@@ -47,8 +48,6 @@ bool FHUDRenderer::Init()
 	TransformBuffer = RenderCommand::CreateConstantBuffer(sizeof(FMatrix));
 	MSDFParamsBuffer = RenderCommand::CreateConstantBuffer(sizeof(FHUDMSDFParams));
 
-	// 기본 폰트 아틀라스
-	Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
 
 	return RectPipeline.Shader && TextPipeline.Shader && ImagePipeline.Shader;
 }
@@ -81,11 +80,15 @@ void FHUDRenderer::AppendText(const FHUDDrawCommand& Command)
 	if (!Font || !Font->AtlasTexture || Command.Text.empty())
 		return;
 
+	FVector2 Origin = Command.Position;
+	if (Command.bWorldSpace && !ResolveWorldTextOrigin(Command, Origin))
+		return;
+
 	// 글리프 좌표는 위로 + 픽셀은 아래로 +
     // 기준선을 FontSize만큼 아래에 둔다.
 	const float Size = Command.FontSize;
-	const float Baseline = Command.Position.Y + Size;
-	float PenX = Command.Position.X;
+	const float Baseline = Origin.Y + Size;
+	float PenX = Origin.X;
 	const FVector4 Color = ToVector4(Command.Color);
 
 	for (uint32 CodePoint : DecodeUTF8(Command.Text))
@@ -107,6 +110,41 @@ void FHUDRenderer::AppendText(const FHUDDrawCommand& Command)
 		}
 		PenX += Glyph->Advance * Size;
 	}
+}
+
+// 장면을 그린 View 그대로 투영해야 글자가 대상에 붙어 보인다. 카메라 컴포넌트의 행렬은
+// FGameViewportClient::CreateSceneView가 만드는 View(Roll 제거, 뷰포트 화면비)와 달라서 쓰지 않는다.
+bool FHUDRenderer::ResolveWorldTextOrigin(const FHUDDrawCommand& Command, FVector2& OutOrigin) const
+{
+	if (!CurrentView)
+		return false;
+
+	const FVector& P = Command.WorldPosition;
+	const FVector4 Clip = FVector4(P.X, P.Y, P.Z, 1.0f) * CurrentView->ViewProjection;
+	if (Clip.W <= 1.0e-4f)
+		return false;   // 카메라 뒤
+
+	// NDC -> 타깃 픽셀 -> 기준 단위 (OnRender의 PixelToNDC가 다시 Scale을 곱한다)
+	const float NdcX = Clip.X / Clip.W;
+	const float NdcY = Clip.Y / Clip.W;
+	const float CenterX = (NdcX * 0.5f + 0.5f) * CurrentScreenWidth / CurrentScale;
+	const float CenterY = (0.5f - NdcY * 0.5f) * CurrentScreenHeight / CurrentScale;
+
+	// 투영된 점에 글자 중심을 맞춘다
+	OutOrigin.X = CenterX - MeasureTextWidth(Command.Text, Command.FontSize) * 0.5f + Command.ScreenOffset.X;
+	OutOrigin.Y = CenterY - Command.FontSize * 0.5f + Command.ScreenOffset.Y;
+	return true;
+}
+
+float FHUDRenderer::MeasureTextWidth(const FString& Text, float FontSize) const
+{
+	float Width = 0.0f;
+	for (uint32 CodePoint : DecodeUTF8(Text))
+	{
+		if (const FGlyphInfo* Glyph = Font->GlyphMap.Find(CodePoint))
+			Width += Glyph->Advance * FontSize;
+	}
+	return Width;
 }
 
 void FHUDRenderer::AppendImage(const FHUDDrawCommand& Command)
@@ -151,13 +189,20 @@ void FHUDRenderer::Flush(EHUDCommandType Type, UTexture2D* Texture)
 	Vertices.Reset();
 }
 
-void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeight)
+void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeight, const FSceneView* View)
 {
 	if (ScreenWidth <= 0.0f || ScreenHeight <= 0.0f || HUD.GetCommands().Num() == 0)
 		return;
 
+	// HUD 폰트는 Assets에 있어 Init 때는 아직 스캔 전일 수 있다. 그릴 때마다 가져온다 (캐시 조회라 가볍다)
+	Font = FHUD::GetFont();
+
 	// 기준 단위 -> 실제 픽셀(×Scale) -> NDC(-1~1 / 위로 +y)
 	const float Scale = HUD.GetScale();
+	CurrentView = View;
+	CurrentScreenWidth = ScreenWidth;
+	CurrentScreenHeight = ScreenHeight;
+	CurrentScale = Scale;
 	const FMatrix PixelToNDC(
 		2.0f * Scale / ScreenWidth, 0.0f,                         0.0f, 0.0f,
 		0.0f,                       -2.0f * Scale / ScreenHeight, 0.0f, 0.0f,
@@ -187,6 +232,7 @@ void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeig
 		case EHUDCommandType::Image: AppendImage(Command); break;
 		}
 	}
-    
+
 	Flush(BatchType, BatchTexture);
+	CurrentView = nullptr;
 }
