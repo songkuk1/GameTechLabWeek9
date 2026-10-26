@@ -192,6 +192,14 @@ private:
 	// 이 월드의 Shape만 모아둔다. 전역 순회(TObjectIterator)로 다른 월드까지 훑지 않도록
 	TArray<UShapeComponent*> Shapes;
 
+	// 넓은 단계용 BVH. 목록이 바뀌면 다시 짓고, 프레임마다 UpdatePendingOverlaps에서 한 번 Refit한다.
+	// 그 사이 움직인 Shape는 BVH 경계가 낡았으니 MovedShapes에 따로 두고 현재 경계로 하나씩 검사한다.
+	void RefreshShapeBVH();
+	static FBox GetShapeBVHBounds(UShapeComponent* const& Shape);
+	TBVH<UShapeComponent*> ShapeBVH{ &UWorld::GetShapeBVHBounds };
+	TArray<UShapeComponent*> MovedShapes;
+	bool bShapeListChanged = true;
+
 	//메인 카메라
 	ACameraActor* MainCamera = nullptr;
 

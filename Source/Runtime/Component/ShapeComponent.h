@@ -35,4 +35,9 @@ protected:
 
 	FColor ShapeColor = FColor(255, 0, 0);
 	bool bDrawOnlyIfSelected = false;
+
+private:
+	// 마지막 Refit 뒤에 움직였으면 BVH 경계가 낡았다. 월드는 이 Shape를 BVH 대신 MovedShapes에서 검사한다.
+	friend class UWorld;
+	bool bMovedSinceShapeRefit = false;
 };

@@ -175,6 +175,14 @@ void UWorld::MarkOverlapDirty(UPrimitiveComponent* Component)
 		return;
 	if (PendingOverlapUpdates.Find(Component) == INDEX_NONE)
 		PendingOverlapUpdates.Add(Component);
+
+	// 위치·크기가 바뀌었으니 BVH에 저장된 경계는 더 이상 맞지 않는다
+	UShapeComponent* Shape = Cast<UShapeComponent>(Component);
+	if (Shape && !Shape->bMovedSinceShapeRefit && Shapes.Find(Shape) != INDEX_NONE)
+	{
+		Shape->bMovedSinceShapeRefit = true;
+		MovedShapes.Add(Shape);
+	}
 }
 
 void UWorld::CancelOverlapUpdate(UPrimitiveComponent* Component)
@@ -191,6 +199,9 @@ void UWorld::CancelOverlapUpdate(UPrimitiveComponent* Component)
 
 void UWorld::UpdatePendingOverlaps()
 {
+	// 이동이 다 끝났으니 BVH 경계를 한 번 맞춘다.
+	RefreshShapeBVH();
+
 	// 이벤트 처리 중에 다시 움직인 컴포넌트는 다음 Tick 목록에 들어가도록 먼저 옮겨 비운다.
 	OverlapUpdatesInProgress = std::move(PendingOverlapUpdates);
 	PendingOverlapUpdates.Empty();
@@ -223,33 +234,76 @@ void UWorld::OverlapMulti(UShapeComponent* Shape, TArray<UPrimitiveComponent*>& 
 void UWorld::GatherShapesInBounds(const FBox& Bounds, const UShapeComponent* Ignore, TArray<UShapeComponent*>& OutShapes)
 {
 	OutShapes.Empty();
-	for (UShapeComponent* Other : Shapes)
+
+	// 지워진 Shape가 낡은 BVH에서 나오지 않도록 목록이 바뀌었으면 먼저 다시 짓는다
+	if (bShapeListChanged)
+		RefreshShapeBVH();
+
+	auto Intersects = [&Bounds](const FBox& OtherBounds)
 	{
-		if (Other == Ignore)
-			continue;
-
-		const FBox OtherBounds = Other->CalcBounds();
-		if (Bounds.Max.X < OtherBounds.Min.X || Bounds.Min.X > OtherBounds.Max.X
+		return !(Bounds.Max.X < OtherBounds.Min.X || Bounds.Min.X > OtherBounds.Max.X
 			|| Bounds.Max.Y < OtherBounds.Min.Y || Bounds.Min.Y > OtherBounds.Max.Y
-			|| Bounds.Max.Z < OtherBounds.Min.Z || Bounds.Min.Z > OtherBounds.Max.Z)
-			continue;
+			|| Bounds.Max.Z < OtherBounds.Min.Z || Bounds.Min.Z > OtherBounds.Max.Z);
+	};
 
-		OutShapes.Add(Other);
+	// 1. 가만히 있던 Shape는 BVH로 추린다. 움직인 Shape는 저장된 경계가 낡았으니 건너뛴다.
+	ShapeBVH.Query(Intersects, [&](UShapeComponent* Other)
+	{
+		if (Other != Ignore && !Other->bMovedSinceShapeRefit)
+			OutShapes.Add(Other);
+	});
+
+	// 2. 마지막 Refit 뒤에 움직인 Shape는 지금 경계로 하나씩 본다
+	for (UShapeComponent* Other : MovedShapes)
+	{
+		if (Other != Ignore && Intersects(Other->CalcBounds()))
+			OutShapes.Add(Other);
 	}
+}
+
+FBox UWorld::GetShapeBVHBounds(UShapeComponent* const& Shape)
+{
+	return Shape->CalcBounds();
+}
+
+void UWorld::RefreshShapeBVH()
+{
+	if (bShapeListChanged)
+		ShapeBVH.Build(std::span(Shapes.GetData(), Shapes.Num()));
+	else if (!MovedShapes.IsEmpty())
+		ShapeBVH.Refit();
+
+	for (UShapeComponent* Shape : MovedShapes)
+		Shape->bMovedSinceShapeRefit = false;
+	MovedShapes.Empty();
+	bShapeListChanged = false;
 }
 
 void UWorld::AddShape(UShapeComponent* Shape)
 {
 	// PIE 복제 때는 AddComponent와 액터 BeginPlay에서 BeginPlay가 두 번 불린다
 	if (Shape && Shapes.Find(Shape) == INDEX_NONE)
+	{
 		Shapes.Add(Shape);
+		bShapeListChanged = true;
+	}
 }
 
 void UWorld::RemoveShape(UShapeComponent* Shape)
 {
 	const int32 Index = Shapes.Find(Shape);
 	if (Index != INDEX_NONE)
+	{
 		Shapes.RemoveAtSwap(Index);
+		bShapeListChanged = true;
+	}
+
+	const int32 MovedIndex = MovedShapes.Find(Shape);
+	if (MovedIndex != INDEX_NONE)
+	{
+		Shape->bMovedSinceShapeRefit = false;
+		MovedShapes.RemoveAtSwap(MovedIndex);
+	}
 }
 
 void UWorld::ClearWorld()
@@ -268,6 +322,9 @@ void UWorld::ClearWorld()
 	// 모든 액터가 함께 지워지니 겹침 이벤트 없이 대기 목록만 버린다.
 	PendingOverlapUpdates.Empty();
 	Shapes.Empty();
+	MovedShapes.Empty();
+	ShapeBVH.Clear();
+	bShapeListChanged = true;
 
 	// GameMode·GameState도 Level의 액터라 아래에서 함께 지워진다.
 	AuthorityGameMode = nullptr;

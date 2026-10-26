@@ -145,6 +145,16 @@ bool UPrimitiveComponent::ShouldGenerateOverlapWith(const UPrimitiveComponent* O
 
 void UPrimitiveComponent::UpdateOverlaps()
 {
+	// 0. Sweep 경로에서 스친 상대에게 먼저 Begin을 낸다. 지나쳐버렸으면 아래 2번에서 End가 이어진다.
+	const TArray<UPrimitiveComponent*> SweepOverlaps = std::move(PendingSweepOverlaps);
+	PendingSweepOverlaps.Empty();
+	for (UPrimitiveComponent* Swept : SweepOverlaps)
+	{
+		// 스친 뒤 같은 프레임에 Destroy된 상대는 건너뛴다 (실제 삭제는 프레임 끝 FlushPendingKill)
+		if (::IsValid(Swept) && ShouldGenerateOverlapWith(Swept))
+			BeginComponentOverlap(Swept);
+	}
+
 	// 1. 지금 위치에서 겹친 상대를 새로 구한다. Shape가 아니면 겹칠 수 있는 게 없다.
 	TArray<UPrimitiveComponent*> NewOverlaps;
 	UShapeComponent* Shape = Cast<UShapeComponent>(this);
@@ -181,6 +191,7 @@ void UPrimitiveComponent::ClearComponentOverlaps()
 	const TArray<UPrimitiveComponent*> OldOverlaps = OverlappingComponents;
 	for (UPrimitiveComponent* Old : OldOverlaps)
 		EndComponentOverlap(Old);
+	PendingSweepOverlaps.Empty();
 
 	// 대기 중인 갱신이 남아 있으면 사라진 포인터로 UpdateOverlaps가 불린다.
 	if (GetOwner() && GetOwner()->GetWorld())
@@ -275,6 +286,12 @@ bool UPrimitiveComponent::MoveComponent(const FVector& Delta, const FRotator& Ne
 		&& Delta.Size() > KINDA_SMALL_NUMBER;
 
 	const bool bBlocked = bCanSweep && SweepBlocking(Shape, World, Delta, Hit);
+
+	// 실제로 간 거리(멈춘 곳까지)에서 스친 겹침 상대를 모은다. Offset 판정이라 옮기기 전에 해야 한다.
+	const bool bCanSweepOverlap = bSweep && Shape && World && bHasBegunPlay && bGenerateOverlapEvents
+		&& Delta.Size() > KINDA_SMALL_NUMBER;
+	if (bCanSweepOverlap)
+		GatherSweepOverlaps(Shape, World, Delta * Hit.Time);
 
 	// 안 막혔으면 Hit.Time = 1이라 끝까지 간다
 	SetWorldLocationAndRotation(Start + Delta * Hit.Time, NewRotation, bSweep);
@@ -395,6 +412,40 @@ bool UPrimitiveComponent::SweepBlocking(UShapeComponent* Shape, UWorld* World, c
 	OutHit.PenetrationDepth = 0.0f;
 	OutHit.HitComponent = HitShape;
 	return true;
+}
+
+void UPrimitiveComponent::GatherSweepOverlaps(UShapeComponent* Shape, UWorld* World, const FVector& Delta)
+{
+	constexpr int32 MaxSweepSteps = 64;
+
+	const float Distance = Delta.Size();
+	if (Distance <= KINDA_SMALL_NUMBER)
+		return;
+
+	// 넓은 단계는 SweepBlocking과 같다: 시작 AABB와 끝 AABB를 합친 범위
+	FBox SweptBounds = Shape->CalcBounds();
+	SweptBounds.Expand(FBox{ SweptBounds.Min + Delta, SweptBounds.Max + Delta });
+	TArray<UShapeComponent*> Shapes;
+	World->GatherShapesInBounds(SweptBounds, Shape, Shapes);
+
+	const float MyHalfSize = GetMinHalfSize(Shape);
+	for (UShapeComponent* Other : Shapes)
+	{
+		if (!::IsValid(Other) || !ShouldGenerateOverlapWith(Other) || PendingSweepOverlaps.Find(Other) != INDEX_NONE)
+			continue;
+
+		// 닿았는지만 보면 되니 이분 탐색 없이 칸 단위로만 훑는다. 칸 길이는 더 얇은 쪽 기준
+		const float StepLength = FMath::Max(FMath::Min(MyHalfSize, GetMinHalfSize(Other)), KINDA_SMALL_NUMBER);
+		const int32 NumSteps = FMath::Clamp((int32)std::ceil(Distance / StepLength), 1, MaxSweepSteps);
+		for (int32 Step = 0; Step <= NumSteps; ++Step)
+		{
+			if (ShapeCollision::OverlapShapes(Shape, Other, nullptr, Delta * ((float)Step / NumSteps)))
+			{
+				PendingSweepOverlaps.Add(Other);
+				break;
+			}
+		}
+	}
 }
 
 void UPrimitiveComponent::DispatchBlockingHit(const FHitResult& Hit)
