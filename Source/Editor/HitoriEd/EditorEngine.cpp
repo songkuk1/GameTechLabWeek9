@@ -22,6 +22,7 @@
 #include "Camera/CameraComponent.h"
 
 #include "Asset/AssetManager.h"
+#include "Audio/AudioManager.h"
 #include "Render/RenderResourceManager.h"
 
 #include "Render/RenderCommand.h"
@@ -1146,6 +1147,7 @@ void UEditorEngine::EndPlayMap()
 	if (!PlayWorld)
 		return;
 
+	FAudioManager::Get().StopAll();
 	ResetSceneSelection();
     for (int32 Index = 0; Index < ViewportsPanel->GetSlotCount(); ++Index)
     {

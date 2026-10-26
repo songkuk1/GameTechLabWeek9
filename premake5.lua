@@ -19,6 +19,7 @@ IncludeDir = {}
 IncludeDir["ImGui"] = "Source/ThirdParty/ImGui"
 IncludeDir["stb"]   = "Source/ThirdParty/stb"
 IncludeDir["json"]  = "Source/ThirdParty/json"
+IncludeDir["miniaudio"] = "Source/ThirdParty/miniaudio"
 -- LuaJIT은 빌드 중에 CPU별 어셈블리 인터프리터를 생성해야 해서 premake로 소스를 빌드하지 않는다.
 -- src/msvcbuild.bat(mixed, debug mixed)로 만든 정적 lib과 헤더를 저장소에 넣어 둔다.
 IncludeDir["Lua"]	= "Source/ThirdParty/LuaJIT/include"
@@ -174,6 +175,11 @@ project "HitoriEngine"
 		"%{IncludeDir.Lua}",
 		"%{IncludeDir.sol2}"
 	}
+	includedirs { "%{IncludeDir.miniaudio}" }
+	files { "%{IncludeDir.miniaudio}/miniaudio.h", "%{IncludeDir.miniaudio}/LICENSE" }
+	filter "files:Source/Runtime/Audio/Miniaudio.cpp"
+		enablepch "Off"
+	filter {}
 
 	-- DirectX 라이브러리는 실행 파일 쪽(Editor, Game)에서 링크한다.
 	-- 정적 라이브러리에 links를 주면 import lib가 HitoriEngine.lib 안으로 합쳐지고,
