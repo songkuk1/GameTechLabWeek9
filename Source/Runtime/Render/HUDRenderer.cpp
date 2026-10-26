@@ -114,7 +114,7 @@ void FHUDRenderer::AppendImage(const FHUDDrawCommand& Command)
 	// D3D 텍스처는 왼쪽 위가 UV (0,0)이라 화면 좌표와 방향이 같다
 	AddQuad(Command.Position.X, Command.Position.Y,
 		Command.Position.X + Command.Size.X, Command.Position.Y + Command.Size.Y,
-		FVector2(0.0f, 0.0f), FVector2(1.0f, 1.0f), ToVector4(Command.Color));
+		Command.UVMin, Command.UVMax, ToVector4(Command.Color));
 }
 
 void FHUDRenderer::Flush(EHUDCommandType Type, UTexture2D* Texture)

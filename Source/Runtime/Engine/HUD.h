@@ -25,6 +25,8 @@ struct FHUDDrawCommand
 	FString Text;                   // Text 전용
 	float FontSize = 0.0f;          // Text 전용
     UTexture2D* Texture = nullptr;  // Image 전용
+	FVector2 UVMin = FVector2(0.0f, 0.0f);
+	FVector2 UVMax = FVector2(1.0f, 1.0f);
 };
 
 // GameViewportClient가 매 프레임 채우는 HUD 입력
@@ -100,7 +102,8 @@ public:
 		return FVector2(ScreenSize.X / Scale, ScreenSize.Y / Scale);
 	}
 
-    void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color);
+    void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color,
+		const FVector2& UVMin = FVector2(0.0f, 0.0f), const FVector2& UVMax = FVector2(1.0f, 1.0f));
 
 	void SetInput(const FHUDInput& InInput) { Input = InInput; }
 	void ClearInput() { Input = FHUDInput{}; }

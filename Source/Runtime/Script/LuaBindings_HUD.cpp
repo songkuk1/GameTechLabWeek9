@@ -53,6 +53,19 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 			HUD->AddImage(Texture, FVector2(X, Y), FVector2(W, H), Tint.value_or(DefaultHUDColor));
 		});
 
+	// DrawHUDImageRegion(path, x, y, w, h, u0, v0, u1, v1 [, tint])
+	Env.set_function("DrawHUDImageRegion",
+		[Owner](const FString& Path, float X, float Y, float W, float H,
+			float U0, float V0, float U1, float V1, sol::optional<FLinearColor> Tint)
+		{
+			if (FHUD* HUD = FindHUDForObject(Owner))
+			{
+				UTexture2D* Texture = UAssetManager::Get().LoadTexture(Path);
+				HUD->AddImage(Texture, FVector2(X, Y), FVector2(W, H), Tint.value_or(DefaultHUDColor),
+					FVector2(U0, V0), FVector2(U1, V1));
+			}
+		});
+
     // HUDButton(label, x, y, w, h [, size])
 	Env.set_function("HUDButton",
 		[Owner](const FString& Label, float X, float Y, float W, float H, sol::optional<float> Size) -> bool
