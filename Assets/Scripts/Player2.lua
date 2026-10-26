@@ -10,6 +10,10 @@ local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({
 	SpawnOffsetY = 1.0,    -- 시작 위치: 바닥 중앙에서 화면 오른쪽으로
 })
 
+-- 걷는 동안 발밑 연기를 켠다. 매 프레임 스폰하지 않고 걷기 시작·멈춤 순간에만 부른다
+local FootOffset = FVector(0, 0, -0.5)   -- 루트(CollisionBox 중심)에서 발까지
+local SmokeHandle = -1
+
 function BeginPlay()
 	GameState.RegisterPlayer(2, obj)
 	Controller.BeginPlay(obj, GetPlayerController(1), EnableInput(1))
@@ -17,10 +21,19 @@ end
 
 function Tick(dt)
 	Controller.Tick(dt)
+
+	local Moving = Controller.IsMoving()
+	if Moving and SmokeHandle < 0 then
+		SmokeHandle = SpawnEffectAttached("FootSmoke", obj, FootOffset, true)
+	elseif not Moving and SmokeHandle >= 0 then
+		StopEffect(SmokeHandle)   -- 남은 연기는 그 자리에서 마저 사라진다
+		SmokeHandle = -1
+	end
 end
 
 function EndPlay()
 	Controller.EndPlay()
+	SmokeHandle = -1   -- 이펙트는 월드가 정리할 때 함께 정리된다
 end
 
 function OnOverlap(OtherActor)

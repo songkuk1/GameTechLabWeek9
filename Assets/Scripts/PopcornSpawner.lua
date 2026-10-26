@@ -31,6 +31,10 @@ local DropTypes = {
 
 local HiddenZ = -10.0           -- 쉬는 슬롯을 숨겨 둘 바닥 아래 높이. 플레이어와 겹치지 않게 Box째 내려 둔다
 
+-- 이펙트 (프리셋은 EffectManager.cpp의 RegisterDefaultEffects)
+local PenaltyColor = FLinearColor(1.0, 0.45, 0.75, 1.0)
+local PenaltyTextHeight = 1.4                         -- 플레이어 위치에서 글자를 띄울 높이
+
 local Slots = {}                 -- { Drop(Box), Mesh, Active, Type, X, Y, Time }
 local SpawnTimer = 0
 local TotalWeight = 0
@@ -67,6 +71,16 @@ local function Collect(Slot, Player)
 	else
 		print("[PopcornSpawner] 등록되지 않은 액터가 주웠습니다: " .. tostring(Player))
 	end
+
+	local Location = Slot.Drop:GetWorldLocation()
+	if Slot.Type.Name == "Popcorn" then
+		SpawnEffect("PopcornCatch", Location)
+	else
+		-- 머리 위 글자는 실제로 깎이는 점수를 보여 준다 (예: -1)
+		SpawnEffect("HitSplash", Location)
+		SpawnTextEffect(tostring(Slot.Type.Score), Player:GetActorLocation() + FVector(0, 0, PenaltyTextHeight), PenaltyColor)
+	end
+
 	Hide(Slot)
 end
 
@@ -80,6 +94,7 @@ local function Spawn()
 		if not Slot.Active then
 			Slot.Active = true
 			Slot.Time = 0
+			Slot.Landed = false
 			Slot.Type = PickType()
 			Slot.Mesh:SetStaticMesh(Slot.Type.MeshAsset)
 			Slot.Mesh:SetRelativeScale3D(FVector(Slot.Type.Scale, Slot.Type.Scale, Slot.Type.Scale))
@@ -156,6 +171,13 @@ function Tick(dt)
 				local U = math.min((Slot.Time - FallTime) / BounceTime, 1.0)   -- 0(착지) ~ 1(재착지)
 				Z = GroundZ + BounceHeight * 4 * U * (1 - U)
 
+				-- 팝콘이 아닌 것이 바닥에 처음 닿는 순간 튄다
+				if not Slot.Landed then
+					Slot.Landed = true
+					if Slot.Type.Name ~= "Popcorn" then
+						SpawnEffect("HitSplash", FVector(Slot.X, Slot.Y, Floor.Z))
+					end
+				end
 			end
 
 			Slot.Drop:SetRelativeLocation(FVector(Slot.X, Slot.Y, Z))
