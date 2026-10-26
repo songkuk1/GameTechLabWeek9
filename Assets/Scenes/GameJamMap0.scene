@@ -1491,9 +1491,9 @@
                                 "ScriptPath": "",
                                 "Transform": {
                                     "Location": {
-                                        "X": -6.0,
+                                        "X": -7.866314888000488,
                                         "Y": 0.0,
-                                        "Z": 4.5
+                                        "Z": 5.806807518005371
                                     },
                                     "Rotation": {
                                         "Pitch": 35.0,
@@ -1511,6 +1511,39 @@
                     ],
                     "Properties": {
                         "ScriptPath": ""
+                    }
+                },
+                {
+                    "Class": "AActor",
+                    "Components": [
+                        {
+                            "Class": "USceneComponent",
+                            "Name": "DefaultSceneRoot",
+                            "Parent": "",
+                            "Properties": {
+                                "ScriptPath": "",
+                                "Transform": {
+                                    "Location": {
+                                        "X": 0.0,
+                                        "Y": 0.0,
+                                        "Z": 0.0
+                                    },
+                                    "Rotation": {
+                                        "Pitch": 0.0,
+                                        "Roll": 0.0,
+                                        "Yaw": 0.0
+                                    },
+                                    "Scale": {
+                                        "X": 1.0,
+                                        "Y": 1.0,
+                                        "Z": 1.0
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "Properties": {
+                        "ScriptPath": "Assets/Scripts/GameHUD.lua"
                     }
                 }
             ],

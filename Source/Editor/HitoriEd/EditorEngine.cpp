@@ -353,7 +353,8 @@ bool UEditorEngine::Init()
 	StepFrame.Execute = [this]() { bStepRequested= true; };
 
 
-	Stop = { "Stop",   "Stop",				UAssetManager::Get().LoadTexture(EditorResourcePaths::ToolbarStopIcon),  White, { EKeyCode::Escape } };
+	// Esc만 누르면 게임의 일시정지 키와 겹쳐서 PIE가 꺼진다. 그래서 Shift+Esc로 끝낸다
+	Stop = { "Stop",   "Stop",				UAssetManager::Get().LoadTexture(EditorResourcePaths::ToolbarStopIcon),  White, { EKeyCode::Escape, false, false, true } };
 
 	Stop.CanExecute = [this]()->bool {return PlayWorld; };
 	Stop.Execute = [this]() { RequestEndPlayMap(); };
@@ -587,26 +588,38 @@ void UEditorEngine::RenderViewports()
 
 void UEditorEngine::UpdatePIEInput()
 {
-    if (!PIEViewport)
-        return;
-    FViewportInput Input;
-    if (IsPIEInWindow())
+    bool bGameHasInput = false;
+    if (PIEViewport)
     {
-        Input.MousePosition = PIEPanel->GetWindowMousePosition();
-        Input.bEnabled = ::GetForegroundWindow() == PIEWindow->GetHandle();
-        PIEPanel->RouteInput(0, Input);
-    }
-    else
-    {
-        Input.MousePosition = ViewportsPanel->GetWindowMousePosition();
-        for (int32 Index = 0; Index < ViewportsPanel->GetSlotCount(); ++Index)
+        FViewportInput Input;
+        if (IsPIEInWindow())
         {
-            if (ViewportsPanel->GetViewport(Index) != PIEViewport)
-                continue;
-            Input.bEnabled = Index == ViewportsPanel->GetActiveViewIndex() && ::GetForegroundWindow() == MainWindow->GetHandle() && !ImGui::GetIO().WantTextInput;
-            ViewportsPanel->RouteInput(Index, Input);
+            Input.MousePosition = PIEPanel->GetWindowMousePosition();
+            Input.bEnabled = ::GetForegroundWindow() == PIEWindow->GetHandle();
+            PIEPanel->RouteInput(0, Input);
+            bGameHasInput = Input.bEnabled;
+        }
+        else
+        {
+            Input.MousePosition = ViewportsPanel->GetWindowMousePosition();
+            for (int32 Index = 0; Index < ViewportsPanel->GetSlotCount(); ++Index)
+            {
+                if (ViewportsPanel->GetViewport(Index) != PIEViewport)
+                    continue;
+                Input.bEnabled = Index == ViewportsPanel->GetActiveViewIndex() && ::GetForegroundWindow() == MainWindow->GetHandle() && !ImGui::GetIO().WantTextInput;
+                ViewportsPanel->RouteInput(Index, Input);
+                bGameHasInput |= Input.bEnabled;
+            }
         }
     }
+
+    // 게임이 키보드를 받는 동안에는 ImGui 키보드 내비게이션을 끈다. 켜 두면 마지막에 누른 위젯(드롭다운 등)에
+    // 포커스가 남아 게임 키인 Space·Enter가 그 위젯을 누른다. ImGui 프레임은 이 뒤 PresentFrame에서 시작하므로 이번 프레임부터 적용된다.
+    ImGuiIO& IO = ImGui::GetIO();
+    if (bGameHasInput)
+        IO.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+    else
+        IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 }
 
 FGameViewportClient* UEditorEngine::GetPIEGameViewportClient() const
@@ -945,7 +958,7 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 	if (Viewport.GetActiveClient() == Viewport.GetGameClient())
 	{
 		ViewWorld.GetHUD().SetScreenSize(Viewport.GetOutputSize());
-		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD());
+		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD(), View);
 	}
 }
 

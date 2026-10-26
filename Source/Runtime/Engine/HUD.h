@@ -3,6 +3,7 @@
 #include "Core/EngineString.h"
 #include "Containers/Array.h"
 #include "Math/Vector2.h"
+#include "Math/Vector.h"
 #include "Math/Color.h"
 #include "Render/Texture2D.h"
 
@@ -25,6 +26,12 @@ struct FHUDDrawCommand
 	FString Text;                   // Text 전용
 	float FontSize = 0.0f;          // Text 전용
     UTexture2D* Texture = nullptr;  // Image 전용
+
+	// Text 전용. true면 Position 대신 WorldPosition을 렌더 시점에 그 뷰포트의 View로 투영하고,
+	// 투영된 점에 글자 중심을 맞춘 뒤 ScreenOffset(기준 단위)만큼 더 옮긴다.
+	bool bWorldSpace = false;
+	FVector WorldPosition;
+	FVector2 ScreenOffset;
 };
 
 // GameViewportClient가 매 프레임 채우는 HUD 입력
@@ -69,6 +76,22 @@ public:
 		FHUDDrawCommand Command;
 		Command.Type = EHUDCommandType::Text;
 		Command.Position = Position;
+		Command.Text = Text;
+		Command.FontSize = FontSize;
+		Command.Color = Color;
+		Commands.Add(std::move(Command));
+	}
+
+	// 월드 위치에 뜨는 텍스트. 화면 좌표는 렌더할 때 뷰포트의 FSceneView로 구하므로 실제 그려진 화면과 맞는다.
+	// 카메라 뒤면 그리지 않는다. ScreenOffset은 투영 뒤 기준 단위로 더하는 값이다 (그림자 등).
+	void AddWorldText(const FString& Text, const FVector& WorldPosition, float FontSize, const FLinearColor& Color,
+		const FVector2& ScreenOffset = FVector2())
+	{
+		FHUDDrawCommand Command;
+		Command.Type = EHUDCommandType::Text;
+		Command.bWorldSpace = true;
+		Command.WorldPosition = WorldPosition;
+		Command.ScreenOffset = ScreenOffset;
 		Command.Text = Text;
 		Command.FontSize = FontSize;
 		Command.Color = Color;
