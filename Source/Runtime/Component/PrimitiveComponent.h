@@ -145,6 +145,8 @@ private:
 	bool ShouldBlockWith(const UPrimitiveComponent* Other) const;
 	// Shape를 Delta만큼 옮기는 길에 처음 막히는 곳을 찾는다. 막히면 OutHit을 채우고 true.
 	bool SweepBlocking(UShapeComponent* Shape, UWorld* World, const FVector& Delta, FHitResult& OutHit) const;
+	// Shape를 Delta만큼 옮기는 길에 스치는 겹침 상대를 PendingSweepOverlaps에 모은다 (UE의 Sweep PendingOverlaps).
+	void GatherSweepOverlaps(UShapeComponent* Shape, UWorld* World, const FVector& Delta);
 	// 막혔을 때 양쪽 액터와 컴포넌트에 Hit을 알린다. 상대에게는 뒤집은 Hit을 준다.
 	void DispatchBlockingHit(const FHitResult& Hit);
 
@@ -155,6 +157,8 @@ private:
 
 	// 지금 겹쳐 있는 상대. 상대 목록에도 항상 this가 들어 있다.
 	TArray<UPrimitiveComponent*> OverlappingComponents;
+	// 이번 프레임 Sweep 경로에서 스친 상대. UpdateOverlaps가 Begin을 낸 뒤 비우고, 최종 위치에서 안 겹치면 거기서 End가 난다.
+	TArray<UPrimitiveComponent*> PendingSweepOverlaps;
 	// BeginPlay 전(스폰 도중)에는 겹침을 계산하지 않는다.
 	bool bHasBegunPlay = false;
 };

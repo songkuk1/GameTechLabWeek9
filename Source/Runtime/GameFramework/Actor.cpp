@@ -394,6 +394,14 @@ bool AActor::AddActorWorldOffset(const FVector& Delta, bool bSweep)
                 BestComponent = Shape;
             }
         }
+
+        // 멈출 곳이 정해졌으니 거기까지 가는 길에 스친 겹침 상대를 Shape마다 모은다. 옮기기 전에 해야 한다.
+        for (UActorComponent* Component : Components)
+        {
+            UShapeComponent* Shape = Cast<UShapeComponent>(Component);
+            if (Shape && Shape->bHasBegunPlay && Shape->bGenerateOverlapEvents)
+                Shape->GatherSweepOverlaps(Shape, World, Delta * BestHit.Time);
+        }
     }
 
     RootComponent->SetWorldLocation(RootComponent->GetWorldLocation() + Delta * BestHit.Time, false);
