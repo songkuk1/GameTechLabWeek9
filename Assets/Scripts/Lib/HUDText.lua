@@ -18,6 +18,8 @@ local CardImages = {
 }
 -- 팝업 닫기(X) 버튼. 정사각형
 local CloseImage = "Assets/UI/Buttons/X.png"
+local ClickSound = "Assets/Audio/UIClick_Yes.wav"
+local CloseSound = "Assets/Audio/UIClose_No.wav"
 
 local CardName = { X = 0.33, Y = 0.32, Size = 0.16 }    -- Size는 카드 높이 대비 글자 크기
 local CardScore = { X = 0.76, Y = 0.72, Size = 0.20 }
@@ -52,9 +54,15 @@ return function(Api)
 		Api.DrawHUDText(Text, CenterX - Api.MeasureHUDText(Text, Size) * 0.5, CenterY - Size * 0.55, Size, Color or DarkText)
 	end
 
-	-- 오른쪽 위 모서리가 (RightX, TopY)인 X 버튼. 눌렀으면 true
+	function HUDText.PlayClickSound()
+		Audio.Play(ClickSound)
+	end
+
+	-- 오른쪽 위 모서리가 (RightX, TopY)인 X 버튼. 눌렀으면 소리를 재생하고 true
 	function HUDText.CloseButton(RightX, TopY, Size)
-		return Api.HUDImageButton(CloseImage, RightX - Size, TopY, Size, Size)
+		local Clicked = Api.HUDImageButton(CloseImage, RightX - Size, TopY, Size, Size)
+		if Clicked then Audio.Play(CloseSound) end
+		return Clicked
 	end
 
 	-- 화면 가로 가운데, TopY부터 Height 높이로 RANK 팝업을 그리고 1~3등 카드를 삼각형으로 놓는다.

@@ -25,10 +25,11 @@ local MaxSpawnRate = 1.4
 -- Scale: 모델 원본 크기가 달라서 둘 다 지름 약 0.9가 되도록 맞춘 값
 -- Bottom: 모델 원점에서 바닥까지 거리(Scale 적용 후). 착지 높이를 맞출 때 쓴다
 -- Score: 주운 플레이어에게 더할 점수
+-- Sound: 제한 시간 안에 주웠을 때 재생할 효과음
 local DropTypes = {
-	{ Name = "Popcorn", Weight = 1, Mesh = "Models/Popcorn/T_1.obj",    Scale = 0.24, Bottom = 0.53, Score = 1 },
+	{ Name = "Popcorn", Weight = 1, Mesh = "Models/Popcorn/T_1.obj",    Scale = 0.24, Bottom = 0.53, Score = 1, Sound = "Assets/Audio/PopcornEat.wav" },
 	-- 브로콜리 모델은 원본 크기가 약 1이라 Scale이 크다 (팝콘은 약 4)
-	{ Name = "Broccoli", Weight = 1, Mesh = "Models/Broccoli/broccoli.obj", Scale = 0.86, Bottom = 0.46, Score = -1 },
+	{ Name = "Broccoli", Weight = 1, Mesh = "Models/Broccoli/broccoli.obj", Scale = 0.86, Bottom = 0.46, Score = -1, Sound = "Assets/Audio/GarlicEat.mp3" },
 }
 
 local HiddenZ = -10.0           -- 쉬는 슬롯을 숨겨 둘 바닥 아래 높이. 플레이어와 겹치지 않게 Box째 내려 둔다
@@ -70,6 +71,9 @@ local function Collect(Slot, Player)
 	local PlayerNumber = GameState.FindPlayerNumber(Player)
 	if PlayerNumber then
 		GameState.AddScore(PlayerNumber, Slot.Type.Score)
+		if GameState.IsPlaying() then
+			Audio.Play(Slot.Type.Sound)
+		end
 	else
 		print("[PopcornSpawner] 등록되지 않은 액터가 주웠습니다: " .. tostring(Player))
 	end

@@ -1,13 +1,14 @@
 -- 인게임 진행과 HUD
 --   Ready   : 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
---   Playing : 제한 시간(1분) 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
---   Result  : 승자 표시 → 3등 안에 든 플레이어가 차례로 이름 입력 → RANK 팝업(순위 카드)과 다시하기·메인 메뉴 버튼
+--   Playing : GameState.TimeLimit 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
+--   Result  : 승자·무승부 영상 → 승자 표시 → 3등 안에 든 플레이어 이름 입력 → RANK 팝업과 다시하기·메인 메뉴 버튼
 --   Esc     : Ready·Playing 중 일시정지 팝업 (재시작·메인). 다시 누르면 이어 한다
 -- 단계와 점수는 Lib/GameState.lua, 기록 저장은 Lib/Scoreboard.lua가 맡는다.
 -- 상단 바·일시정지·결과 화면(배경·버튼·RANK 팝업)은 UI 이미지를 쓴다. 승자 글자와 이름 입력 칸은 글자로 그린다.
 
 local GameState = require("Assets.Scripts.Lib.GameState")
 local Scoreboard = require("Assets.Scripts.Lib.Scoreboard")
+local ResultVideo = require("Assets.Scripts.Lib.ResultVideo")
 
 local GameScene = "Assets/Scenes/GameJamMap0.scene"
 local TitleScene = "Assets/Scenes/GameJamTitle.scene"
@@ -87,6 +88,7 @@ end
 
 local function StartResult()
 	GameState.SetPhase("Result")
+	ResultVideo.Play(GameState.GetWinner())
 	Board = Scoreboard.Load()
 	NewEntries = {}
 
@@ -103,7 +105,8 @@ end
 -- 이름 입력 키. 결과 화면에서 입력 차례일 때만 받는다
 -- 지금 입력 차례이고, 차례가 시작된 지 EntryInputDelay가 지났는지
 local function CanTypeName()
-	return CurrentEntry ~= nil and GameState.PhaseTime - CurrentEntry.StartTime >= EntryInputDelay
+	return not ResultVideo.IsPlaying() and CurrentEntry ~= nil
+		and GameState.PhaseTime - CurrentEntry.StartTime >= EntryInputDelay
 end
 
 local function TypeChar(C)
@@ -129,8 +132,22 @@ local function ConfirmName()
 	StartNextEntry()
 end
 
+local function TogglePause()
+	local bWasPaused = GameState.bPaused
+	GameState.TogglePause()
+	if GameState.bPaused ~= bWasPaused then
+		if GameState.bPaused then
+			Audio.Play("Assets/Audio/Pause_AraAra.wav")
+		else
+			HUDText.PlayClickSound()
+		end
+	end
+end
+
 function BeginPlay()
+	ResultVideo.Reset()
 	GameState.Reset()
+	Audio.PlayBGM("Assets/Audio/BGM.wav")
 
 	-- 키보드는 하나라 0번 컨트롤러로 이름을 받는다. 이동 바인딩과 같이 올라가지만 단계가 달라 겹치지 않는다
 	local Input = EnableInput(0)
@@ -141,7 +158,7 @@ function BeginPlay()
 		end
 		Input:BindKey("Backspace", "Pressed", Backspace)
 		Input:BindKey("Enter", "Pressed", ConfirmName)
-		Input:BindKey("Escape", "Pressed", GameState.TogglePause)
+		Input:BindKey("Escape", "Pressed", TogglePause)
 	end
 end
 
@@ -170,12 +187,14 @@ local function DrawPause(W, H)
 	local RestartH = RestartButton.Width / RestartButton.Aspect
 	local RestartY = PopupY + PopupH * PausePopup.InnerTop + 70
 	if HUDImageButton(RestartButton.Path, CenterX - RestartButton.Width * 0.5, RestartY, RestartButton.Width, RestartH) then
+		HUDText.PlayClickSound()
 		OpenScene(GameScene)
 	end
 
 	local MainH = MainButton.Width / MainButton.Aspect
 	local MainY = RestartY + RestartH + 30
 	if HUDImageButton(MainButton.Path, CenterX - MainButton.Width * 0.5, MainY, MainButton.Width, MainH) then
+		HUDText.PlayClickSound()
 		OpenScene(TitleScene)
 	end
 
@@ -225,9 +244,11 @@ local function DrawBoard(CenterX)
 	local RestartH = ResultButtonWidth / ResultRestartButton.Aspect
 	local MainH = ResultButtonWidth / ResultMainButton.Aspect
 	if HUDImageButton(ResultRestartButton.Path, CenterX - Gap * 0.5 - ResultButtonWidth, ButtonY, ResultButtonWidth, RestartH) then
+		HUDText.PlayClickSound()
 		OpenScene(GameScene)
 	end
 	if HUDImageButton(ResultMainButton.Path, CenterX + Gap * 0.5, ButtonY, ResultButtonWidth, MainH) then
+		HUDText.PlayClickSound()
 		OpenScene(TitleScene)
 	end
 end
@@ -268,7 +289,20 @@ local function DrawResult(W, H)
 	end
 end
 
+local function DrawVideo(W, H)
+	DrawHUDRect(0, 0, W, H, FLinearColor(0, 0, 0, 1))
+	local Texture, U0, V0, U1, V1 = ResultVideo.GetVideoFrame()
+	if Texture then
+		local Clip = ResultVideo.Clip
+		local Scale = math.min(960 / Clip.FrameWidth, W / Clip.FrameWidth, H / Clip.FrameHeight)
+		local Width, Height = Clip.FrameWidth * Scale, Clip.FrameHeight * Scale
+		DrawHUDImageRegion(Texture, (W - Width) * 0.5, (H - Height) * 0.5, Width, Height, U0, V0, U1, V1)
+	end
+end
+
 function Tick(dt)
+	local bWasVideoPlaying = ResultVideo.IsPlaying()
+	ResultVideo.Update(dt)
 	-- 일시정지 중에는 시간이 흐르지 않는다 (카운트다운·제한 시간 모두)
 	if not GameState.bPaused then
 		GameState.PhaseTime = GameState.PhaseTime + dt
@@ -280,7 +314,16 @@ function Tick(dt)
 		end
 	end
 
+	-- 이름 입력 대기는 영상이 끝나 실제 결과 화면이 보이는 순간부터 센다.
+	if bWasVideoPlaying and not ResultVideo.IsPlaying() and CurrentEntry then
+		CurrentEntry.StartTime = GameState.PhaseTime
+	end
+
 	local W, H = GetHUDSize()
+	if ResultVideo.IsPlaying() then
+		DrawVideo(W, H)
+		return
+	end
 	DrawTopBar(W)
 
 	if GameState.bPaused then
@@ -293,4 +336,8 @@ function Tick(dt)
 	elseif GameState.Phase == "Result" then
 		DrawResult(W, H)
 	end
+end
+
+function EndPlay()
+	ResultVideo.Reset()
 end

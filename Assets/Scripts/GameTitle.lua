@@ -77,6 +77,19 @@ local function DrawControlsPanel(W, H)
     end
 end
 
+local ActionPending = false
+local StartSound = nil
+local QuitSound = nil
+
+function BeginPlay()
+    ActionPending = false
+    StartSound = nil
+    QuitSound = nil
+    OpenPanel = nil
+    OpenBoard = nil
+    Audio.PlayBGM("Assets/Audio/BGM.wav")
+end
+
 function Tick(dt)
     local W, H = GetHUDSize()
 
@@ -105,21 +118,49 @@ function Tick(dt)
     -- 첫 줄: 시작 / 나가기
     local ButtonH = ButtonWidth / ButtonAspect
     local Y = H * ButtonTopY
-    if HUDImageButton(StartImage, LeftX, Y, ButtonWidth, ButtonH) then
-        OpenScene(GameScene)
+    local StartClicked = HUDImageButton(StartImage, LeftX, Y, ButtonWidth, ButtonH)
+    local ExitClicked = HUDImageButton(ExitImage, RightX, Y, ButtonWidth, ButtonH)
+
+    if ActionPending then
+        if StartSound ~= nil and not Audio.IsPlaying(StartSound) then
+            StartSound = nil
+            OpenScene(GameScene)
+        elseif QuitSound ~= nil and not Audio.IsPlaying(QuitSound) then
+            QuitSound = nil
+            QuitGame()
+        end
+        return
     end
-    if HUDImageButton(ExitImage, RightX, Y, ButtonWidth, ButtonH) then
-        QuitGame()
+
+    if StartClicked then
+        ActionPending = true
+        StartSound = Audio.Play("Assets/Audio/Start_Oi.wav")
+        if StartSound == 0 then
+            StartSound = nil
+            OpenScene(GameScene)
+        end
+        return
+    elseif ExitClicked then
+        ActionPending = true
+        Audio.StopBGM()
+        QuitSound = Audio.Play("Assets/Audio/Quit.wav")
+        if QuitSound == 0 then
+            QuitSound = nil
+            QuitGame()
+        end
+        return
     end
 
     -- 둘째 줄: 순위 / 조작법
     local RankH = ButtonWidth / RankAspect
     local Row2Y = Y + ButtonH + RowGap
     if HUDImageButton(RankImage, LeftX, Row2Y, ButtonWidth, RankH) then
+        HUDText.PlayClickSound()
         OpenBoard = Scoreboard.Load()
         OpenPanel = "Scoreboard"
     end
     if HUDButton("CONTROLS", RightX, Row2Y + (RankH - ControlsButtonH) * 0.5, ButtonWidth, ControlsButtonH, 40) then
+        HUDText.PlayClickSound()
         OpenPanel = "Controls"
     end
 end

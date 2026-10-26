@@ -27,6 +27,8 @@ struct FHUDDrawCommand
 	FString Text;                   // Text 전용
 	float FontSize = 0.0f;          // Text 전용
     UTexture2D* Texture = nullptr;  // Image 전용
+	FVector2 UVMin = FVector2(0.0f, 0.0f);
+	FVector2 UVMax = FVector2(1.0f, 1.0f);
 
 	// Text 전용. true면 Position 대신 WorldPosition을 렌더 시점에 그 뷰포트의 View로 투영하고,
 	// 투영된 점에 글자 중심을 맞춘 뒤 ScreenOffset(기준 단위)만큼 더 옮긴다.
@@ -130,7 +132,8 @@ public:
 		return FVector2(ScreenSize.X / Scale, ScreenSize.Y / Scale);
 	}
 
-    void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color);
+    void AddImage(UTexture2D* Texture, const FVector2& Position, const FVector2& Size, const FLinearColor& Color,
+		const FVector2& UVMin = FVector2(0.0f, 0.0f), const FVector2& UVMax = FVector2(1.0f, 1.0f));
 
 	void SetInput(const FHUDInput& InInput) { Input = InInput; }
 	void ClearInput() { Input = FHUDInput{}; }

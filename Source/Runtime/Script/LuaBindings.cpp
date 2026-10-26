@@ -10,4 +10,5 @@ void RegisterLuaBindings(sol::state& Lua)
 	RegisterLuaObjectBindings(Lua);
 	RegisterLuaInputBindings(Lua);
 	RegisterLuaGameBindings(Lua);
+	RegisterLuaAudioBindings(Lua);
 }
