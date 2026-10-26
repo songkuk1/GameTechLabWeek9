@@ -11,7 +11,8 @@
 -- Lua 5.1·LuaJIT는 math.atan2, 5.3 이상은 math.atan(y, x)를 쓴다
 local Atan2 = math.atan2 or math.atan
 
--- 바닥 범위 (월드 좌표). 시작 위치를 정할 때만 쓴다. 이동 제한은 벽 Box가 한다
+-- 바닥 범위 (월드 좌표). 시작 위치와 이동 범위에 쓴다.
+-- 벽 Box가 1차로 막지만, 밀려날 때처럼 빠르면 넘어갈 수 있어서 원형 플레이 영역(PlayerRadius) 안으로 한 번 더 가둔다
 local Floor = dofile("Assets/Scripts/Lib/Floor.lua")
 
 -- 시작 대기·결과 화면에서는 움직이지 않는다
@@ -35,6 +36,9 @@ return function(Config)
 	local PushHalfAngle = Config.PushHalfAngle or 60 -- 바라보는 방향에서 좌우 이 각도(도) 안의 상대만 민다
 	local KnockbackDistance = Config.KnockbackDistance or 2.0 -- 밀려나는 총 거리
 	local KnockbackTime = Config.KnockbackTime or 0.3         -- 밀려나는 데 걸리는 시간. 이동안은 조작 불가
+	-- 맞밀기 유예: 밀려나기 시작한 지 이 시간(초) 안에 누르면 밀려나는 중이어도 상대를 민다.
+	-- 사람이 "동시에" 눌러도 수 프레임 차이가 나서, 이게 없으면 먼저 누른 쪽만 민다
+	local TradeWindow = Config.TradeWindow or 0.15
 
 	local Actor = nil
 	local Root = nil
@@ -45,16 +49,22 @@ return function(Config)
 	local bMoving = false   -- 이번 프레임에 이동 입력이 있었는지 (발밑 연기 등에 쓴다)
 
 	local PushCooldownLeft = 0
-	local Knockback = nil   -- { X, Y, Remaining } 밀려나는 중일 때만 있다
+	local Knockback = nil   -- { X, Y, Remaining, bTraded } 밀려나는 중일 때만 있다
 
 	local Controller = {}
 
 	-- 앞에 상대가 있으면 밀친다. Push 바인딩이 부른다 (액터 Tick보다 먼저)
 	local function TryPush()
-		if not GameState.IsPlaying() or PushCooldownLeft > 0 or Knockback then
+		-- 밀려나는 중에는 못 밀지만, 맞은 직후 유예 시간 안이면 한 번 맞밀 수 있다
+		local bTrade = Knockback ~= nil and not Knockback.bTraded
+			and (KnockbackTime - Knockback.Remaining) <= TradeWindow
+		if not GameState.IsPlaying() or PushCooldownLeft > 0 or (Knockback and not bTrade) then
 			return
 		end
 		PushCooldownLeft = PushCooldown
+		if bTrade then
+			Knockback.bTraded = true
+		end
 
 		local Other = GameState.Players[3 - PlayerNumber]
 		if not IsValid(Other) then
@@ -66,7 +76,8 @@ return function(Config)
 		local DX = OtherLocation.X - MyLocation.X
 		local DY = OtherLocation.Y - MyLocation.Y
 		local Distance = math.sqrt(DX * DX + DY * DY)
-		if Distance > PushRange or Distance < 0.001 then
+		-- 맞밀기면 거리는 보지 않는다. 그 사이 이미 밀려나 멀어졌기 때문이다 (마주 보는지는 아래에서 그대로 본다)
+		if Distance < 0.001 or (Distance > PushRange and not bTrade) then
 			return
 		end
 
@@ -79,6 +90,20 @@ return function(Config)
 
 		-- 나에게서 상대 쪽으로 민다
 		GameState.PushPlayer(3 - PlayerNumber, DX / Distance, DY / Distance)
+	end
+
+	-- 원형 플레이 영역 밖으로 나갔으면 중심 방향으로 원 위까지 되돌린다.
+	-- 원을 따라 미끄러지듯 움직인다. 루트가 부모 없는 최상위라 Relative = 월드 위치
+	local function ClampToFloor()
+		local Location = Root:GetRelativeLocation()
+		local DX, DY = Location.X - Floor.CenterX, Location.Y - Floor.CenterY
+		local Distance = math.sqrt(DX * DX + DY * DY)
+		if Distance > Floor.PlayerRadius then
+			local Scale = Floor.PlayerRadius / Distance
+			Location.X = Floor.CenterX + DX * Scale
+			Location.Y = Floor.CenterY + DY * Scale
+			Root:SetRelativeLocation(Location)
+		end
 	end
 
 	-- 밀려나는 중이면 한 프레임만큼 밀고 true. 처음엔 빠르고 점점 느려진다
@@ -99,6 +124,7 @@ return function(Config)
 		-- 벽에 닿으면 멈추도록 Sweep한다. 이동처럼 축을 나눠 벽을 따라 미끄러지게 한다
 		if MoveX ~= 0 then Actor:AddActorWorldOffset(FVector(MoveX, 0, 0), true) end
 		if MoveY ~= 0 then Actor:AddActorWorldOffset(FVector(0, MoveY, 0), true) end
+		ClampToFloor()
 
 		Knockback.Remaining = Knockback.Remaining - dt
 		if Knockback.Remaining <= 0 then
@@ -176,6 +202,7 @@ return function(Config)
 			-- 나눠 옮기면 막힌 축만 멈추고 나머지 축으로는 벽을 따라 미끄러진다
 			if MoveX ~= 0 then Actor:AddActorWorldOffset(FVector(MoveX, 0, 0), true) end
 			if MoveY ~= 0 then Actor:AddActorWorldOffset(FVector(0, MoveY, 0), true) end
+			ClampToFloor()
 
 			-- 엔진은 Yaw 0이 +X, Yaw 90이 +Y (단위는 도)
 			TargetYaw = math.deg(Atan2(DY, DX)) + MeshYawOffset

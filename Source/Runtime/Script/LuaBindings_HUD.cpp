@@ -37,7 +37,7 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 	Env.set_function("MeasureHUDText",
 		[](const FString& Text, sol::optional<float> Size) -> float
 		{
-			const UFont* Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
+			const UFont* Font = FHUD::GetFont();
 			if (!Font)
 				return 0.0f;
 

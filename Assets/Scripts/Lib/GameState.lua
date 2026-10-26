@@ -53,6 +53,11 @@ function GameState.IsPlaying()
 	return GameState.Phase == "Playing" and not GameState.bPaused
 end
 
+-- 월드가 멈춰 있어야 하는지: 일시정지 중이거나 판이 끝난 뒤(결과 화면). 떨어지던 것까지 그 자리에 멈춘다
+function GameState.IsFrozen()
+	return GameState.bPaused or GameState.Phase == "Result"
+end
+
 -- 시작 대기·제한 시간 중에만 멈출 수 있다. 결과 화면에서는 무시한다
 function GameState.TogglePause()
 	if GameState.Phase == "Result" then

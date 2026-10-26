@@ -1,10 +1,10 @@
 -- 인게임 진행과 HUD
 --   Ready   : 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
---   Playing : 제한 시간(1분) 동안 줍기. 상단 가운데 남은 시간, 왼쪽 P1 점수, 오른쪽 P2 점수
---   Result  : 승자 표시 → 5등 안에 든 플레이어가 차례로 이름 입력 → 스코어보드와 다시하기·메인 메뉴 버튼
---   Esc     : Ready·Playing 중 일시정지 창 (재시작·메인 메뉴). 다시 누르면 이어 한다
+--   Playing : 제한 시간(1분) 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
+--   Result  : 승자 표시 → 3등 안에 든 플레이어가 차례로 이름 입력 → RANK 팝업(순위 카드)과 다시하기·메인 메뉴 버튼
+--   Esc     : Ready·Playing 중 일시정지 팝업 (재시작·메인). 다시 누르면 이어 한다
 -- 단계와 점수는 Lib/GameState.lua, 기록 저장은 Lib/Scoreboard.lua가 맡는다.
--- UI 이미지가 정해지면 DrawText·DrawCentered와 사각형 부분만 DrawHUDImage로 바꾸면 된다.
+-- 상단 바·일시정지·결과 화면(배경·버튼·RANK 팝업)은 UI 이미지를 쓴다. 승자 글자와 이름 입력 칸은 글자로 그린다.
 
 local GameState = require("Assets.Scripts.Lib.GameState")
 local Scoreboard = require("Assets.Scripts.Lib.Scoreboard")
@@ -12,21 +12,57 @@ local Scoreboard = require("Assets.Scripts.Lib.Scoreboard")
 local GameScene = "Assets/Scenes/GameJamMap0.scene"
 local TitleScene = "Assets/Scenes/GameJamTitle.scene"
 
-local TopMargin = 32        -- 화면 위에서 글자 윗변까지 (HUD 기준 해상도 1920x1080 단위)
-local SideMargin = 64       -- 화면 양옆에서 점수 글자까지
+-- 상단 UI 이미지. 크기는 HUD 기준 해상도(1920x1080) 단위, 세로는 원본 비율로 맞춘다
+-- Anchor: 이미지 안에서 숫자를 올릴 곳의 가운데 (가로·세로 0~1 비율). 별 가운데, 캐릭터 몸통 가운데
+local TimerImages = { Default = "Assets/UI/Timer/TIMER_Default.png", Hurry = "Assets/UI/Timer/TIMER_Hurry.png" }
+local TimerSize = 260       -- 두 이미지 모두 정사각형이고 별 위치가 거의 같다
+local TimerAnchorY = 0.69
+local TimerTopY = -10       -- 이미지 위쪽은 비어 있어서 살짝 화면 밖으로 올린다
+
+local ScoreImages = {
+	{ Path = "Assets/UI/Score/CHIWI_SCORE.png", Aspect = 675 / 514, AnchorX = 0.76, AnchorY = 0.57 },
+	{ Path = "Assets/UI/Score/USAGI_SCORE.png", Aspect = 684 / 450, AnchorX = 0.74, AnchorY = 0.70 },
+}
+local ScoreWidth = 320
+local SideMargin = 24       -- 화면 양옆에서 점수 이미지까지
+
 local TimeFontSize = 72
-local ScoreFontSize = 56
-local WarningTime = 10      -- 남은 시간이 이 아래면 시간을 빨갛게
+local ScoreFontSize = 64
+local WarningTime = 10      -- 남은 시간이 이 아래면 타이머를 Hurry 이미지로
 local GoShowTime = 0.8      -- 시작할 때 GO!를 보여 줄 시간 (초)
+
+-- 일시정지 창. 팝업 이미지 위쪽에 PAUSE 글자가 있고, 그 아래 빈 칸(InnerTop 비율부터)에 버튼을 세로로 놓는다
+local PausePopup = { Path = "Assets/UI/Popup/PAUSE_POPUP.png", Aspect = 1854 / 2136, Height = 820, InnerTop = 0.30 }
+local RestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262, Width = 420 }
+local MainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266, Width = 420 }
+local PauseCloseSize = 80   -- 팝업 테두리 상자 오른쪽 위 X (누르면 이어 하기)
+
+local DarkText = FLinearColor(0.1, 0.1, 0.1, 1)   -- 밝은 이미지 위 숫자
+
+-- 결과 화면 배경. [1] = P1 승, [2] = P2 승, Draw = 무승부
+-- TitleX: 승자 글자·점수 줄의 가로 가운데 (화면 너비 비율). 배경의 말풍선을 피해서 둔다
+local ResultScenes = {
+	{ Path = "Assets/UI/Backgrounds/CHIWI_WIN_SCENE.png", Aspect = 4400 / 2476, TitleX = 0.5 },   -- 말풍선: 왼쪽 아래
+	{ Path = "Assets/UI/Backgrounds/USAGI_WIN_SCENE.png", Aspect = 4400 / 2504, TitleX = 0.80 },  -- 말풍선: 왼쪽 위
+	Draw = { Path = "Assets/UI/Backgrounds/DRAW_SCENE.png", Aspect = 4400 / 2588, TitleX = 0.87 }, -- 말풍선: 가운데 위
+}
+local ResultRestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262 }
+local ResultMainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266 }
+local ResultButtonWidth = 360
+local NamePanelColor = FLinearColor(0, 0, 0, 0.55)
 
 local MaxNameLength = 8
 local NameChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+-- 이름 입력이 시작된 뒤 이 시간(초) 동안은 키를 받지 않는다. P2 밀치기 키가 Enter라,
+-- 판이 끝나는 순간 밀치려고 누른 Enter가 빈 이름으로 바로 확정되는 것을 막는다
+local EntryInputDelay = 0.8
 
-local HUDText = dofile("Assets/Scripts/Lib/HUDText.lua")({ DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText })
-local DrawText, DrawCentered, DrawRightAligned = HUDText.Draw, HUDText.Centered, HUDText.RightAligned
+local HUDText = dofile("Assets/Scripts/Lib/HUDText.lua")({
+	DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText, DrawHUDImage = DrawHUDImage,
+	HUDImageButton = HUDImageButton })
+local DrawText, DrawCentered = HUDText.Draw, HUDText.Centered
 
 local White, Yellow, Gray = HUDText.White, HUDText.Yellow, HUDText.Gray
-local Red = FLinearColor(1, 0.3, 0.3, 1)
 local DimColor = FLinearColor(0, 0, 0, 0.65)
 local BoxColor = FLinearColor(1, 1, 1, 0.15)
 local PlayerColors = { FLinearColor(1, 0.55, 0.6, 1), FLinearColor(0.55, 0.8, 1, 1) }
@@ -37,19 +73,13 @@ local EntryQueue = {}        -- 이름을 입력할 차례를 기다리는 플�
 local CurrentEntry = nil     -- { PlayerNumber, Name } 지금 이름을 입력하는 플레이어
 local NewEntries = {}        -- 이번 판에 들어간 기록 (스코어보드에서 강조)
 
--- 초 → "MM:SS". 남은 시간은 올림해야 60초가 처음부터 00:59로 보이지 않는다
-local function FormatTime(Seconds)
-	local Total = math.ceil(Seconds)
-	return string.format("%02d:%02d", math.floor(Total / 60), Total % 60)
-end
-
 -- 다음 플레이어 차례로 넘긴다. 앞 사람이 들어가서 순위가 밀렸으면 그때 다시 따진다
 local function StartNextEntry()
 	CurrentEntry = nil
 	while #EntryQueue > 0 do
 		local PlayerNumber = table.remove(EntryQueue, 1)
 		if Scoreboard.Qualifies(Board, GameState.GetScore(PlayerNumber)) then
-			CurrentEntry = { PlayerNumber = PlayerNumber, Name = "" }
+			CurrentEntry = { PlayerNumber = PlayerNumber, Name = "", StartTime = GameState.PhaseTime }
 			return
 		end
 	end
@@ -71,25 +101,30 @@ local function StartResult()
 end
 
 -- 이름 입력 키. 결과 화면에서 입력 차례일 때만 받는다
+-- 지금 입력 차례이고, 차례가 시작된 지 EntryInputDelay가 지났는지
+local function CanTypeName()
+	return CurrentEntry ~= nil and GameState.PhaseTime - CurrentEntry.StartTime >= EntryInputDelay
+end
+
 local function TypeChar(C)
-	if CurrentEntry and #CurrentEntry.Name < MaxNameLength then
+	if CanTypeName() and #CurrentEntry.Name < MaxNameLength then
 		CurrentEntry.Name = CurrentEntry.Name .. C
 	end
 end
 
 local function Backspace()
-	if CurrentEntry and #CurrentEntry.Name > 0 then
+	if CanTypeName() and #CurrentEntry.Name > 0 then
 		CurrentEntry.Name = CurrentEntry.Name:sub(1, -2)
 	end
 end
 
 local function ConfirmName()
-	if not CurrentEntry then
+	if not CanTypeName() then
 		return
 	end
 	-- 비워 두고 Enter를 누르면 플레이어 이름으로 남긴다
 	local Name = CurrentEntry.Name ~= "" and CurrentEntry.Name or ("P" .. CurrentEntry.PlayerNumber)
-	local Rank = Scoreboard.Insert(Board, Name, GameState.GetScore(CurrentEntry.PlayerNumber))
+	local Rank = Scoreboard.Insert(Board, Name, GameState.GetScore(CurrentEntry.PlayerNumber), CurrentEntry.PlayerNumber)
 	NewEntries[Board[Rank]] = true
 	StartNextEntry()
 end
@@ -111,34 +146,64 @@ function BeginPlay()
 end
 
 -- 일시정지 창. 이미지가 정해지면 배경과 버튼만 DrawHUDImage·HUDImageButton으로 바꾼다
+-- 글자를 (CenterX, CenterY)에 가운데 맞춰 그림자 없이 그린다. 글자 높이는 대략 Size로 본다
+local function DrawTextAt(Text, CenterX, CenterY, Size, Color)
+	DrawHUDText(Text, CenterX - MeasureHUDText(Text, Size) * 0.5, CenterY - Size * 0.55, Size, Color)
+end
+
 local function DrawPause(W, H)
 	local CenterX = W * 0.5
 	DrawHUDRect(0, 0, W, H, DimColor)
-	DrawCentered("PAUSED", CenterX, H * 0.5 - 220, 120, Yellow)
-	DrawCentered("ESC: RESUME", CenterX, H * 0.5 - 60, 32, Gray)
 
-	local ButtonW, ButtonH, Gap, ButtonY = 300, 80, 40, H * 0.5 + 40
-	if HUDButton("RESTART", CenterX - Gap * 0.5 - ButtonW, ButtonY, ButtonW, ButtonH, 40) then
+	local PopupH = PausePopup.Height
+	local PopupW = PopupH * PausePopup.Aspect
+	local PopupY = (H - PopupH) * 0.5
+	DrawHUDImage(PausePopup.Path, CenterX - PopupW * 0.5, PopupY, PopupW, PopupH)
+
+	-- 테두리 상자는 팝업 이미지 위에서 26% 지점부터, 오른쪽 끝까지다
+	if HUDText.CloseButton(CenterX + PopupW * 0.46, PopupY + PopupH * 0.29, PauseCloseSize) then
+		GameState.TogglePause()
+		return
+	end
+
+	-- 팝업 아래 빈 칸에 위: 재시작, 아래: 메인
+	local RestartH = RestartButton.Width / RestartButton.Aspect
+	local RestartY = PopupY + PopupH * PausePopup.InnerTop + 70
+	if HUDImageButton(RestartButton.Path, CenterX - RestartButton.Width * 0.5, RestartY, RestartButton.Width, RestartH) then
 		OpenScene(GameScene)
 	end
-	if HUDButton("MAIN MENU", CenterX + Gap * 0.5, ButtonY, ButtonW, ButtonH, 40) then
+
+	local MainH = MainButton.Width / MainButton.Aspect
+	local MainY = RestartY + RestartH + 30
+	if HUDImageButton(MainButton.Path, CenterX - MainButton.Width * 0.5, MainY, MainButton.Width, MainH) then
 		OpenScene(TitleScene)
 	end
+
+	DrawTextAt("ESC: RESUME", CenterX, MainY + MainH + 40, 30, Gray)
 end
 
 local function DrawTopBar(W)
-	-- 상단 가운데: 남은 시간
+	-- 상단 가운데: 남은 시간(초). 10초 아래면 Hurry 이미지(빨간 별)로 바꾼다. 일시정지 중에도 그대로 둔다
 	local Remaining = GameState.GetRemainingTime()
-	local TimeColor = (GameState.IsPlaying() and Remaining <= WarningTime) and Red or White
-	DrawCentered(FormatTime(Remaining), W * 0.5, TopMargin, TimeFontSize, TimeColor)
+	local bHurry = GameState.Phase == "Playing" and Remaining <= WarningTime
+	local TimerX = (W - TimerSize) * 0.5
+	DrawHUDImage(bHurry and TimerImages.Hurry or TimerImages.Default, TimerX, TimerTopY, TimerSize, TimerSize)
+	DrawTextAt(tostring(math.ceil(Remaining)), W * 0.5, TimerTopY + TimerSize * TimerAnchorY, TimeFontSize, bHurry and White or DarkText)
 
-	-- 시간 글자와 세로 가운데를 맞춘다
-	local ScoreY = TopMargin + (TimeFontSize - ScoreFontSize) * 0.5
-	DrawText("P1  " .. GameState.GetScore(1), SideMargin, ScoreY, ScoreFontSize, PlayerColors[1])
-	DrawRightAligned("P2  " .. GameState.GetScore(2), W - SideMargin, ScoreY, ScoreFontSize, PlayerColors[2])
+	-- 왼쪽: P1(치이카와), 오른쪽: P2(우사기). 점수는 캐릭터 몸통 위에
+	for PlayerNumber, Image in ipairs(ScoreImages) do
+		local ImageH = ScoreWidth / Image.Aspect
+		local X = PlayerNumber == 1 and SideMargin or (W - SideMargin - ScoreWidth)
+		DrawHUDImage(Image.Path, X, 0, ScoreWidth, ImageH)
+		DrawTextAt(tostring(GameState.GetScore(PlayerNumber)), X + ScoreWidth * Image.AnchorX, ImageH * Image.AnchorY, ScoreFontSize, DarkText)
+	end
 end
 
 local function DrawNameEntry(CenterX)
+	-- 밝은 결과 배경 위에서도 글자가 읽히도록 입력 칸 둘레를 어둡게 깐다
+	local PanelW = 960
+	DrawHUDRect(CenterX - PanelW * 0.5, 420, PanelW, 280, NamePanelColor)
+
 	local PlayerNumber = CurrentEntry.PlayerNumber
 	DrawCentered("P" .. PlayerNumber .. "  NEW RECORD!  ENTER YOUR NAME", CenterX, 450, 44, PlayerColors[PlayerNumber])
 
@@ -152,29 +217,49 @@ local function DrawNameEntry(CenterX)
 end
 
 local function DrawBoard(CenterX)
-	HUDText.Board(Board, CenterX, 430, Scoreboard.MaxEntries, NewEntries)
+	-- 승자·점수 줄 아래부터 버튼 위까지 RANK 팝업
+	HUDText.RankBoard(Board, CenterX, 250, 590, NewEntries)
 
-	-- 버튼 두 개를 가운데 기준으로 나란히. 이미지는 나중에 HUDImageButton으로 바꾼다
-	local ButtonW, ButtonH, Gap, ButtonY = 300, 80, 40, 860
-	if HUDButton("RETRY", CenterX - Gap * 0.5 - ButtonW, ButtonY, ButtonW, ButtonH, 40) then
+	-- 버튼 두 개를 가운데 기준으로 나란히. 왼쪽: 재시작, 오른쪽: 메인
+	local Gap, ButtonY = 40, 850
+	local RestartH = ResultButtonWidth / ResultRestartButton.Aspect
+	local MainH = ResultButtonWidth / ResultMainButton.Aspect
+	if HUDImageButton(ResultRestartButton.Path, CenterX - Gap * 0.5 - ResultButtonWidth, ButtonY, ResultButtonWidth, RestartH) then
 		OpenScene(GameScene)
 	end
-	if HUDButton("MAIN MENU", CenterX + Gap * 0.5, ButtonY, ButtonW, ButtonH, 40) then
+	if HUDImageButton(ResultMainButton.Path, CenterX + Gap * 0.5, ButtonY, ResultButtonWidth, MainH) then
 		OpenScene(TitleScene)
 	end
 end
 
+-- 배경 이미지를 비율을 지키며 화면을 꽉 채우게 그린다. 넘치는 쪽은 화면 밖으로 잘린다
+local function DrawCover(Path, Aspect, W, H)
+	local DrawW, DrawH = W, W / Aspect
+	if DrawH < H then
+		DrawW, DrawH = H * Aspect, H
+	end
+	DrawHUDImage(Path, (W - DrawW) * 0.5, (H - DrawH) * 0.5, DrawW, DrawH)
+end
+
 local function DrawResult(W, H)
 	local CenterX = W * 0.5
-	DrawHUDRect(0, 0, W, H, DimColor)
-
 	local Winner = GameState.GetWinner()
+	local Scene = ResultScenes[Winner or "Draw"]
+	DrawCover(Scene.Path, Scene.Aspect, W, H)
+
+	-- 이름 입력 중에는 승자를 크게, 순위표를 보일 때는 팝업 자리를 내주려고 위로 작게 올린다.
+	-- 가로 위치는 배경의 말풍선을 가리지 않게 배경마다 다르다
+	local bBoard = CurrentEntry == nil
+	local WinnerY, WinnerSize = bBoard and 50 or 170, bBoard and 100 or 120
+	local ScoreY, ScoreSize = bBoard and 170 or 320, bBoard and 48 or 56
+	local TitleX = W * Scene.TitleX
+
 	if Winner then
-		DrawCentered("P" .. Winner .. " WINS!", CenterX, 170, 120, PlayerColors[Winner])
+		DrawCentered("P" .. Winner .. " WINS!", TitleX, WinnerY, WinnerSize, PlayerColors[Winner])
 	else
-		DrawCentered("DRAW", CenterX, 170, 120, Yellow)
+		DrawCentered("DRAW", TitleX, WinnerY, WinnerSize, Yellow)
 	end
-	DrawCentered("P1  " .. GameState.GetScore(1) .. "   :   " .. GameState.GetScore(2) .. "  P2", CenterX, 320, 56)
+	DrawCentered("P1  " .. GameState.GetScore(1) .. "   :   " .. GameState.GetScore(2) .. "  P2", TitleX, ScoreY, ScoreSize)
 
 	if CurrentEntry then
 		DrawNameEntry(CenterX)
