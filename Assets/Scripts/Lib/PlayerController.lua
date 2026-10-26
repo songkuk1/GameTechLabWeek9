@@ -35,6 +35,9 @@ return function(Config)
 	local PushHalfAngle = Config.PushHalfAngle or 60 -- 바라보는 방향에서 좌우 이 각도(도) 안의 상대만 민다
 	local KnockbackDistance = Config.KnockbackDistance or 2.0 -- 밀려나는 총 거리
 	local KnockbackTime = Config.KnockbackTime or 0.3         -- 밀려나는 데 걸리는 시간. 이동안은 조작 불가
+	-- 맞밀기 유예: 밀려나기 시작한 지 이 시간(초) 안에 누르면 밀려나는 중이어도 상대를 민다.
+	-- 사람이 "동시에" 눌러도 수 프레임 차이가 나서, 이게 없으면 먼저 누른 쪽만 민다
+	local TradeWindow = Config.TradeWindow or 0.15
 
 	local Actor = nil
 	local Root = nil
@@ -44,16 +47,22 @@ return function(Config)
 	local AxisRight = 0
 
 	local PushCooldownLeft = 0
-	local Knockback = nil   -- { X, Y, Remaining } 밀려나는 중일 때만 있다
+	local Knockback = nil   -- { X, Y, Remaining, bTraded } 밀려나는 중일 때만 있다
 
 	local Controller = {}
 
 	-- 앞에 상대가 있으면 밀친다. Push 바인딩이 부른다 (액터 Tick보다 먼저)
 	local function TryPush()
-		if not GameState.IsPlaying() or PushCooldownLeft > 0 or Knockback then
+		-- 밀려나는 중에는 못 밀지만, 맞은 직후 유예 시간 안이면 한 번 맞밀 수 있다
+		local bTrade = Knockback ~= nil and not Knockback.bTraded
+			and (KnockbackTime - Knockback.Remaining) <= TradeWindow
+		if not GameState.IsPlaying() or PushCooldownLeft > 0 or (Knockback and not bTrade) then
 			return
 		end
 		PushCooldownLeft = PushCooldown
+		if bTrade then
+			Knockback.bTraded = true
+		end
 
 		local Other = GameState.Players[3 - PlayerNumber]
 		if not IsValid(Other) then
@@ -65,7 +74,8 @@ return function(Config)
 		local DX = OtherLocation.X - MyLocation.X
 		local DY = OtherLocation.Y - MyLocation.Y
 		local Distance = math.sqrt(DX * DX + DY * DY)
-		if Distance > PushRange or Distance < 0.001 then
+		-- 맞밀기면 거리는 보지 않는다. 그 사이 이미 밀려나 멀어졌기 때문이다 (마주 보는지는 아래에서 그대로 본다)
+		if Distance < 0.001 or (Distance > PushRange and not bTrade) then
 			return
 		end
 

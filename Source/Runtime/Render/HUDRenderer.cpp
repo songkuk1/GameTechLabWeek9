@@ -47,8 +47,6 @@ bool FHUDRenderer::Init()
 	TransformBuffer = RenderCommand::CreateConstantBuffer(sizeof(FMatrix));
 	MSDFParamsBuffer = RenderCommand::CreateConstantBuffer(sizeof(FHUDMSDFParams));
 
-	// 기본 폰트 아틀라스
-	Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
 
 	return RectPipeline.Shader && TextPipeline.Shader && ImagePipeline.Shader;
 }
@@ -155,6 +153,9 @@ void FHUDRenderer::OnRender(const FHUD& HUD, float ScreenWidth, float ScreenHeig
 {
 	if (ScreenWidth <= 0.0f || ScreenHeight <= 0.0f || HUD.GetCommands().Num() == 0)
 		return;
+
+	// HUD 폰트는 Assets에 있어 Init 때는 아직 스캔 전일 수 있다. 그릴 때마다 가져온다 (캐시 조회라 가볍다)
+	Font = FHUD::GetFont();
 
 	// 기준 단위 -> 실제 픽셀(×Scale) -> NDC(-1~1 / 위로 +y)
 	const float Scale = HUD.GetScale();

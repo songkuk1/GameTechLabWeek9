@@ -1,7 +1,24 @@
--- HUD 글자 그리기 도우미와 스코어보드 표. 타이틀(GameTitle)과 인게임(GameHUD)이 같이 쓴다.
--- DrawHUDText·MeasureHUDText는 스크립트마다 따로 등록되는 함수라 dofile로 읽은 이 파일에서는 보이지 않는다.
+-- HUD 글자 그리기 도우미와 순위표(RANK 팝업). 타이틀(GameTitle)과 인게임(GameHUD)이 같이 쓴다.
+-- DrawHUDText 등은 스크립트마다 따로 등록되는 함수라 dofile로 읽은 이 파일에서는 보이지 않는다.
 -- 그래서 만들 때 넘겨받는다.
---   local HUDText = dofile("Assets/Scripts/Lib/HUDText.lua")({ DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText })
+--   local HUDText = dofile("Assets/Scripts/Lib/HUDText.lua")({
+--       DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText, DrawHUDImage = DrawHUDImage,
+--       HUDImageButton = HUDImageButton })
+
+-- 순위표 팝업. 왼쪽 위에 RANK 글자가 있고, 그 아래(CardTop~CardBottom 비율) 빈 칸에 카드 3장을 가로로 놓는다
+local RankPopup = { Path = "Assets/UI/Popup/RANK_POPUP.png", Aspect = 2901 / 2331, CardTop = 0.42, CardBottom = 0.92 }
+
+-- 순위 카드. 그림에 순위(N급)와 캐릭터 얼굴이 있고, 위쪽 띠에 이름, 아래 오른쪽에 점수를 올린다 (카드 안 0~1 비율)
+local CardAspect = 1112 / 734
+local CardImages = {
+	{ "Assets/UI/RANK/CHIWI_FIRST.png", "Assets/UI/RANK/CHIWI_SECOND.png", "Assets/UI/RANK/CHIWI_THIRD.png" },
+	{ "Assets/UI/RANK/USAGI_FIRST.png", "Assets/UI/RANK/USAGI_SECOND.png", "Assets/UI/RANK/USAGI_THIRD.png" },
+}
+-- 팝업 닫기(X) 버튼. 정사각형
+local CloseImage = "Assets/UI/Buttons/X.png"
+
+local CardName = { X = 0.33, Y = 0.32, Size = 0.16 }    -- Size는 카드 높이 대비 글자 크기
+local CardScore = { X = 0.76, Y = 0.72, Size = 0.20 }
 
 return function(Api)
 	local HUDText = {
@@ -26,24 +43,51 @@ return function(Api)
 		HUDText.Draw(Text, RightX - Api.MeasureHUDText(Text, Size), Y, Size, Color)
 	end
 
-	-- 제목 + 1~MaxRows등 표. 빈 순위는 ---로 채운다. Highlight[기록] = true면 노랗게 (이번 판에 들어간 기록)
-	-- 차지하는 높이는 80 + 62 * MaxRows
-	function HUDText.Board(Board, CenterX, TopY, MaxRows, Highlight)
-		HUDText.Centered("SCOREBOARD", CenterX, TopY, 48, HUDText.Yellow)
+	local DarkText = FLinearColor(0.1, 0.1, 0.1, 1)
 
-		local Left, Right = CenterX - 280, CenterX + 280
-		for Rank = 1, MaxRows do
-			local Y = TopY + 80 + (Rank - 1) * 62
+	-- 그림자 없이 (CenterX, CenterY)에 가운데 맞춰 그린다. 밝은 이미지 위 글자용. 글자 높이는 대략 Size로 본다
+	function HUDText.DrawAt(Text, CenterX, CenterY, Size, Color)
+		Api.DrawHUDText(Text, CenterX - Api.MeasureHUDText(Text, Size) * 0.5, CenterY - Size * 0.55, Size, Color or DarkText)
+	end
+
+	-- 오른쪽 위 모서리가 (RightX, TopY)인 X 버튼. 눌렀으면 true
+	function HUDText.CloseButton(RightX, TopY, Size)
+		return Api.HUDImageButton(CloseImage, RightX - Size, TopY, Size, Size)
+	end
+
+	-- 화면 가로 가운데, TopY부터 Height 높이로 RANK 팝업을 그리고 1~3등 카드를 왼쪽부터 놓는다.
+	-- 카드 그림은 기록한 플레이어(치이카와/우사기)와 순위로 고른다. 빈 순위는 ---.
+	-- Highlight[기록] = true면 카드 위에 NEW! (이번 판에 들어간 기록)
+	-- 팝업 테두리 상자의 오른쪽 위 모서리(X 버튼 자리)를 돌려준다
+	function HUDText.RankBoard(Board, CenterX, TopY, Height, Highlight)
+		local PopupW = Height * RankPopup.Aspect
+		local PopupLeft = CenterX - PopupW * 0.5
+		Api.DrawHUDImage(RankPopup.Path, PopupLeft, TopY, PopupW, Height)
+
+		local AreaLeft, AreaW = PopupLeft + PopupW * 0.06, PopupW * 0.88
+		local Gap = PopupW * 0.025
+		local CardW = (AreaW - Gap * 2) / 3
+		local CardH = CardW / CardAspect
+		local AreaTop, AreaH = TopY + Height * RankPopup.CardTop, Height * (RankPopup.CardBottom - RankPopup.CardTop)
+		local CardY = AreaTop + (AreaH - CardH) * 0.5
+
+		for Rank = 1, 3 do
+			local X = AreaLeft + (Rank - 1) * (CardW + Gap)
 			local Entry = Board[Rank]
-			local Color = (Entry and Highlight and Highlight[Entry]) and HUDText.Yellow or HUDText.White
-			HUDText.Draw(Rank .. ".", Left, Y, 44, Color)
 			if Entry then
-				HUDText.Draw(Entry.Name, Left + 80, Y, 44, Color)
-				HUDText.RightAligned(tostring(Entry.Score), Right, Y, 44, Color)
+				Api.DrawHUDImage(CardImages[Entry.Player or 1][Rank], X, CardY, CardW, CardH)
+				HUDText.DrawAt(Entry.Name, X + CardW * CardName.X, CardY + CardH * CardName.Y, CardH * CardName.Size)
+				HUDText.DrawAt(tostring(Entry.Score), X + CardW * CardScore.X, CardY + CardH * CardScore.Y, CardH * CardScore.Size)
+				if Highlight and Highlight[Entry] then
+					HUDText.DrawAt("NEW!", X + CardW * 0.5, CardY - CardH * 0.1, CardH * 0.16, FLinearColor(0.9, 0.3, 0.3, 1))
+				end
 			else
-				HUDText.Draw("---", Left + 80, Y, 44, HUDText.Gray)
+				HUDText.DrawAt("---", X + CardW * 0.5, CardY + CardH * 0.5, CardH * 0.2, HUDText.Gray)
 			end
 		end
+
+		-- 테두리 상자는 팝업 이미지의 오른쪽 끝·위에서 15% 지점부터 시작한다
+		return PopupLeft + PopupW * 0.97, TopY + Height * 0.17
 	end
 
 	return HUDText

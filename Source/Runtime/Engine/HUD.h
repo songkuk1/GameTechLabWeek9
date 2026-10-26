@@ -7,6 +7,7 @@
 #include "Render/Texture2D.h"
 
 class UObject;
+class UFont;
 
 // Rect 위에 Text
 enum class EHUDCommandType : uint8
@@ -84,6 +85,12 @@ public:
     // UI 좌표, 크기의 기준 해상도
 	static constexpr float ReferenceWidth = 1920.0f;
 	static constexpr float ReferenceHeight = 1080.0f;
+
+	// HUD 글자 폰트 (게임 콘텐츠라 Assets에 있다). 없으면 엔진 기본 폰트로 그린다.
+	// FHUDRenderer와 Lua의 MeasureHUDText가 같이 써야 글자 폭이 맞는다.
+	static constexpr const char* FontPath = "Assets/Fonts/CookieRun.json";
+	static constexpr const char* FontAtlasPath = "Assets/Fonts/CookieRun.png";
+	static UFont* GetFont();
 
 	// 기준 단위 -> 실제 픽셀 배율. 비율을 유지하도록 가로/세로 중 작은 쪽에 맞춤
 	float GetScale() const
