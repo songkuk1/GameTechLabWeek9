@@ -42,6 +42,7 @@ return function(Config)
 	-- PlayerController가 매 프레임 넣어 주는 Axis 값 (-1 ~ 1)
 	local AxisForward = 0
 	local AxisRight = 0
+	local bMoving = false   -- 이번 프레임에 이동 입력이 있었는지 (발밑 연기 등에 쓴다)
 
 	local PushCooldownLeft = 0
 	local Knockback = nil   -- { X, Y, Remaining } 밀려나는 중일 때만 있다
@@ -106,6 +107,10 @@ return function(Config)
 		return true
 	end
 
+	function Controller.IsMoving()
+		return bMoving
+	end
+
 	-- PlayerController: GetPlayerController(i), Input: EnableInput(i)
 	function Controller.BeginPlay(Owner, PlayerController, Input)
 		Actor = Owner
@@ -153,10 +158,16 @@ return function(Config)
 
 		-- 밀려나는 동안은 입력으로 움직이지 않는다
 		if UpdateKnockback(dt) then
+
+		-- 시작 대기 중에는 입력을 받지 않는다
+		if LockTimer > 0 then
+			LockTimer = LockTimer - dt
+			bMoving = false
 			return
 		end
 
 		local DX, DY = AxisForward, AxisRight
+		bMoving = DX ~= 0 or DY ~= 0
 
 		if DX ~= 0 or DY ~= 0 then
 			-- 대각선으로 눌러도 같은 속도가 되게 정규화한다

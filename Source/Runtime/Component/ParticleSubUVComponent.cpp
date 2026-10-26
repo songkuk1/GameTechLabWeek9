@@ -31,7 +31,7 @@ UParticleSubUVComponent::UParticleSubUVComponent()
 	Material = UAssetManager::GetAssetByPath<UMaterial>("SubUVMaterial");
 }
 
-// 파티클 에셋과 배열을 준비하고 초기 상태를 채운다.
+// 파티클 에셋을 준비하고, 레벨에 놓인 이미터면 이미 흘러가던 상태로 방출을 시작한다.
 void UParticleSubUVComponent::BeginPlay()
 {
 	if (!Material)
@@ -40,23 +40,160 @@ void UParticleSubUVComponent::BeginPlay()
 	}
 	Super::BeginPlay();
 
+	if (bAutoActivate)
+	{
+		Activate(true);
+	}
+}
+
+// 텍스처·아틀라스·튜닝 값을 옮긴다. 입자 배열은 다음 Activate에서 다시 만든다.
+void UParticleSubUVComponent::ApplyDesc(const FEffectDesc& Desc)
+{
+	if (!Desc.TexturePath.empty())
+	{
+		// 처음 부를 때 공유 머티리얼의 복사본을 만들고, 그 뒤로는 복사본의 텍스처만 바꾼다.
+		SetTexture(Desc.TexturePath);
+	}
+	else if (Material && Material->bIsInstance && Material->Parent && Material->Parent->Textures.Num() > 0)
+	{
+		// 풀에서 재사용될 때 이전 이펙트의 텍스처가 남지 않도록 기본 아틀라스로 되돌린다.
+		SetTexture(Material->Parent->Textures[0]);
+	}
+
+	SetSubUVSize(Desc.Cols, Desc.Rows);
+	SetFrameRate(Desc.FrameRate);
+	FrameCount = Desc.FrameCount;
+	bRandomStartFrame = Desc.bRandomStartFrame;
+
+	ParticleCount = Desc.ParticleCount > 0 ? Desc.ParticleCount : 0;
+	MinLifeTime = Desc.MinLifeTime;
+	MaxLifeTime = Desc.MaxLifeTime;
+
+	MinVelocity = Desc.MinVelocity;
+	MaxVelocity = Desc.MaxVelocity;
+	Acceleration = Desc.Acceleration;
+
+	StartScale = Desc.StartScale;
+	EndScale = Desc.EndScale;
+	FadeStart = Desc.FadeStart;
+
+	bBurst = Desc.bBurst;
+}
+
+// 입자 배열을 새로 채우고 방출을 시작한다.
+void UParticleSubUVComponent::Activate(bool bPrewarm)
+{
+	// Reset은 용량을 유지하므로 풀에서 재사용할 때 재할당이 없다.
+	Particles.Reset();
 	Particles.Reserve(ParticleCount);
+
+	FParticle DeadParticle{};
+	DeadParticle.bAlive = false;
 	for (int32 i = 0; i < ParticleCount; ++i)
 	{
-		FParticle Particle;
-		RespawnParticle(Particle);
-
-		Particle.Age = GetRandomNumberBetween(0.0f, Particle.LifeTime);
-		Particle.Location.Z += Particle.Velocity.Z * Particle.Age;
-
-		const float LifeRatio = Particle.Age / Particle.LifeTime;
-		Particle.Scale = Lerp(StartScale, EndScale, LifeRatio);
-
-		const float ElapsedFrames = Particle.Age * FrameRate;
-		Particle.SubUVFrame = static_cast<uint32>(ElapsedFrames) % (ColSize * RowSize);
-
-		Particles.Add(Particle);
+		Particles.Add(DeadParticle);
 	}
+
+	AliveCount = 0;
+	EmittedCount = 0;
+	EmitAccumulator = 0.0f;
+	bEmitting = true;
+
+	// Spawn은 보통 컴포넌트 Tick이 끝난 뒤(충돌 이벤트 안) 불려 이번 프레임에 Tick 없이 렌더된다.
+	// 그래서 여기서 입자 상태를 완성해 둔다.
+	if (bBurst)
+	{
+		while (EmitOne())
+		{
+		}
+
+		// 한 번 터뜨렸으니 루프가 아니면 더 낼 것이 없다.
+		if (!bLoop)
+		{
+			bEmitting = false;
+		}
+	}
+	else if (bPrewarm)
+	{
+		const uint32 TotalFrames = GetTotalFrames();
+		for (FParticle& Particle : Particles)
+		{
+			RespawnParticle(Particle);
+			++AliveCount;
+			++EmittedCount;
+
+			// 수명 안의 아무 시점으로 옮겨 이미 흘러가던 것처럼 보이게 한다.
+			const float Age = GetRandomNumberBetween(0.0f, Particle.LifeTime);
+			Particle.Age = Age;
+			Particle.Location += Particle.Velocity * Age + Acceleration * (0.5f * Age * Age);
+			Particle.Velocity += Acceleration * Age;
+
+			const float LifeRatio = Particle.Age / Particle.LifeTime;
+			Particle.Scale = Lerp(StartScale, EndScale, LifeRatio);
+
+			const float ElapsedFrames = Particle.Age * FrameRate;
+			Particle.SubUVFrame = static_cast<uint32>(ElapsedFrames) % TotalFrames;
+		}
+	}
+
+	PrimaryComponentTick.SetTickFunctionEnable(true);
+}
+
+// 방출만 멈춘다. 살아 있는 입자는 수명대로 사라진 뒤 IsFinished가 된다.
+void UParticleSubUVComponent::StopEmitting()
+{
+	bEmitting = false;
+	EmitAccumulator = 0.0f;
+}
+
+// 모든 입자를 즉시 없애고 Tick을 끈다.
+void UParticleSubUVComponent::Deactivate()
+{
+	for (FParticle& Particle : Particles)
+	{
+		Particle.bAlive = false;
+	}
+
+	AliveCount = 0;
+	bEmitting = false;
+	EmitAccumulator = 0.0f;
+	PrimaryComponentTick.SetTickFunctionEnable(false);
+}
+
+// 죽어 있는 입자 하나를 살린다. 루프가 아니면 ParticleCount개까지만 낸다.
+bool UParticleSubUVComponent::EmitOne()
+{
+	if (!bLoop && EmittedCount >= ParticleCount)
+	{
+		return false;
+	}
+
+	for (FParticle& Particle : Particles)
+	{
+		if (!Particle.bAlive)
+		{
+			RespawnParticle(Particle);
+			++AliveCount;
+			++EmittedCount;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// 실제 그림이 있는 프레임 수. 마지막 줄이 덜 찬 아틀라스는 FrameCount로 줄인다.
+uint32 UParticleSubUVComponent::GetTotalFrames() const
+{
+	const uint32 GridFrames = ColSize * RowSize;
+	return (FrameCount > 0 && FrameCount < GridFrames) ? FrameCount : GridFrames;
+}
+
+// 연속 방출의 초당 방출량. 동시에 ParticleCount개 정도가 살아 있도록 평균 수명으로 나눈다.
+float UParticleSubUVComponent::GetEmitRate() const
+{
+	const float AverageLifeTime = (MinLifeTime + MaxLifeTime) * 0.5f;
+	return AverageLifeTime > 0.0f ? static_cast<float>(ParticleCount) / AverageLifeTime : 0.0f;
 }
 
 // 열·행 개수가 양수인지 검사해 SubUV 분할 수를 설정한다.
@@ -78,16 +215,31 @@ void UParticleSubUVComponent::SetFrameRate(float InFrameRate)
 void UParticleSubUVComponent::TickComponent(float DeltaTime)
 {
 	Super::TickComponent(DeltaTime);
-	const uint32 TotalFrames = ColSize * RowSize;
+	const uint32 TotalFrames = GetTotalFrames();
 
 	for (FParticle& Particle : Particles)
 	{
+		if (!Particle.bAlive)
+		{
+			continue;
+		}
+
 		Particle.Location += Particle.Velocity * DeltaTime;
+		Particle.Velocity += Acceleration * DeltaTime;
 		Particle.Age += DeltaTime;
 
 		if (Particle.Age >= Particle.LifeTime)
 		{
-			RespawnParticle(Particle);
+			// 루프 버스트는 그 자리에서 다시 낸다. 연속 방출은 아래 누적기가 빈 자리를 채운다.
+			if (bEmitting && bLoop && bBurst)
+			{
+				RespawnParticle(Particle);
+			}
+			else
+			{
+				Particle.bAlive = false;
+				--AliveCount;
+			}
 
 			continue;
 		}
@@ -116,6 +268,32 @@ void UParticleSubUVComponent::TickComponent(float DeltaTime)
 			++Particle.SubUVFrame;
 			Particle.SubUVFrame %= TotalFrames;
 		}
+	}
+
+	if (bEmitting && !bBurst)
+	{
+		EmitAccumulator += DeltaTime * GetEmitRate();
+		while (EmitAccumulator >= 1.0f)
+		{
+			// 빈 자리가 없으면 쌓아두지 않는다. 쌓아두면 자리가 나는 순간 한꺼번에 튀어나온다.
+			if (!EmitOne())
+			{
+				EmitAccumulator = 0.0f;
+				break;
+			}
+			EmitAccumulator -= 1.0f;
+		}
+
+		if (!bLoop && EmittedCount >= ParticleCount)
+		{
+			bEmitting = false;
+		}
+	}
+
+	// 끝난 이미터는 다음 Activate까지 쉰다.
+	if (IsFinished())
+	{
+		PrimaryComponentTick.SetTickFunctionEnable(false);
 	}
 }
 
@@ -201,13 +379,18 @@ void UParticleSubUVComponent::RespawnParticle(FParticle& Particle)
 {
 	Particle.Location = GetWorldLocation();
 
-	Particle.Velocity.X = 0.0f;
-	Particle.Velocity.Y = 0.0f;
-	Particle.Velocity.Z = GetRandomNumberBetween(MinRiseSpeed, MaxRiseSpeed);
+	// 빌보드라 회전은 모양에 영향이 없고 방출 방향만 돌린다.
+	const FVector LocalVelocity(
+		GetRandomNumberBetween(MinVelocity.X, MaxVelocity.X),
+		GetRandomNumberBetween(MinVelocity.Y, MaxVelocity.Y),
+		GetRandomNumberBetween(MinVelocity.Z, MaxVelocity.Z));
+	Particle.Velocity = GetWorldMatrix().TransformVectorNoScale(LocalVelocity);
 
 	Particle.LifeTime = GetRandomNumberBetween(MinLifeTime, MaxLifeTime);
 	Particle.Age = 0.0f;
-	Particle.SubUVFrame = static_cast<uint32>(GetRandomNumberBetween(0.0f, static_cast<float>((ColSize * RowSize) - 1)));
+	Particle.SubUVFrame = bRandomStartFrame
+		? static_cast<uint32>(GetRandomNumberBetween(0.0f, static_cast<float>(GetTotalFrames() - 1)))
+		: 0;
 	Particle.Scale = StartScale;
 	Particle.FrameTimer = 0.0f;
 	Particle.bAlive = true;

@@ -237,7 +237,7 @@ void FSceneRenderPipeline::RenderFXAAPass(FTexture2D* FxaaTarget, const FRenderi
     RenderCommand::CopyTexture(SceneColor, FxaaTarget);
 }
 
-void FSceneRenderPipeline::RenderHUD(FViewport& Viewport, const FHUD& HUD)
+void FSceneRenderPipeline::RenderHUD(FViewport& Viewport, const FHUD& HUD, const FSceneView& View)
 {
     if (HUD.GetCommands().Num() == 0)
         return;
@@ -250,6 +250,6 @@ void FSceneRenderPipeline::RenderHUD(FViewport& Viewport, const FHUD& HUD)
 
     RenderCommand::BeginRenderPass(PassInfo);
     const FVector2 Size = Viewport.GetOutputSize();
-    HUDRenderer->OnRender(HUD, Size.X, Size.Y);
+    HUDRenderer->OnRender(HUD, Size.X, Size.Y, &View);
     RenderCommand::EndRenderPass(PassInfo);
 }

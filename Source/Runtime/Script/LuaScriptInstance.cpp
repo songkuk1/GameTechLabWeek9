@@ -44,6 +44,7 @@ bool FLuaScriptInstance::Load()
 	Scheduler.RegisterLuaAPI(Env);
 	RegisterLuaHUDAPI(Env, Owner);
 	RegisterLuaInputAPI(Env, Owner);
+	RegisterLuaEffectAPI(Env, Owner);
 
 	sol::protected_function_result Result = Lua.safe_script_file(Path, Env, sol::script_pass_on_error);
 	if (!Result.valid())
