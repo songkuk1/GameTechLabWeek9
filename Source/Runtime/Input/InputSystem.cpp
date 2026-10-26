@@ -18,6 +18,7 @@ bool FInputSystem::FindKeyByName(const FString& Name, EKeyCode& OutKey)
     {
         { "Space", EKeyCode::Space },     { "Enter", EKeyCode::Enter },
         { "Escape", EKeyCode::Escape },   { "Tab", EKeyCode::Tab },
+        { "Backspace", EKeyCode::Backspace },
         { "Shift", EKeyCode::Shift },     { "Control", EKeyCode::Control },
         { "Alt", EKeyCode::Alt },
         { "Left", EKeyCode::Left },       { "Right", EKeyCode::Right },

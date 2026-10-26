@@ -21,7 +21,7 @@ FEngineConfig UGameEngine::GetConfig() const
 	Desc.bBorderless = false;   // 제목 표시줄과 테두리가 있는 일반 창
 	Desc.SyncInterval = 0;
 	Desc.bCreateDepthBuffer = false;
-	Desc.bExitOnEscape = true;  // 창 모드면 닫기 버튼이 있으니 false로 해도 됨
+	Desc.bExitOnEscape = false; // Esc는 게임의 일시정지 키다. 창 모드라 닫기 버튼으로 끝낼 수 있다
 	return Desc;
 }
 
