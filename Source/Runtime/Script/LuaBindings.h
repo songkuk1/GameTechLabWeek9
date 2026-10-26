@@ -16,3 +16,6 @@ void RegisterLuaAudioBindings(sol::state& Lua);
 
 // HUD 그리기 함수 등록 (DrawHUDRect, DrawHUDText, GetHUDSize)
 void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner);
+
+// 입력 함수 등록 (EnableInput, DisableInput, GetPlayerController)
+void RegisterLuaInputAPI(sol::environment& Env, UObject* Owner);

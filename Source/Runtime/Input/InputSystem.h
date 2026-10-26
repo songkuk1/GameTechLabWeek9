@@ -3,6 +3,7 @@
 #include "KeyCode.h"
 #include "MouseButton.h"
 #include "Core/Types.h"
+#include "Core/EngineString.h"
 
 class FInputSystem
 {
@@ -10,6 +11,9 @@ public:
     static bool IsKeyPressed(EKeyCode KeyCode);
     static bool IsKeyReleased(EKeyCode KeyCode);
     static bool IsKeyDown(EKeyCode KeyCode);
+
+    // "W", "Space", "Up"처럼 이름으로 키를 찾는다. 한 글자는 영문자·숫자, 그 밖에는 정해진 이름만 받는다.
+    static bool FindKeyByName(const FString& Name, EKeyCode& OutKey);
 
     static bool IsMouseDown(EMouseButton MouseButton);
     static bool IsMousePressed(EMouseButton MouseButton);

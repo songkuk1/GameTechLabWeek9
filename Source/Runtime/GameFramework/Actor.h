@@ -11,6 +11,8 @@
 class UWorld;
 class ULevel;
 class FLuaScriptInstance;
+class FInputComponent;
+class APlayerController;
 
 class AActor : public UObject
 {
@@ -45,6 +47,13 @@ public:
 	// 비어 있으면 스크립트 없음. 씬 저장과 PIE 복제는 리플렉션(PROPERTY)이 처리한다.
 	FString ScriptPath;
 	FLuaScriptInstance* GetScriptInstance() const { return ScriptInstance.get(); }
+
+	// UE AActor::EnableInput. 이 액터의 InputComponent를 PlayerController 입력 스택에 올린다.
+	// 처음 부를 때 InputComponent를 만든다. 다시 켜도 바인딩은 그대로 남아 있다.
+	FInputComponent* EnableInput(APlayerController* PlayerController);
+	// 스택에서 내린다. EndPlay에서도 부른다.
+	void DisableInput();
+	FInputComponent* GetInputComponent() const { return InputComponent.get(); }
 
 	UWorld* GetWorld() const { return World; }
 	ULevel* GetLevel() const { return Level; }
@@ -118,6 +127,10 @@ private:
 	// 플레이 중에만 존재한다. DispatchBeginPlay에서 만들고 Actor가 delete 될 때 지워진다.
 	// EndPlay에서 지우지 않는 이유는 Script 안에서 Destroy가 호출되었을 수 있기 때문.
 	TUniquePtr<FLuaScriptInstance> ScriptInstance;
+
+	// 바인딩이 Lua 함수를 붙잡고 있을 수 있어 ScriptInstance처럼 Actor가 delete 될 때 함께 지운다.
+	// 선언의 역순으로 파괴되므로 ScriptInstance보다 먼저 지워진다.
+	TUniquePtr<FInputComponent> InputComponent;
 
 
 };

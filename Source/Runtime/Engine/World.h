@@ -23,6 +23,7 @@ class UShapeComponent;
 class UGameInstance;
 class AGameModeBase;
 class AGameStateBase;
+class APlayerController;
 class FLuaScriptInsatance;
 
 struct FLODViewContext;
@@ -116,6 +117,13 @@ public:
 	AGameStateBase* GetGameState() const { return GameState; }
 	void SetGameState(AGameStateBase* InGameState) { GameState = InGameState; }
 
+	// GameMode가 스폰할 때 넣고, PlayerController가 EndPlay에서 뺀다. 찾을 때는 각자의 PlayerIndex로 찾는다.
+	void AddPlayerController(APlayerController* Controller);
+	void RemovePlayerController(APlayerController* Controller);
+	// 없으면 nullptr. 새로 만들려면 GameMode의 GetOrCreatePlayerController를 쓴다.
+	APlayerController* GetPlayerController(int32 PlayerIndex) const;
+	const TArray<APlayerController*>& GetPlayerControllers() const { return PlayerControllers; }
+
 	// 움직인 컴포넌트를 표시해두면 Tick 끝에서 한 번 UpdateOverlaps를 불러준다. 에디터 월드에서는 무시한다.
 	void MarkOverlapDirty(UPrimitiveComponent* Component);
 	// 사라질 컴포넌트를 대기 목록에서 뺀다.
@@ -188,6 +196,7 @@ private:
 	UGameInstance* OwningGameInstance = nullptr;
 	AGameModeBase* AuthorityGameMode = nullptr;
 	AGameStateBase* GameState = nullptr;
+	TArray<APlayerController*> PlayerControllers;
 
 	ULevel* PersistentLevel = nullptr;
 	ULevel* CurrentLevel = nullptr;

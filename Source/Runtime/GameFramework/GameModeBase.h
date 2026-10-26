@@ -3,6 +3,7 @@
 #include "GameFramework/Actor.h"
 
 class AGameStateBase;
+class APlayerController;
 
 // 게임 규칙을 맡는 액터. 플레이 월드(Game·PIE)마다 하나 스폰되고 월드와 함께 사라진다.
 // 에디터 월드에는 없고 씬 파일에도 저장되지 않는다(RF_Transient).
@@ -22,7 +23,12 @@ public:
 
 	AGameStateBase* GetGameState() const { return GameState; }
 
+	// 그 번호의 PlayerController가 없으면 스폰한다 (UE UGameplayStatics::CreatePlayer).
+	// 0번은 StartPlay에서 미리 만든다. 2인 플레이처럼 더 필요하면 스크립트의 EnableInput(1)이 여기서 만든다.
+	APlayerController* GetOrCreatePlayerController(int32 PlayerIndex);
+
 	UClass* GameStateClass = nullptr;
+	UClass* PlayerControllerClass = nullptr;
 
 protected:
 	AGameStateBase* GameState = nullptr;

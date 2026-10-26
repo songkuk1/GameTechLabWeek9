@@ -43,6 +43,7 @@ bool FLuaScriptInstance::Load()
 	// start, stop, wait Script 을 Env에 등록
 	Scheduler.RegisterLuaAPI(Env);
 	RegisterLuaHUDAPI(Env, Owner);
+	RegisterLuaInputAPI(Env, Owner);
 
 	sol::protected_function_result Result = Lua.safe_script_file(Path, Env, sol::script_pass_on_error);
 	if (!Result.valid())

@@ -3,6 +3,9 @@
 #include "Engine/HUD.h"
 #include "Math/Color.h"
 #include "Asset/AssetManager.h"
+#include "Text/Font.h"
+#include "Text/TextRenderer.h"
+#include "Core/ResourcePaths.h"
 #include <sol/sol.hpp>
 
 namespace
@@ -27,6 +30,25 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 		{
 			if (FHUD* HUD = FindHUDForObject(Owner))
 				HUD->AddText(Text, FVector2(X, Y), Size.value_or(DefaultHUDFontSize), Color.value_or(DefaultHUDColor));
+		});
+
+	// local W = MeasureHUDText(text [, size])
+	// DrawHUDText로 그렸을 때의 가로 폭 (HUD 기준 단위). 가운데·오른쪽 정렬할 때 쓴다.
+	Env.set_function("MeasureHUDText",
+		[](const FString& Text, sol::optional<float> Size) -> float
+		{
+			const UFont* Font = UAssetManager::GetAssetByPath<UFont>(ResourcePaths::DefaultFont);
+			if (!Font)
+				return 0.0f;
+
+			// FHUDRenderer::AppendText와 같이 글리프 Advance를 더한다. 아틀라스에 없는 글자는 건너뛴다
+			float Width = 0.0f;
+			for (uint32 CodePoint : DecodeUTF8(Text))
+			{
+				if (const FGlyphInfo* Glyph = Font->GlyphMap.Find(CodePoint))
+					Width += Glyph->Advance;
+			}
+			return Width * Size.value_or(DefaultHUDFontSize);
 		});
 
 	// local W, H = GetHUDSize()
