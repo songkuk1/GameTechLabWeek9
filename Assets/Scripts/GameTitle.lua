@@ -124,17 +124,10 @@ function Tick(dt)
         return
     end
 
-    -- 두 열을 가운데 기준으로 나란히 둔다
-    local LeftX = W * 0.5 - ButtonGap * 0.5 - ButtonWidth
-    local RightX = W * 0.5 + ButtonGap * 0.5
-
-    -- 첫 줄: 시작 / 나가기
-    local ButtonH = ButtonWidth / ButtonAspect
-    local Y = H * ButtonTopY
-    local StartClicked = HUDImageButton(StartImage, LeftX, Y, ButtonWidth, ButtonH)
-    local ExitClicked = HUDImageButton(ExitImage, RightX, Y, ButtonWidth, ButtonH)
-
+    -- 시작·나가기 소리가 끝나길 기다리는 중. 버튼은 그리기만 하고 다시 받지 않는다
     if ActionPending then
+        LayoutButton(Buttons.Start, W, H)
+        LayoutButton(Buttons.Exit, W, H)
         if StartSound ~= nil and not Audio.IsPlaying(StartSound) then
             StartSound = nil
             OpenScene(GameScene)
@@ -145,15 +138,11 @@ function Tick(dt)
         return
     end
 
-    if StartClicked then
-        ActionPending = true
-        StartSound = Audio.Play("Assets/Audio/Start_Oi.wav")
-        if StartSound == 0 then
-            StartSound = nil
-            OpenScene(GameScene)
-        end
-        return
-    elseif ExitClicked then
+    -- 왼쪽 아래: 시작 위에 나가기를 겹쳐 그린다. 판정이 살짝 겹치는 곳은 위에 그려진 나가기가 이긴다
+    -- 소리를 재생하고, 소리가 끝나면 장면을 바꾸거나 종료한다. 재생에 실패하면(0) 바로 한다
+    local bStart = LayoutButton(Buttons.Start, W, H)
+    local bExit = LayoutButton(Buttons.Exit, W, H)
+    if bExit then
         ActionPending = true
         Audio.StopBGM()
         QuitSound = Audio.Play("Assets/Audio/Quit.wav")
@@ -162,24 +151,28 @@ function Tick(dt)
             QuitGame()
         end
         return
-    end
-    -- 왼쪽 아래: 시작 위에 나가기를 겹쳐 그린다. 판정이 살짝 겹치는 곳은 위에 그려진 나가기가 이긴다
-    local bStart = LayoutButton(Buttons.Start, W, H)
-    local bExit = LayoutButton(Buttons.Exit, W, H)
-    if bExit then
-        QuitGame()
     elseif bStart then
-        OpenScene(GameScene)
+        ActionPending = true
+        StartSound = Audio.Play("Assets/Audio/Start_Oi.wav")
+        if StartSound == 0 then
+            StartSound = nil
+            OpenScene(GameScene)
+        end
+        return
     end
 
-    -- 둘째 줄: 순위 / 조작법
-    local RankH = ButtonWidth / RankAspect
-    local Row2Y = Y + ButtonH + RowGap
-    if HUDImageButton(RankImage, LeftX, Row2Y, ButtonWidth, RankH) then
+    -- 아래 줄: 순위 / 조작법 / 크레딧
+    if LayoutButton(Buttons.Rank, W, H) then
+        HUDText.PlayClickSound()
         OpenBoard = Scoreboard.Load()
         OpenPanel = "Scoreboard"
     end
-    if HUDButton("CONTROLS", RightX, Row2Y + (RankH - ControlsButtonH) * 0.5, ButtonWidth, ControlsButtonH, 40) then
-        OpenPanel = "Controls"
+    if LayoutButton(Buttons.HowTo, W, H) then
+        HUDText.PlayClickSound()
+        OpenPanel = "HowTo"
+    end
+    if LayoutButton(Buttons.Credit, W, H) then
+        HUDText.PlayClickSound()
+        OpenPanel = "Credit"
     end
 end

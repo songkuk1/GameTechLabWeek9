@@ -9,6 +9,7 @@
 local GameState = require("Assets.Scripts.Lib.GameState")
 local Scoreboard = require("Assets.Scripts.Lib.Scoreboard")
 local ResultVideo = require("Assets.Scripts.Lib.ResultVideo")
+local Sound = require("Assets.Scripts.Lib.Sound")
 
 local GameScene = "Assets/Scenes/GameJamMap0.scene"
 local TitleScene = "Assets/Scenes/GameJamTitle.scene"
@@ -17,7 +18,7 @@ local TitleScene = "Assets/Scenes/GameJamTitle.scene"
 -- Anchor: 이미지 안에서 숫자를 올릴 곳의 가운데 (가로·세로 0~1 비율). 별 가운데, 캐릭터 몸통 가운데
 local TimerImages = { Default = "Assets/UI/Timer/TIMER_Default.png", Hurry = "Assets/UI/Timer/TIMER_Hurry.png" }
 local TimerSize = 260       -- 두 이미지 모두 정사각형이고 별 위치가 거의 같다
-local TimerAnchorY = 0.69
+local TimerAnchorY = 0.647
 local TimerTopY = -10       -- 이미지 위쪽은 비어 있어서 살짝 화면 밖으로 올린다
 
 local ScoreImages = {
@@ -34,16 +35,17 @@ local GoShowTime = 0.8      -- 시작할 때 GO!를 보여 줄 시간 (초)
 
 -- 일시정지 창. 팝업 이미지 위쪽에 PAUSE 글자가 있고, 그 아래 테두리 상자 안에 위부터 음량 슬라이더·메인·재시작을 놓는다.
 -- 안쪽 요소의 X, Y, Width는 팝업 이미지 크기에 대한 비율(0~1)이다. X·Y는 왼쪽 위, 세로 크기는 원본 비율(Aspect)로 맞춘다
-local PausePopup = { Path = "Assets/UI/Popup/PAUSE_POPUP.png", Aspect = 1854 / 2136, Height = 820 }
-local PauseClose = { Right = 0.998, Y = 0.229, Width = 0.10 }   -- 테두리 상자 오른쪽 위 모서리에 걸친 X (누르면 이어 하기)
-local MainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266, X = 0.249, Y = 0.564, Width = 0.567 }
-local RestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262, X = 0.246, Y = 0.739, Width = 0.535 }
--- 음량 슬라이더: 물결 트랙 위에서 헤드폰 고양이(손잡이)를 끈다.
--- MinU~MaxU: 손잡이 가운데가 움직이는 트랙 폭 비율. 왼쪽 음표 장식(트랙의 14%까지)을 피한다
-local VolumeSlider = {
-	Track = "Assets/UI/Backgrounds/SOUND_SLIDER.png", TrackAspect = 1371 / 162,
-	Handle = "Assets/UI/Backgrounds/SOUND_SLIDER_POINT.png", HandleWidth = 0.235,   -- 정사각형 이미지
-	X = 0.107, Y = 0.422, Width = 0.758, MinU = 0.24, MaxU = 0.93,
+local PausePopup = { Path = "Assets/UI/Popup/PAUSE_POPUP.png", Aspect = 1854 / 2307, Height = 880 }
+local PauseClose = { Right = 0.968, Y = 0.259, Width = 0.107 }   -- 테두리 상자 안쪽 오른쪽 위 X (누르면 이어 하기)
+local MainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266, X = 0.255, Y = 0.668, Width = 0.581 }
+local RestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262, X = 0.249, Y = 0.816, Width = 0.551 }
+-- 음량 슬라이더: BGM·SFX 글자와 물결 트랙은 팝업 이미지에 그려져 있어서 헤드폰 고양이(손잡이)만 그린다.
+-- X, Y, Width, Height: 이미지 속 트랙(음표~끝 점)을 덮는 판정 영역. 손잡이는 이 영역의 세로 가운데에 놓인다.
+-- MinU~MaxU: 손잡이 가운데가 움직이는 영역 폭 비율. 왼쪽 음표와 오른쪽 끝 점을 피한다
+local SliderHandle = { Path = "Assets/UI/Backgrounds/SOUND_SLIDER_POINT.png", Width = 0.235 }   -- 정사각형 이미지
+local VolumeSliders = {
+	{ Id = "BGMVolume", Channel = "BGM", X = 0.112, Y = 0.390, Width = 0.772, Height = 0.070, MinU = 0.24, MaxU = 0.82 },
+	{ Id = "SFXVolume", Channel = "SFX", X = 0.112, Y = 0.549, Width = 0.772, Height = 0.070, MinU = 0.24, MaxU = 0.82 },
 }
 
 local DarkText = FLinearColor(0.1, 0.1, 0.1, 1)   -- 밝은 이미지 위 숫자
@@ -199,33 +201,25 @@ local function DrawPause(W, H)
 		return
 	end
 
-	-- 팝업 아래 빈 칸에 위: 재시작, 아래: 메인
-	local RestartH = RestartButton.Width / RestartButton.Aspect
-	local RestartY = PopupY + PopupH * PausePopup.InnerTop + 70
-	if HUDImageButton(RestartButton.Path, CenterX - RestartButton.Width * 0.5, RestartY, RestartButton.Width, RestartH) then
-		HUDText.PlayClickSound()
-		OpenScene(GameScene)
-	end
-
-	local MainH = MainButton.Width / MainButton.Aspect
-	local MainY = RestartY + RestartH + 30
-	if HUDImageButton(MainButton.Path, CenterX - MainButton.Width * 0.5, MainY, MainButton.Width, MainH) then
-		HUDText.PlayClickSound()
-	-- 음량: 슬라이더가 돌려준 값이 바뀌었을 때만 반영한다
-	local TrackW = PopupW * VolumeSlider.Width
-	local HandleSize = PopupW * VolumeSlider.HandleWidth
-	local Volume = HUDImageSlider("Volume", VolumeSlider.Track, VolumeSlider.Handle,
-		PopupX + PopupW * VolumeSlider.X, PopupY + PopupH * VolumeSlider.Y, TrackW, TrackW / VolumeSlider.TrackAspect,
-		HandleSize, HandleSize, Sound.Volume, VolumeSlider.MinU, VolumeSlider.MaxU)
-	if Volume ~= Sound.Volume then
-		Sound.SetVolume(Volume)
+	-- 음량: BGM·SFX 슬라이더. 돌려준 값이 바뀌었을 때만 반영한다
+	local HandleSize = PopupW * SliderHandle.Width
+	for _, Slider in ipairs(VolumeSliders) do
+		local Current = Sound.GetVolume(Slider.Channel)
+		local Volume = HUDImageSlider(Slider.Id, "", SliderHandle.Path,
+			PopupX + PopupW * Slider.X, PopupY + PopupH * Slider.Y, PopupW * Slider.Width, PopupH * Slider.Height,
+			HandleSize, HandleSize, Current, Slider.MinU, Slider.MaxU)
+		if Volume ~= Current then
+			Sound.SetVolume(Slider.Channel, Volume)
+		end
 	end
 
 	-- 위: 메인, 아래: 재시작
 	if PopupButton(MainButton) then
+		HUDText.PlayClickSound()
 		OpenScene(TitleScene)
 	end
 	if PopupButton(RestartButton) then
+		HUDText.PlayClickSound()
 		OpenScene(GameScene)
 	end
 

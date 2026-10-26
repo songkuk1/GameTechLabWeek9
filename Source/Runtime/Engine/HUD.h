@@ -81,13 +81,6 @@ public:
 		Command.Position = Position;
 		Command.Text = Text;
 		Command.FontSize = FontSize;
-
-
-
-
-
-
-
 		Command.Color = Color;
 		Commands.Add(std::move(Command));
 	}

@@ -129,6 +129,7 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 
 	// value = HUDImageSlider(id, trackPath, handlePath, x, y, w, h, handleW, handleH, value [, minU [, maxU]])
 	// 즉시 모드라 값은 Lua가 들고 있다가 매 프레임 넘기고, 돌려받은 값으로 바꾼다.
+	// trackPath가 ""이면 트랙은 그리지 않는다 (배경 이미지에 트랙이 이미 그려져 있을 때). x, y, w, h는 판정 영역으로만 쓴다.
 	Env.set_function("HUDImageSlider",
 		[Owner](const FString& Id, const FString& TrackPath, const FString& HandlePath,
 			float X, float Y, float W, float H, float HandleW, float HandleH, float Value,
@@ -139,7 +140,8 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 				return Value;
 
 			UAssetManager& AssetManager = UAssetManager::Get();
-			return HUD->ImageSlider(Id, AssetManager.LoadTexture(TrackPath), AssetManager.LoadTexture(HandlePath),
+			UTexture2D* Track = TrackPath.empty() ? nullptr : AssetManager.LoadTexture(TrackPath);
+			return HUD->ImageSlider(Id, Track, AssetManager.LoadTexture(HandlePath),
 				FVector2(X, Y), FVector2(W, H), FVector2(HandleW, HandleH), Value,
 				MinU.value_or(0.0f), MaxU.value_or(1.0f));
 		});
