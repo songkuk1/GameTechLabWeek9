@@ -158,6 +158,9 @@ void UWorld::Tick(float DeltaTime)
 
 		// Coroutine
 		TickScriptCoroutines(DeltaTime);
+
+		// 이번 프레임의 스폰(겹침 이벤트·스크립트)까지 받은 뒤, 지워지기 전에 이펙트 수명을 정리한다.
+		EffectManager.Tick(DeltaTime);
 	}
 
 	// Frame 끝에서 Destroy 된 객체 실제로 지우기
@@ -250,7 +253,9 @@ void UWorld::RemoveShape(UShapeComponent* Shape)
 }
 
 void UWorld::ClearWorld()
-{	
+{
+	// 풀 액터는 아래에서 다른 액터와 함께 지워진다. 그 전에 참조를 끊는다.
+	EffectManager.Shutdown();
 	FlushPendingKill();
 	ScriptInstances.Empty();
 
@@ -909,6 +914,10 @@ void UWorld::NotifyBeginPlay()
 		BeginPlayList.Dequeue();
 
 	bBegunPlay = true;
+
+	// 풀 액터는 위 순회 뒤에 스폰되어 다음 Tick에서 BeginPlay를 받는다.
+	if (IsGameWorld())
+		EffectManager.Init(this);
 }
 
 void UWorld::AddPlayerController(APlayerController* Controller)
@@ -969,6 +978,7 @@ void UWorld::EndPlay()
 		}
 	}
 	bBegunPlay = false;
+	EffectManager.Shutdown();
 }
 
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)
