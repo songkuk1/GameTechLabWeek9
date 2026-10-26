@@ -1,4 +1,4 @@
--- 팝콘 낙하: 바닥 범위 위에서 랜덤 위치로 팝콘 또는 마늘이 떨어진다.
+-- 팝콘 낙하: 바닥 범위 위에서 랜덤 위치로 팝콘 또는 브로콜리가 떨어진다.
 -- 그림자는 씬의 수직 Directional Light(PCSS)가 그린다. 높을수록 흐리고, 내려올수록 진하고 선명해진다.
 -- Lua에서 액터를 새로 만들 수 없어서, 이 액터에 미리 넣어 둔 Drop0~N 컴포넌트를 돌려쓴다(풀링).
 -- DropN은 충돌용 Box(움직이는 대상), 자식 DropNMesh는 보이는 모양이다. 플레이어 CollisionBox와 겹치면 엔진이
@@ -18,7 +18,8 @@ local SpinSpeedMax = 180
 local BounceHeight = 0.8       -- 착지 후 한 번 튀어 오르는 높이
 local BounceTime = 0.6          -- 튀어 올랐다가 다시 바닥에 닿기까지 걸리는 시간 (초)
 local FallTime = 4.0           -- 바닥까지 걸리는 시간 (초)
-local EdgeMargin = 0.6          -- 벽에 붙어 떨어지지 않게 경계에서 뺄 여유
+-- 판이 흐를수록 더 자주 떨어뜨린다. 시작은 1배, 제한 시간이 끝날 때 MaxSpawnRate배 (대기 시간이 1/배율)
+local MaxSpawnRate = 1.4
 
 -- 떨어지는 종류. Weight는 상대 비율이라 합이 1일 필요는 없다 (예: 7과 3이면 70% / 30%).
 -- Scale: 모델 원본 크기가 달라서 둘 다 지름 약 0.9가 되도록 맞춘 값
@@ -27,7 +28,8 @@ local EdgeMargin = 0.6          -- 벽에 붙어 떨어지지 않게 경계에�
 -- Sound: 제한 시간 안에 주웠을 때 재생할 효과음
 local DropTypes = {
 	{ Name = "Popcorn", Weight = 1, Mesh = "Models/Popcorn/T_1.obj",    Scale = 0.24, Bottom = 0.53, Score = 1, Sound = "Assets/Audio/PopcornEat.wav" },
-	{ Name = "Garlic",  Weight = 1, Mesh = "Models/Garlic/garlic.obj",  Scale = 0.30, Bottom = 0.39, Score = -1, Sound = "Assets/Audio/GarlicEat.mp3" },
+	-- 브로콜리 모델은 원본 크기가 약 1이라 Scale이 크다 (팝콘은 약 4)
+	{ Name = "Broccoli", Weight = 1, Mesh = "Models/Broccoli/broccoli.obj", Scale = 0.86, Bottom = 0.46, Score = -1, Sound = "Assets/Audio/GarlicEat.mp3" },
 }
 
 local HiddenZ = -10.0           -- 쉬는 슬롯을 숨겨 둘 바닥 아래 높이. 플레이어와 겹치지 않게 Box째 내려 둔다
@@ -88,8 +90,17 @@ local function Collect(Slot, Player)
 	Hide(Slot)
 end
 
+-- 지금 낙하 빈도 배율. 제한 시간 동안 지난 비율만큼 1 → MaxSpawnRate로 커진다 (시작 대기 중에는 1)
+local function SpawnRate()
+	if GameState.Phase ~= "Playing" then
+		return 1
+	end
+	local Progress = math.min(1, GameState.PhaseTime / GameState.TimeLimit)
+	return 1 + (MaxSpawnRate - 1) * Progress
+end
+
 local function NextInterval()
-	return SpawnIntervalMin + math.random() * (SpawnIntervalMax - SpawnIntervalMin)
+	return (SpawnIntervalMin + math.random() * (SpawnIntervalMax - SpawnIntervalMin)) / SpawnRate()
 end
 
 -- 쉬고 있는 슬롯 하나를 골라 랜덤 위치 위에서 떨어뜨리기 시작한다
@@ -108,8 +119,11 @@ local function Spawn()
 			Slot.SpinYaw = RandomSpin()
 			Slot.SpinRoll = RandomSpin()
 			Slot.Mesh:SetRelativeRotation(FRotator(Slot.Pitch, Slot.Yaw, Slot.Roll))
-			Slot.X = Floor.MinX + EdgeMargin + math.random() * (Floor.MaxX - Floor.MinX - EdgeMargin * 2)
-			Slot.Y = Floor.MinY + EdgeMargin + math.random() * (Floor.MaxY - Floor.MinY - EdgeMargin * 2)
+			-- 원형 플레이 영역 안 고르게 랜덤한 점. 반지름에 sqrt를 씌워야 가운데로 몰리지 않는다
+			local Angle = math.random() * 2 * math.pi
+			local Radius = Floor.DropRadius * math.sqrt(math.random())
+			Slot.X = Floor.CenterX + math.cos(Angle) * Radius
+			Slot.Y = Floor.CenterY + math.sin(Angle) * Radius
 			Slot.Drop:SetRelativeLocation(FVector(Slot.X, Slot.Y, Floor.Z + StartHeight))
 			Slot.Mesh:SetVisible(true)
 			return
@@ -147,12 +161,12 @@ function BeginPlay()
 end
 
 function Tick(dt)
-	-- 일시정지 중에는 떨어지던 것도 그 자리에 멈춘다
-	if #DropTypes == 0 or GameState.bPaused then
+	-- 일시정지 중이거나 판이 끝났으면 떨어지던 것도 그 자리에 멈춘다
+	if #DropTypes == 0 or GameState.IsFrozen() then
 		return
 	end
 
-	-- 새로 떨어뜨리는 건 제한 시간 안에서만. 이미 떨어지던 건 끝까지 떨어지고, 끝난 뒤 주워도 점수는 안 오른다
+	-- 새로 떨어뜨리는 건 제한 시간 안에서만 (시작 대기 중에는 떨어뜨리지 않는다)
 	SpawnTimer = SpawnTimer - dt
 	if SpawnTimer <= 0 and GameState.IsPlaying() then
 		Spawn()
@@ -207,6 +221,10 @@ end
 -- 엔진이 부른다: 내 컴포넌트(MyComp)가 다른 액터의 컴포넌트와 겹치기 시작할 때.
 -- 낙하물 Box와 겹치는 건 플레이어 CollisionBox뿐이다 (벽은 겹침 이벤트를 끄고 있다)
 function OnComponentOverlap(MyComp, OtherActor, OtherComp)
+	-- 멈춰 있는 동안에는 줍지 않는다 (점수도 이펙트도 없음)
+	if not GameState.IsPlaying() then
+		return
+	end
 	for _, Slot in ipairs(Slots) do
 		if Slot.Active and Slot.Drop == MyComp then
 			Collect(Slot, OtherActor)

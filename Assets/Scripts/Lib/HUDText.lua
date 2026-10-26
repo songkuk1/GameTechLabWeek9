@@ -5,8 +5,10 @@
 --       DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText, DrawHUDImage = DrawHUDImage,
 --       HUDImageButton = HUDImageButton })
 
--- 순위표 팝업. 왼쪽 위에 RANK 글자가 있고, 그 아래(CardTop~CardBottom 비율) 빈 칸에 카드 3장을 가로로 놓는다
-local RankPopup = { Path = "Assets/UI/Popup/RANK_POPUP.png", Aspect = 2901 / 2331, CardTop = 0.42, CardBottom = 0.92 }
+-- 순위표 팝업. 테두리 상자 안(CardTop~CardBottom 비율)에 카드 3장을 삼각형으로 놓는다: 위 가운데 1등, 아래 왼쪽 2등, 아래 오른쪽 3등.
+-- 왼쪽 위 RANK 글자는 1등 카드(가운데)와 가로로 겹치지 않아서 상자 위쪽부터 쓴다
+local RankPopup = { Path = "Assets/UI/Popup/RANK_POPUP.png", Aspect = 2901 / 2331, CardTop = 0.22, CardBottom = 0.93 }
+local CardGap = 0.025   -- 카드 사이 간격 (팝업 너비 대비)
 
 -- 순위 카드. 그림에 순위(N급)와 캐릭터 얼굴이 있고, 위쪽 띠에 이름, 아래 오른쪽에 점수를 올린다 (카드 안 0~1 비율)
 local CardAspect = 1112 / 734
@@ -63,7 +65,7 @@ return function(Api)
 		return Clicked
 	end
 
-	-- 화면 가로 가운데, TopY부터 Height 높이로 RANK 팝업을 그리고 1~3등 카드를 왼쪽부터 놓는다.
+	-- 화면 가로 가운데, TopY부터 Height 높이로 RANK 팝업을 그리고 1~3등 카드를 삼각형으로 놓는다.
 	-- 카드 그림은 기록한 플레이어(치이카와/우사기)와 순위로 고른다. 빈 순위는 ---.
 	-- Highlight[기록] = true면 카드 위에 NEW! (이번 판에 들어간 기록)
 	-- 팝업 테두리 상자의 오른쪽 위 모서리(X 버튼 자리)를 돌려준다
@@ -72,15 +74,24 @@ return function(Api)
 		local PopupLeft = CenterX - PopupW * 0.5
 		Api.DrawHUDImage(RankPopup.Path, PopupLeft, TopY, PopupW, Height)
 
-		local AreaLeft, AreaW = PopupLeft + PopupW * 0.06, PopupW * 0.88
-		local Gap = PopupW * 0.025
-		local CardW = (AreaW - Gap * 2) / 3
-		local CardH = CardW / CardAspect
+		-- 카드 크기: 두 줄이 세로에 들어가고, 아랫줄 두 장이 가로에 들어가는 것 중 작은 쪽
+		local Gap = PopupW * CardGap
 		local AreaTop, AreaH = TopY + Height * RankPopup.CardTop, Height * (RankPopup.CardBottom - RankPopup.CardTop)
-		local CardY = AreaTop + (AreaH - CardH) * 0.5
+		local AreaW = PopupW * 0.88
+		local CardH = math.min((AreaH - Gap) * 0.5, ((AreaW - Gap) * 0.5) / CardAspect)
+		local CardW = CardH * CardAspect
+
+		-- 두 줄 묶음을 영역 세로 가운데에 놓는다
+		local TopRowY = AreaTop + (AreaH - (CardH * 2 + Gap)) * 0.5
+		local BottomRowY = TopRowY + CardH + Gap
+		local Slots = {
+			{ X = CenterX - CardW * 0.5,       Y = TopRowY },      -- 1등: 위 가운데
+			{ X = CenterX - Gap * 0.5 - CardW, Y = BottomRowY },   -- 2등: 아래 왼쪽
+			{ X = CenterX + Gap * 0.5,         Y = BottomRowY },   -- 3등: 아래 오른쪽
+		}
 
 		for Rank = 1, 3 do
-			local X = AreaLeft + (Rank - 1) * (CardW + Gap)
+			local X, CardY = Slots[Rank].X, Slots[Rank].Y
 			local Entry = Board[Rank]
 			if Entry then
 				Api.DrawHUDImage(CardImages[Entry.Player or 1][Rank], X, CardY, CardW, CardH)

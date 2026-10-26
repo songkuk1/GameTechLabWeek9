@@ -54,6 +54,9 @@ local NamePanelColor = FLinearColor(0, 0, 0, 0.55)
 
 local MaxNameLength = 8
 local NameChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+-- 이름 입력이 시작된 뒤 이 시간(초) 동안은 키를 받지 않는다. P2 밀치기 키가 Enter라,
+-- 판이 끝나는 순간 밀치려고 누른 Enter가 빈 이름으로 바로 확정되는 것을 막는다
+local EntryInputDelay = 0.8
 
 local HUDText = dofile("Assets/Scripts/Lib/HUDText.lua")({
 	DrawHUDText = DrawHUDText, MeasureHUDText = MeasureHUDText, DrawHUDImage = DrawHUDImage,
@@ -77,7 +80,7 @@ local function StartNextEntry()
 	while #EntryQueue > 0 do
 		local PlayerNumber = table.remove(EntryQueue, 1)
 		if Scoreboard.Qualifies(Board, GameState.GetScore(PlayerNumber)) then
-			CurrentEntry = { PlayerNumber = PlayerNumber, Name = "" }
+			CurrentEntry = { PlayerNumber = PlayerNumber, Name = "", StartTime = GameState.PhaseTime }
 			return
 		end
 	end
@@ -100,20 +103,26 @@ local function StartResult()
 end
 
 -- 이름 입력 키. 결과 화면에서 입력 차례일 때만 받는다
+-- 지금 입력 차례이고, 차례가 시작된 지 EntryInputDelay가 지났는지
+local function CanTypeName()
+	return not ResultVideo.IsPlaying() and CurrentEntry ~= nil
+		and GameState.PhaseTime - CurrentEntry.StartTime >= EntryInputDelay
+end
+
 local function TypeChar(C)
-	if not ResultVideo.IsPlaying() and CurrentEntry and #CurrentEntry.Name < MaxNameLength then
+	if CanTypeName() and #CurrentEntry.Name < MaxNameLength then
 		CurrentEntry.Name = CurrentEntry.Name .. C
 	end
 end
 
 local function Backspace()
-	if not ResultVideo.IsPlaying() and CurrentEntry and #CurrentEntry.Name > 0 then
+	if CanTypeName() and #CurrentEntry.Name > 0 then
 		CurrentEntry.Name = CurrentEntry.Name:sub(1, -2)
 	end
 end
 
 local function ConfirmName()
-	if ResultVideo.IsPlaying() or not CurrentEntry then
+	if not CanTypeName() then
 		return
 	end
 	-- 비워 두고 Enter를 누르면 플레이어 이름으로 남긴다
@@ -292,6 +301,7 @@ local function DrawVideo(W, H)
 end
 
 function Tick(dt)
+	local bWasVideoPlaying = ResultVideo.IsPlaying()
 	ResultVideo.Update(dt)
 	-- 일시정지 중에는 시간이 흐르지 않는다 (카운트다운·제한 시간 모두)
 	if not GameState.bPaused then
@@ -302,6 +312,11 @@ function Tick(dt)
 		elseif GameState.Phase == "Playing" and GameState.PhaseTime >= GameState.TimeLimit then
 			StartResult()
 		end
+	end
+
+	-- 이름 입력 대기는 영상이 끝나 실제 결과 화면이 보이는 순간부터 센다.
+	if bWasVideoPlaying and not ResultVideo.IsPlaying() and CurrentEntry then
+		CurrentEntry.StartTime = GameState.PhaseTime
 	end
 
 	local W, H = GetHUDSize()
