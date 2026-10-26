@@ -2,6 +2,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Engine/HUD.h"
+#include "GameFramework/PlayerController.h"
 #include "Input/InputSystem.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -21,9 +22,13 @@ void FGameViewportClient::SetInputEnabled(const bool bEnabled)
 	if (UCameraComponent* Camera = GetCamera())
 		Camera->SetExternalInputManaged(true);
 
-	// 입력 권한을 잃으면 HUD 입력도 비운다. 다른 화면을 클릭한 것이 버튼에 남지 않게 한다.
+	// 입력 권한을 잃으면 HUD 입력과 키 상태를 비운다. 다른 화면을 클릭하거나 누른 것이 게임에 남지 않게 한다.
 	if (!bEnabled)
+	{
 		World->GetHUD().ClearInput();
+		for (APlayerController* Controller : World->GetPlayerControllers())
+			Controller->FlushPressedKeys();
+	}
 }
 
 FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
@@ -65,4 +70,12 @@ void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 Outp
 	HUDInput.bMouseDown = FInputSystem::IsMouseDown(EMouseButton::Left);
 	HUDInput.bMousePressed = FInputSystem::IsMousePressed(EMouseButton::Left);
 	HUD.SetInput(HUDInput);
+
+	// 포커스를 가진 이 뷰포트의 키 상태를 자기 월드의 PlayerController에게만 넘긴다.
+	// 한 키보드를 여러 플레이어가 나눠 쓰므로 모두 같은 상태를 받고, 어떤 키를 쓸지는 각자의 매핑이 거른다.
+	bool bKeyDown[256];
+	for (int32 Key = 0; Key < 256; ++Key)
+		bKeyDown[Key] = FInputSystem::IsKeyDown(static_cast<EKeyCode>(Key));
+	for (APlayerController* Controller : World->GetPlayerControllers())
+		Controller->InputKeyStates(bKeyDown);
 }

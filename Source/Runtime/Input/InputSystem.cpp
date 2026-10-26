@@ -1,5 +1,35 @@
 #include "EnginePCH.h"
 #include "InputSystem.h"
+#include <cctype>
+
+bool FInputSystem::FindKeyByName(const FString& Name, EKeyCode& OutKey)
+{
+    if (Name.size() == 1)
+    {
+        const int Ch = std::toupper(static_cast<unsigned char>(Name[0]));
+        if ((Ch >= 'A' && Ch <= 'Z') || (Ch >= '0' && Ch <= '9'))
+        {
+            OutKey = static_cast<EKeyCode>(Ch);
+            return true;
+        }
+    }
+
+    static const TMap<FString, EKeyCode> Named =
+    {
+        { "Space", EKeyCode::Space },     { "Enter", EKeyCode::Enter },
+        { "Escape", EKeyCode::Escape },   { "Tab", EKeyCode::Tab },
+        { "Shift", EKeyCode::Shift },     { "Control", EKeyCode::Control },
+        { "Alt", EKeyCode::Alt },
+        { "Left", EKeyCode::Left },       { "Right", EKeyCode::Right },
+        { "Up", EKeyCode::Up },           { "Down", EKeyCode::Down },
+    };
+    if (const EKeyCode* Found = Named.Find(Name))
+    {
+        OutKey = *Found;
+        return true;
+    }
+    return false;
+}
 
 bool FInputSystem::IsMouseDown(EMouseButton MouseCode)
 {

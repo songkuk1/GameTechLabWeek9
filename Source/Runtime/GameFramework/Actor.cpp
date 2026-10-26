@@ -12,6 +12,8 @@
 #include "Script/LuaScriptInstance.h"
 #include "Script/LuaReflection.h"
 #include "Component/ShapeComponent.h"
+#include "GameFramework/InputComponent.h"
+#include "GameFramework/PlayerController.h"
 
 enum class EAttachmentRule;
 
@@ -95,6 +97,27 @@ void AActor::TickActor(float DeltaTime)
 		ScriptInstance->Call("Tick", DeltaTime);
 }
 
+FInputComponent* AActor::EnableInput(APlayerController* PlayerController)
+{
+	if (!PlayerController)
+		return nullptr;
+
+	if (!InputComponent)
+		InputComponent = MakeUnique<FInputComponent>(this);
+
+	PlayerController->PushInputComponent(InputComponent.get());
+	return InputComponent.get();
+}
+
+void AActor::DisableInput()
+{
+	if (!InputComponent)
+		return;
+
+	if (APlayerController* Controller = InputComponent->GetController())
+		Controller->PopInputComponent(InputComponent.get());
+}
+
 void AActor::DispatchEndPlay()
 {
 	if (!bActorHasBegunPlay)
@@ -107,6 +130,8 @@ void AActor::DispatchEndPlay()
 		ScriptInstance->Call("EndPlay");
 
 	EndPlay();
+
+	DisableInput();
 
     // Instance의 Lua 함수 (Tick, Coroutine) 에서 Destroy가 불렸을 수도 있으므로
     // Script Instance 는 여기서 지우지 않는다. 어차피 Actor Member 여서 Frame 끝에서 delete 될 때 함께 delete 됨.

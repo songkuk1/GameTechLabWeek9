@@ -8,7 +8,7 @@ local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({
 })
 
 function BeginPlay()
-	Controller.BeginPlay(obj)
+	Controller.BeginPlay(obj, GetPlayerController(1), EnableInput(1))
 end
 
 function Tick(dt)

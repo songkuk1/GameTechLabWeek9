@@ -3,6 +3,10 @@
 -- AddActorWorldOffset(Delta, true)로 옮기면 엔진이 Sweep해 벽·다른 플레이어 앞에서 멈춘다.
 -- 플레이어 스크립트에서 dofile로 불러 Config를 넘겨 만든다.
 --   local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({ Forward = "W", Back = "S", Left = "A", Right = "D" })
+--
+-- 입력은 키를 직접 읽지 않고 엔진의 PlayerController에서 받는다.
+--   포커스된 뷰포트 → PlayerController(키 매핑) → 이 액터의 InputComponent → BindAxis 함수
+-- dofile로 읽은 파일은 플레이어 스크립트의 environment를 모르므로 EnableInput·GetPlayerController 결과를 BeginPlay로 넘겨받는다.
 
 -- Lua 5.1·LuaJIT는 math.atan2, 5.3 이상은 math.atan(y, x)를 쓴다
 local Atan2 = math.atan2 or math.atan
@@ -26,14 +30,28 @@ return function(Config)
 	local Root = nil
 	local TargetYaw = 0
 	local LockTimer = 0
+	-- PlayerController가 매 프레임 넣어 주는 Axis 값 (-1 ~ 1)
+	local AxisForward = 0
+	local AxisRight = 0
 
 	local Controller = {}
 
-	function Controller.BeginPlay(Owner)
+	-- PlayerController: GetPlayerController(i), Input: EnableInput(i)
+	function Controller.BeginPlay(Owner, PlayerController, Input)
 		Actor = Owner
 		Root = Owner:GetRootComponent()
 		TargetYaw = Root:GetRelativeRotation().Yaw
 		LockTimer = StartLockTime
+
+		-- 어떤 키가 어떤 Axis인지는 PlayerController가 들고 있다. 플레이어마다 컨트롤러가 달라 같은 이름에 다른 키를 쓴다
+		PlayerController:AddAxisMapping("MoveForward", Config.Forward, 1.0)
+		PlayerController:AddAxisMapping("MoveForward", Config.Back, -1.0)
+		PlayerController:AddAxisMapping("MoveRight", Config.Right, 1.0)
+		PlayerController:AddAxisMapping("MoveRight", Config.Left, -1.0)
+
+		-- 액터 Tick보다 먼저 불리므로 Tick에서는 이번 프레임 값을 쓴다
+		Input:BindAxis("MoveForward", function(Value) AxisForward = Value end)
+		Input:BindAxis("MoveRight", function(Value) AxisRight = Value end)
 
 		-- 바닥 중앙을 기준으로 좌우에 세운다. 높이(Z)는 씬에 배치한 값을 그대로 쓴다
 		if SpawnOffsetY then
@@ -57,11 +75,7 @@ return function(Config)
 			return
 		end
 
-		local DX, DY = 0, 0
-		if Input.IsKeyDown(Config.Forward) then DX = DX + 1 end
-		if Input.IsKeyDown(Config.Back)    then DX = DX - 1 end
-		if Input.IsKeyDown(Config.Left)    then DY = DY - 1 end
-		if Input.IsKeyDown(Config.Right)   then DY = DY + 1 end
+		local DX, DY = AxisForward, AxisRight
 
 		if DX ~= 0 or DY ~= 0 then
 			-- 대각선으로 눌러도 같은 속도가 되게 정규화한다

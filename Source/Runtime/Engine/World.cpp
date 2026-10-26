@@ -12,6 +12,7 @@
 #include "Engine/GameInstance.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerController.h"
 
 #include "UObject/UObjectIterator.h"
 
@@ -135,6 +136,17 @@ void UWorld::Tick(float DeltaTime)
 			BeginPlayList.Dequeue();
 		}
 
+		// 액터 Tick보다 먼저 입력을 처리해 스크립트가 이번 프레임 입력으로 움직이게 한다 (UE PlayerController::PlayerTick).
+		// 바인딩 안에서 컨트롤러가 늘거나 줄 수 있어 사본을 돈다.
+		{
+			const TArray<APlayerController*> Controllers = PlayerControllers;
+			for (APlayerController* Controller : Controllers)
+			{
+				if (::IsValid(Controller))
+					Controller->ProcessPlayerInput();
+			}
+		}
+
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ActorTick);
 			// 모든 Actor를 도는 대신 등록된 Tick 함수(메인 카메라 포함)만 실행한다.
@@ -255,6 +267,7 @@ void UWorld::ClearWorld()
 	// GameMode·GameState도 Level의 액터라 아래에서 함께 지워진다.
 	AuthorityGameMode = nullptr;
 	GameState = nullptr;
+	PlayerControllers.Empty();
 
 	// 액터를 지우기 전에 렌더 프록시와 틱 등록부터 푼다. ClearActors는 액터를 delete만 하므로,
 	// 그대로 두면 지워진 컴포넌트를 가리키는 프록시가 FScene에 남아 다음 프레임에 터진다.
@@ -896,6 +909,29 @@ void UWorld::NotifyBeginPlay()
 		BeginPlayList.Dequeue();
 
 	bBegunPlay = true;
+}
+
+void UWorld::AddPlayerController(APlayerController* Controller)
+{
+	if (Controller && PlayerControllers.Find(Controller) == INDEX_NONE)
+		PlayerControllers.Add(Controller);
+}
+
+void UWorld::RemovePlayerController(APlayerController* Controller)
+{
+	const int32 Index = PlayerControllers.Find(Controller);
+	if (Index != INDEX_NONE)
+		PlayerControllers.RemoveAt(static_cast<uint32>(Index));
+}
+
+APlayerController* UWorld::GetPlayerController(int32 PlayerIndex) const
+{
+	for (APlayerController* Controller : PlayerControllers)
+	{
+		if (Controller && Controller->GetPlayerIndex() == PlayerIndex)
+			return Controller;
+	}
+	return nullptr;
 }
 
 bool UWorld::SetGameMode()
