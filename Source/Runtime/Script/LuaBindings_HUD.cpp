@@ -98,4 +98,36 @@ void RegisterLuaHUDAPI(sol::environment& Env, UObject* Owner)
 			return HUD->ImageButton(Texture, FVector2(X, Y), FVector2(W, H),
 				Label.value_or(FString()), Size.value_or(DefaultHUDFontSize));
 		});
+
+	// HUDImageButtonArea(path, x, y, w, h, hitLeft, hitTop, hitRight, hitBottom)
+	// HUDImageButton과 같지만 판정 영역을 이미지 안의 비율(0~1)로 좁힌다. 투명 여백이 겹치게 놓은 버튼에 쓴다.
+	Env.set_function("HUDImageButtonArea",
+		[Owner](const FString& Path, float X, float Y, float W, float H,
+			float HitLeft, float HitTop, float HitRight, float HitBottom) -> bool
+		{
+			FHUD* HUD = FindHUDForObject(Owner);
+			if (!HUD)
+				return false;
+
+			UTexture2D* Texture = UAssetManager::Get().LoadTexture(Path);
+			return HUD->ImageButton(Texture, FVector2(X, Y), FVector2(W, H), FString(), DefaultHUDFontSize,
+				FVector2(HitLeft, HitTop), FVector2(HitRight, HitBottom));
+		});
+
+	// value = HUDImageSlider(id, trackPath, handlePath, x, y, w, h, handleW, handleH, value [, minU [, maxU]])
+	// 즉시 모드라 값은 Lua가 들고 있다가 매 프레임 넘기고, 돌려받은 값으로 바꾼다.
+	Env.set_function("HUDImageSlider",
+		[Owner](const FString& Id, const FString& TrackPath, const FString& HandlePath,
+			float X, float Y, float W, float H, float HandleW, float HandleH, float Value,
+			sol::optional<float> MinU, sol::optional<float> MaxU) -> float
+		{
+			FHUD* HUD = FindHUDForObject(Owner);
+			if (!HUD)
+				return Value;
+
+			UAssetManager& AssetManager = UAssetManager::Get();
+			return HUD->ImageSlider(Id, AssetManager.LoadTexture(TrackPath), AssetManager.LoadTexture(HandlePath),
+				FVector2(X, Y), FVector2(W, H), FVector2(HandleW, HandleH), Value,
+				MinU.value_or(0.0f), MaxU.value_or(1.0f));
+		});
 }

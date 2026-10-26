@@ -2,12 +2,13 @@
 --   Ready   : 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
 --   Playing : 제한 시간(1분) 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
 --   Result  : 승자 표시 → 3등 안에 든 플레이어가 차례로 이름 입력 → RANK 팝업(순위 카드)과 다시하기·메인 메뉴 버튼
---   Esc     : Ready·Playing 중 일시정지 팝업 (재시작·메인). 다시 누르면 이어 한다
+--   Esc     : Ready·Playing 중 일시정지 팝업 (음량 슬라이더·메인·재시작). 다시 누르면 이어 한다
 -- 단계와 점수는 Lib/GameState.lua, 기록 저장은 Lib/Scoreboard.lua가 맡는다.
 -- 상단 바·일시정지·결과 화면(배경·버튼·RANK 팝업)은 UI 이미지를 쓴다. 승자 글자와 이름 입력 칸은 글자로 그린다.
 
 local GameState = require("Assets.Scripts.Lib.GameState")
 local Scoreboard = require("Assets.Scripts.Lib.Scoreboard")
+local Sound = require("Assets.Scripts.Lib.Sound")
 
 local GameScene = "Assets/Scenes/GameJamMap0.scene"
 local TitleScene = "Assets/Scenes/GameJamTitle.scene"
@@ -31,11 +32,19 @@ local ScoreFontSize = 64
 local WarningTime = 10      -- 남은 시간이 이 아래면 타이머를 Hurry 이미지로
 local GoShowTime = 0.8      -- 시작할 때 GO!를 보여 줄 시간 (초)
 
--- 일시정지 창. 팝업 이미지 위쪽에 PAUSE 글자가 있고, 그 아래 빈 칸(InnerTop 비율부터)에 버튼을 세로로 놓는다
-local PausePopup = { Path = "Assets/UI/Popup/PAUSE_POPUP.png", Aspect = 1854 / 2136, Height = 820, InnerTop = 0.30 }
-local RestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262, Width = 420 }
-local MainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266, Width = 420 }
-local PauseCloseSize = 80   -- 팝업 테두리 상자 오른쪽 위 X (누르면 이어 하기)
+-- 일시정지 창. 팝업 이미지 위쪽에 PAUSE 글자가 있고, 그 아래 테두리 상자 안에 위부터 음량 슬라이더·메인·재시작을 놓는다.
+-- 안쪽 요소의 X, Y, Width는 팝업 이미지 크기에 대한 비율(0~1)이다. X·Y는 왼쪽 위, 세로 크기는 원본 비율(Aspect)로 맞춘다
+local PausePopup = { Path = "Assets/UI/Popup/PAUSE_POPUP.png", Aspect = 1854 / 2136, Height = 820 }
+local PauseClose = { Right = 0.998, Y = 0.229, Width = 0.10 }   -- 테두리 상자 오른쪽 위 모서리에 걸친 X (누르면 이어 하기)
+local MainButton = { Path = "Assets/UI/Buttons/MAIN_SIMPLE.png", Aspect = 911 / 266, X = 0.249, Y = 0.564, Width = 0.567 }
+local RestartButton = { Path = "Assets/UI/Buttons/RESTART_SIMPLE.png", Aspect = 851 / 262, X = 0.246, Y = 0.739, Width = 0.535 }
+-- 음량 슬라이더: 물결 트랙 위에서 헤드폰 고양이(손잡이)를 끈다.
+-- MinU~MaxU: 손잡이 가운데가 움직이는 트랙 폭 비율. 왼쪽 음표 장식(트랙의 14%까지)을 피한다
+local VolumeSlider = {
+	Track = "Assets/UI/Backgrounds/SOUND_SLIDER.png", TrackAspect = 1371 / 162,
+	Handle = "Assets/UI/Backgrounds/SOUND_SLIDER_POINT.png", HandleWidth = 0.235,   -- 정사각형 이미지
+	X = 0.107, Y = 0.422, Width = 0.758, MinU = 0.24, MaxU = 0.93,
+}
 
 local DarkText = FLinearColor(0.1, 0.1, 0.1, 1)   -- 밝은 이미지 위 숫자
 
@@ -160,26 +169,39 @@ local function DrawPause(W, H)
 	local PopupY = (H - PopupH) * 0.5
 	DrawHUDImage(PausePopup.Path, CenterX - PopupW * 0.5, PopupY, PopupW, PopupH)
 
-	-- 테두리 상자는 팝업 이미지 위에서 26% 지점부터, 오른쪽 끝까지다
-	if HUDText.CloseButton(CenterX + PopupW * 0.46, PopupY + PopupH * 0.29, PauseCloseSize) then
+	local PopupX = CenterX - PopupW * 0.5
+
+	-- 팝업 비율 좌표로 이미지 버튼을 그리고, 눌렀으면 true
+	local function PopupButton(Button)
+		local ButtonW = PopupW * Button.Width
+		return HUDImageButton(Button.Path, PopupX + PopupW * Button.X, PopupY + PopupH * Button.Y, ButtonW, ButtonW / Button.Aspect)
+	end
+
+	local CloseSize = PopupW * PauseClose.Width
+	if HUDText.CloseButton(PopupX + PopupW * PauseClose.Right, PopupY + PopupH * PauseClose.Y, CloseSize) then
 		GameState.TogglePause()
 		return
 	end
 
-	-- 팝업 아래 빈 칸에 위: 재시작, 아래: 메인
-	local RestartH = RestartButton.Width / RestartButton.Aspect
-	local RestartY = PopupY + PopupH * PausePopup.InnerTop + 70
-	if HUDImageButton(RestartButton.Path, CenterX - RestartButton.Width * 0.5, RestartY, RestartButton.Width, RestartH) then
+	-- 음량: 슬라이더가 돌려준 값이 바뀌었을 때만 반영한다
+	local TrackW = PopupW * VolumeSlider.Width
+	local HandleSize = PopupW * VolumeSlider.HandleWidth
+	local Volume = HUDImageSlider("Volume", VolumeSlider.Track, VolumeSlider.Handle,
+		PopupX + PopupW * VolumeSlider.X, PopupY + PopupH * VolumeSlider.Y, TrackW, TrackW / VolumeSlider.TrackAspect,
+		HandleSize, HandleSize, Sound.Volume, VolumeSlider.MinU, VolumeSlider.MaxU)
+	if Volume ~= Sound.Volume then
+		Sound.SetVolume(Volume)
+	end
+
+	-- 위: 메인, 아래: 재시작
+	if PopupButton(MainButton) then
+		OpenScene(TitleScene)
+	end
+	if PopupButton(RestartButton) then
 		OpenScene(GameScene)
 	end
 
-	local MainH = MainButton.Width / MainButton.Aspect
-	local MainY = RestartY + RestartH + 30
-	if HUDImageButton(MainButton.Path, CenterX - MainButton.Width * 0.5, MainY, MainButton.Width, MainH) then
-		OpenScene(TitleScene)
-	end
-
-	DrawTextAt("ESC: RESUME", CenterX, MainY + MainH + 40, 30, Gray)
+	DrawTextAt("ESC: RESUME", CenterX, PopupY + PopupH + 40, 30, Gray)
 end
 
 local function DrawTopBar(W)

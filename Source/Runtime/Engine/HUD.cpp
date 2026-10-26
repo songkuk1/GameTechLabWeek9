@@ -7,6 +7,7 @@
 #include "Asset/AssetManager.h"
 #include "Text/Font.h"
 #include "Core/ResourcePaths.h"
+#include <algorithm>
 
 UFont* FHUD::GetFont()
 {
@@ -96,9 +97,12 @@ bool FHUD::Button(const FString& Label, const FVector2& Position, const FVector2
 }
 
 bool FHUD::ImageButton(UTexture2D* Texture, const FVector2& Position, const FVector2& Size,
-    const FString& Label, float FontSize)
+    const FString& Label, float FontSize, const FVector2& HitMin, const FVector2& HitMax)
 {
-    const FHUDButtonState State = GetButtonState(Position, Size);
+    // 판정은 이미지 안의 HitMin~HitMax 비율 영역만
+    const FVector2 HitPosition(Position.X + Size.X * HitMin.X, Position.Y + Size.Y * HitMin.Y);
+    const FVector2 HitSize(Size.X * (HitMax.X - HitMin.X), Size.Y * (HitMax.Y - HitMin.Y));
+    const FHUDButtonState State = GetButtonState(HitPosition, HitSize);
 
     // 이미지 셰이더가 텍스처 색 × 틴트라서 틴트 밝기로 상태를 표현한다. 1을 넘는 값은 표시용 타깃에서 잘린다.
     const float Brightness = State.bHeld ? 0.7f : (State.bHovered ? 1.2f : 1.0f);
@@ -109,4 +113,38 @@ bool FHUD::ImageButton(UTexture2D* Texture, const FVector2& Position, const FVec
 
     // 텍스처가 없어도(경로 오류) 판정은 동작한다
     return State.bClicked;
+}
+
+float FHUD::ImageSlider(const FString& Id, UTexture2D* Track, UTexture2D* Handle,
+    const FVector2& Position, const FVector2& Size, const FVector2& HandleSize,
+    float Value, float MinU, float MaxU)
+{
+    Value = std::clamp(Value, 0.0f, 1.0f);
+
+    // 손잡이 가운데가 움직이는 가로 구간
+    const float StartX = Position.X + Size.X * MinU;
+    const float RangeX = Size.X * (MaxU - MinU);
+    const float CenterY = Position.Y + Size.Y * 0.5f;
+
+    // 판정: 트랙 폭 전체, 세로는 트랙과 손잡이 중 더 큰 쪽. 빈 곳을 눌러도 그 자리로 바로 옮긴다
+    const float HitTop = std::min(Position.Y, CenterY - HandleSize.Y * 0.5f);
+    const float HitBottom = std::max(Position.Y + Size.Y, CenterY + HandleSize.Y * 0.5f);
+    const FHUDButtonState State = GetButtonState(FVector2(Position.X, HitTop), FVector2(Size.X, HitBottom - HitTop));
+    if (State.bClicked)
+        ActiveSliderId = Id;
+
+    // 잡은 뒤에는 마우스가 판정 영역 밖으로 나가도 따라간다. 놓는 처리는 SetInput에서 한다
+    const bool bDragging = !Id.empty() && ActiveSliderId == Id && Input.bEnabled && Input.bMouseDown;
+    if (bDragging && RangeX > 0.0f)
+        Value = std::clamp((Input.MousePosition.X - StartX) / RangeX, 0.0f, 1.0f);
+
+    AddImage(Track, Position, Size, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
+
+    // 버튼처럼 Hover면 밝게, 끄는 중이면 어둡게
+    const float Brightness = bDragging ? 0.8f : (State.bHovered ? 1.2f : 1.0f);
+    const float HandleX = StartX + RangeX * Value;
+    AddImage(Handle, FVector2(HandleX - HandleSize.X * 0.5f, CenterY - HandleSize.Y * 0.5f), HandleSize,
+        FLinearColor(Brightness, Brightness, Brightness, 1.0f));
+
+    return Value;
 }
