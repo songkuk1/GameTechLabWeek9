@@ -273,49 +273,65 @@ int32 FEffectManager::GetActiveCount() const
 	return Count;
 }
 
-// 텍스처는 임시로 기존 아틀라스를 쓴다. 전용 아틀라스가 준비되면 TexturePath와 칸 수만 바꾼다.
+// 크기·속도는 GameJamMap0 스케일(캐릭터 키 약 1)에 맞춘 값이다. 스크립트에서 RegisterEffect로 덮어써 튜닝할 수 있다.
 void FEffectManager::RegisterDefaultEffects()
 {
-	// 팝콘을 받았을 때: 컵 위에서 작게 반짝이고 사라진다.
+	// 팝콘을 받았을 때: 금색 반짝이가 살짝 솟았다가 작아지며 사라진다.
+	// StarParticle은 8x8 칸 모두 반짝이 덩어리라 시작 프레임을 섞어 입자마다 달라 보이게 한다.
 	FEffectDesc PopcornCatch;
+	PopcornCatch.TexturePath = "Resources/SubUV/StarParticle.png";
+	PopcornCatch.Cols = 8;
+	PopcornCatch.Rows = 8;
+	PopcornCatch.FrameRate = 30.0f;
+	PopcornCatch.bRandomStartFrame = true;
 	PopcornCatch.bBurst = true;
 	PopcornCatch.ParticleCount = 6;
-	PopcornCatch.MinLifeTime = 0.4f;
-	PopcornCatch.MaxLifeTime = 0.7f;
-	PopcornCatch.MinVelocity = FVector(-0.5f, -0.5f, 0.5f);
-	PopcornCatch.MaxVelocity = FVector(0.5f, 0.5f, 1.5f);
-	PopcornCatch.StartScale = 0.6f;
-	PopcornCatch.EndScale = 0.2f;
+	PopcornCatch.MinLifeTime = 0.5f;
+	PopcornCatch.MaxLifeTime = 0.8f;
+	PopcornCatch.MinVelocity = FVector(-0.7f, -0.7f, 0.8f);
+	PopcornCatch.MaxVelocity = FVector(0.7f, 0.7f, 1.6f);
+	PopcornCatch.Acceleration = FVector(0.0f, 0.0f, -1.0f);
+	PopcornCatch.StartScale = 1.3f;
+	PopcornCatch.EndScale = 0.6f;
 	PopcornCatch.FadeStart = 0.5f;
-	PopcornCatch.FrameRate = 24.0f;
 	RegisterEffect(FName("PopcornCatch"), PopcornCatch);
 
-	// 팝콘이 아닌 것이 바닥·캐릭터에 부딪혔을 때: 사방으로 튀고 떨어진다.
+	// 팝콘이 아닌 것이 바닥·캐릭터에 부딪혔을 때: 흰 덩어리가 사방으로 튀고 떨어지며 부풀어 사라진다.
+	// ParticleAtlas는 4x4 칸이 작은 구 → 큰 구 순서라 0번부터 수명 동안 한 번 재생한다 (16프레임 / 약 0.65초).
 	FEffectDesc HitSplash;
+	HitSplash.TexturePath = "Assets/SubUV/ParticleAtlas.png";
+	HitSplash.Cols = 4;
+	HitSplash.Rows = 4;
+	HitSplash.FrameRate = 24.0f;
+	HitSplash.bRandomStartFrame = false;
 	HitSplash.bBurst = true;
 	HitSplash.ParticleCount = 10;
-	HitSplash.MinLifeTime = 0.5f;
-	HitSplash.MaxLifeTime = 0.8f;
-	HitSplash.MinVelocity = FVector(-2.0f, -2.0f, 1.5f);
-	HitSplash.MaxVelocity = FVector(2.0f, 2.0f, 3.0f);
-	HitSplash.Acceleration = FVector(0.0f, 0.0f, -6.0f);
-	HitSplash.StartScale = 0.5f;
-	HitSplash.EndScale = 0.3f;
+	HitSplash.MinLifeTime = 0.45f;
+	HitSplash.MaxLifeTime = 0.65f;
+	HitSplash.MinVelocity = FVector(-2.5f, -2.5f, 1.2f);
+	HitSplash.MaxVelocity = FVector(2.5f, 2.5f, 2.8f);
+	HitSplash.Acceleration = FVector(0.0f, 0.0f, -7.0f);
+	HitSplash.StartScale = 0.3f;
+	HitSplash.EndScale = 0.7f;
 	HitSplash.FadeStart = 0.6f;
-	HitSplash.FrameRate = 24.0f;
 	RegisterEffect(FName("HitSplash"), HitSplash);
 
-	// 발밑 연기: 걷는 동안 루프로 켜 두고 멈출 때 StopEffect 한다.
+	// 발밑 먼지: 걷는 동안 루프로 켜 두고 멈출 때 StopEffect 한다. 작은 흰 덩어리가 부풀며 꼬리를 남긴다.
+	// CloudAtlas(회색)는 크림색 바닥에서 어둡게 떠 보여 흰 ParticleAtlas를 쓴다.
 	FEffectDesc FootSmoke;
-	FootSmoke.TexturePath = "Assets/SubUV/CloudAtlas.png";
+	FootSmoke.TexturePath = "Assets/SubUV/ParticleAtlas.png";
+	FootSmoke.Cols = 4;
+	FootSmoke.Rows = 4;
+	FootSmoke.FrameRate = 22.0f;
+	FootSmoke.bRandomStartFrame = false;
 	FootSmoke.ParticleCount = 8;
-	FootSmoke.MinLifeTime = 0.6f;
-	FootSmoke.MaxLifeTime = 1.0f;
-	FootSmoke.MinVelocity = FVector(-0.2f, -0.2f, 0.2f);
-	FootSmoke.MaxVelocity = FVector(0.2f, 0.2f, 0.5f);
-	FootSmoke.StartScale = 0.4f;
-	FootSmoke.EndScale = 0.9f;
-	FootSmoke.FadeStart = 0.4f;
+	FootSmoke.MinLifeTime = 0.5f;
+	FootSmoke.MaxLifeTime = 0.7f;
+	FootSmoke.MinVelocity = FVector(-0.25f, -0.25f, 0.15f);
+	FootSmoke.MaxVelocity = FVector(0.25f, 0.25f, 0.45f);
+	FootSmoke.StartScale = 0.22f;
+	FootSmoke.EndScale = 0.5f;
+	FootSmoke.FadeStart = 0.35f;
 	RegisterEffect(FName("FootSmoke"), FootSmoke);
 }
 

@@ -123,7 +123,7 @@ private:
 	static_assert(MaxPoolSize <= 65536, "FEffectHandle::Pack는 Index를 16비트에 넣는다");
 
 	// 텍스트 이펙트 모양. 크기는 HUD 기준 단위(1920x1080)
-	static constexpr float TextFontSize = 44.0f;
+	static constexpr float TextFontSize = 56.0f;
 	static constexpr float TextRiseSpeed = 0.8f;        // 월드 단위/초
 	static constexpr float TextFadeStart = 0.6f;        // 수명 비율이 이 값을 넘으면 페이드아웃
 	static constexpr float TextPopTime = 0.15f;         // 처음 이만큼은 크게 시작해 원래 크기로 줄어든다

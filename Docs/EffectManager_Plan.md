@@ -41,7 +41,7 @@ Lua (충돌 이벤트 등)
 | 4. 텍스트 이펙트 | 완료 | `FHUD::AddWorldText` + `RenderHUD(…, View)`에서 투영, 렌더러에서 글자 폭으로 가운데 맞춤. 상승·페이드·처음 크게 시작·그림자. 게임 화면 캡처로 확인 (4-3) |
 | 5. Lua 바인딩 | 완료 | 5개 함수 + `RegisterEffect(이름, 테이블)`(C++ 재빌드 없이 튜닝). 게임 스크립트 연결까지. Lua 점검 15개 통과, 실제 맵(GameJamMap0)에서 발밑 연기·튀김·`-3` 확인 (7장) |
 | 6. Shutdown | 완료 | 2단계에서 처리. PIE 종료·Travel 모두 `EndPlay` → `ClearWorld` 순서 |
-| 7. 실제 아틀라스·튜닝 | 남음 | 지금 `PopcornCatch`/`HitSplash`는 기본 아틀라스 임시 사용 |
+| 7. 실제 아틀라스·튜닝 | 1차 완료 | 레포에 있는 아틀라스로 배정: `PopcornCatch` = `StarParticle`(8x8 금색 반짝이), `HitSplash`·`FootSmoke` = `ParticleAtlas`(4x4, 작은 구→큰 구로 부푸는 16프레임). `CloudAtlas`는 크림색 바닥에서 어두워 뺐다. 수치는 GameJamMap0에서 1회 화면 확인 후 조정한 값이라, 2차 값은 플레이하며 확인 필요. 텍스트 크기 44 → 56 |
 
 ---
 
