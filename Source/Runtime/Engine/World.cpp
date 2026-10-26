@@ -896,6 +896,11 @@ void UWorld::NotifyBeginPlay()
 	if (bBegunPlay)
 		return;
 
+	// 액터 BeginPlay(스크립트 포함)에서 이펙트를 스폰할 수 있도록 먼저 준비한다.
+	// 풀 액터는 PersistentLevel에 들어가 아래 순회에서 함께 BeginPlay를 받는다.
+	if (IsGameWorld())
+		EffectManager.Init(this);
+
 	// BeginPlay 안에서 스폰된 액터도 같은 순회에서 받도록 매번 크기를 다시 읽는다.
 	for (ULevel* Level : Levels)
 	{
@@ -914,10 +919,6 @@ void UWorld::NotifyBeginPlay()
 		BeginPlayList.Dequeue();
 
 	bBegunPlay = true;
-
-	// 풀 액터는 위 순회 뒤에 스폰되어 다음 Tick에서 BeginPlay를 받는다.
-	if (IsGameWorld())
-		EffectManager.Init(this);
 }
 
 void UWorld::AddPlayerController(APlayerController* Controller)

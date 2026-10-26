@@ -25,8 +25,23 @@ Lua (충돌 이벤트 등)
                                │    └─ ApplyDesc → Activate
                                │         (시뮬레이션은 컴포넌트 자신의 TickComponent가 함)
                                ├─ 매 프레임 Tick: 끝난 이펙트를 풀로 반환
-                               └─ 텍스트 이펙트: 매 프레임 화면 좌표로 바꿔 HUD.AddText
+                               └─ 텍스트 이펙트: 매 프레임 HUD.AddWorldText (투영은 렌더 시점에 FSceneView로)
 ```
+
+---
+
+## 진행 상황 (중간점검 반영)
+
+| 단계 | 상태 | 비고 |
+|---|---|---|
+| 1. 파티클 컴포넌트 | 완료 | 자동 점검 20개 통과 |
+| 2. FEffectManager·풀·SpawnEffect | 완료 | 자동 점검 20개 통과 |
+| 중간점검 수정 | 완료 | Init을 `NotifyBeginPlay` 맨 앞으로, 프리셋 표를 Init/Shutdown과 분리(생성자에서 기본 등록), 풀 액터 이름 고유화 |
+| 3. SpawnEffectAttached·대상 파괴 처리 | 완료 | `TWeakObjectPtr`, 떼어내기는 `ReleaseSlot` 한 곳. 자동 점검 22개 통과 |
+| 4. 텍스트 이펙트 | 다음 | **설계 변경:** HUD에 월드 좌표 텍스트를 넣고 렌더 시점에 `FSceneView`로 투영 (4-3) |
+| 5. Lua 바인딩 | 남음 | Lua용 `RegisterEffect(이름, 테이블)` 추가해 C++ 재빌드 없이 튜닝 |
+| 6. Shutdown | 완료 | 2단계에서 처리. PIE 종료·Travel 모두 `EndPlay` → `ClearWorld` 순서 |
+| 7. 실제 아틀라스·튜닝 | 남음 | 지금 `PopcornCatch`/`HitSplash`는 기본 아틀라스 임시 사용 |
 
 ---
 
@@ -190,7 +205,8 @@ void FEffectManager::AddPooledComponent()
 }
 ```
 
-- **부르는 시점:** `UWorld::BeginPlay`(또는 `NotifyBeginPlay`)에서 `if (IsGameWorld()) EffectManager.Init(this);`. 에디터 월드에서는 만들지 않는다 → 에디터 레벨에 풀 액터가 저장될 일이 없다.
+- **부르는 시점:** `UWorld::NotifyBeginPlay`의 **맨 앞**에서 `if (IsGameWorld()) EffectManager.Init(this);`. 액터 순회보다 먼저 해야 액터·스크립트의 `BeginPlay`에서 `SpawnEffect`를 부를 수 있다. 순회가 매번 `Actors.Num()`을 다시 읽으므로 풀 액터도 같은 순회에서 BeginPlay를 받는다. 에디터 월드에서는 만들지 않는다 → 에디터 레벨에 풀 액터가 저장될 일이 없다.
+- **풀 액터 이름은 고유하게** (`MakeUniqueObjectName(..., "EffectPool")`). 이 엔진의 `NewObject`는 같은 Outer에 같은 이름이 있으면 기존 객체를 그대로 돌려준다. 고정 이름이면 같은 월드에서 다시 `Init`할 때 한 액터가 레벨에 두 번 등록되고, `ClearWorld`가 두 번 delete한다(디버그 힙 assert로 확인함).
 - `AddComponent`는 끝에서 `RegisterAllActorTickFunctions(true)`를 부른다. 그래서 Tick 끄기는 반드시 `AddComponent` **다음에** 한다.
 - 풀 액터에 루트 컴포넌트가 없으면 `USceneComponent` 하나를 루트로 만들어둔다. 붙였던 이펙트를 반환할 때 여기로 다시 붙인다.
 - `InitialPoolSize`는 동시에 보일 최대 개수 정도로 잡는다. 팝콘 낙하 간격이 0.5–1.2초이고 이펙트 수명이 1초 남짓이면 16개 정도로 충분하다.
@@ -209,7 +225,7 @@ void FEffectManager::AddPooledComponent()
 ### 2-4. 이펙트 프리셋 등록
 
 ```cpp
-TMap<FName, FEffectDesc> Descs;
+TMap<FName, FEffectDesc, FNameHash> Descs;   // FName은 기본 std::hash가 없어 FNameHash를 넘긴다
 void RegisterDesc(FName Name, const FEffectDesc& Desc);
 ```
 
@@ -357,34 +373,35 @@ TArray<FTextEffect> TextEffects;
 
 `SpawnTextEffect`는 `TextEffects.Add(...)`만 한다. 그리는 일은 `Tick`이 한다.
 
-### 4-3. 매 프레임 갱신 (`Tick` 안에서)
+### 4-3. 매 프레임 갱신 (`Tick` 안에서) — 중간점검 후 변경
+
+> **변경:** 처음에는 매니저 `Tick`에서 카메라 행렬로 화면 좌표를 구하려 했지만, 실제 화면은 그 행렬로 그려지지 않는다.
+> 게임·PIE 화면은 `FGameViewportClient::CreateSceneView`가 만든 `FSceneView`로 렌더되는데, 이 함수는 Roll을 없앤
+> 자체 회전 기저를 만들고 화면비도 뷰포트 크기에서 가져온다. 카메라 컴포넌트의 `GetViewProjectionMatrix()`는
+> 카메라 자체 회전과 `AspectRatio` 멤버(기본 16:9)를 쓰므로 두 행렬이 다르고, 글자가 대상에서 벗어난다.
+> 그래서 **투영은 렌더 시점에 그 뷰포트의 `FSceneView`로 한다.**
+
+매니저가 하는 일 (수명만)
 
 ```
 for 각 텍스트 이펙트 (뒤에서부터, 지우기 쉽게):
     Age += dt
     Age >= Duration 이면 RemoveAtSwap, continue
     WorldLocation.Z += RiseSpeed * dt                       // 위로 떠오름
-    Ratio = Age / Duration
-    Alpha = 1 - smoothstep(FadeStart, 1, Ratio)             // 끝부분에서 사라짐
-    Screen = WorldToScreen(WorldLocation, ViewProj, VirtualW, VirtualH)
-    Screen.X == -FLT_MAX 이면 continue                       // 카메라 뒤
-    Screen.X -= 글자수 * FontSize * 0.25                      // 대략 가운데 맞춤
-    HUD.AddText(Text, Screen, FontSize, Color with A = Alpha)
+    Alpha = 1 - smoothstep(FadeStart, 1, Age / Duration)    // 끝부분에서 사라짐
+    HUD.AddWorldText(Text, WorldLocation, FontSize, Color with A = Alpha)
 ```
 
-**좌표 단위 맞추기**
+HUD·렌더 쪽에 추가할 것
 
-- `WorldToScreen`([Ray.h:43](../Source/Runtime/Collision/Ray.h))은 넘긴 화면 크기 기준 좌표를 돌려준다.
-- HUD 명령은 **기준 해상도 단위**(1920×1080 기준)로 받는다. 렌더할 때 `GetScale()`을 곱한다.
-- 그래서 화면 크기로 픽셀 크기 대신 `HUD.GetVirtualSize()`를 넘기면 결과가 바로 HUD 단위로 나온다.
+- `FHUDDrawCommand`에 월드 좌표 텍스트 종류(`WorldText`)와 `FVector WorldPosition`을 추가하고, `FHUD::AddWorldText`를 만든다.
+- `FSceneRenderPipeline::RenderHUD`가 `const FSceneView&`를 받아, 월드 텍스트를 `View.ViewProjection`과 뷰포트 크기로 화면 좌표로 바꾼 뒤 그린다. 두 호출 지점(`EditorEngine.cpp`의 PIE HUD, `GameEngine.cpp`) 모두 그 자리에서 View를 쓸 수 있다.
+- 카메라 뒤(clip W ≤ 0)면 그리지 않는다.
+- 렌더 결과는 픽셀 단위다. HUD 렌더러는 기준 해상도 단위에 `GetScale()`을 곱하므로, 픽셀을 배율로 나눠 넣거나 월드 텍스트만 배율을 건너뛴다.
 
-**ViewProj 만들기**
+이렇게 하면 렌더된 화면과 정확히 맞고, 화면비 보정이 필요 없고, 화면 분할을 해도 뷰포트마다 맞게 그려진다.
 
-- 카메라: `World->GetMainCamera()->GetCameraComponent()`
-- 카메라 컴포넌트의 `AspectRatio` 멤버(기본 16:9)가 실제 화면비와 다르면 글자가 옆으로 밀린다.
-- `HUD.GetScreenSize()`로 화면비를 구해 `GetProjectionMatrix(화면비)`를 쓴다. 곱하는 순서는 `GetViewProjectionMatrix()` 구현과 똑같이 맞춘다(이 엔진은 `v * ViewProj` 행벡터 방식).
-
-**가운데 맞춤:** HUD에는 정렬 기능이 없다(HUD.cpp에 Todo로 남아 있음). 글자 수는 `FString::size()`가 UTF-8 바이트 수라서, 한글이 섞이면 틀린다. `DecodeUTF8(Text).Num()`([TextRenderer.h](../Source/Runtime/Text/TextRenderer.h))으로 실제 글자 수를 센다. "-3" 같은 숫자만 쓴다면 `size()`로도 된다.
+**가운데 맞춤:** 렌더러는 글자를 배치하면서 폭을 알기 때문에, 월드 텍스트에 가운데 맞춤 플래그를 두고 렌더러에서 폭의 절반만큼 당기면 된다. 글자 수로 어림하면 `FString::size()`가 UTF-8 바이트 수라 한글이 섞이면 틀린다.
 
 **외곽선/그림자:** HUD 텍스트에는 외곽선이 없다. 검은색으로 (+2, +2) 어긋나게 먼저 한 번 그리고, 원래 색으로 다시 그리면 그림자처럼 보인다.
 
@@ -392,7 +409,7 @@ for 각 텍스트 이펙트 (뒤에서부터, 지우기 쉽게):
 
 - 거리에 따라 크기가 변하지 않는다. 필요하면 카메라 거리로 FontSize를 조절한다.
 - 벽 뒤에 있어도 보인다(깊이 검사 없음). 데미지 숫자라면 보통 이게 맞다.
-- HUD가 월드당 하나라서 화면 하나 기준이다. 화면 분할을 하게 되면 다시 생각해야 한다.
+- HUD 명령 목록은 월드당 하나지만, 월드 텍스트는 뷰포트마다 그 View로 투영하므로 화면 분할에도 맞는다.
 
 ---
 
@@ -426,9 +443,9 @@ UWorld::Tick
 
 ```
 for 각 슬롯 (Free 제외):
-    // (a) 붙은 대상 파괴 처리
-    if AttachTarget && AttachTarget->IsPendingKill():
-        풀 액터 루트로 다시 붙임 (KeepWorld), AttachTarget = nullptr
+    // (a) 붙은 대상 파괴 처리 (구현: TWeakObjectPtr<AActor>, Destroy 예정이면 IsValid()가 false)
+    if bAttached && !AttachTarget.IsValid():
+        풀 액터 루트로 다시 붙임 (KeepWorld)
         Active였다면 StopEmitting → Stopping
 
     // (b) 방출 시간
@@ -446,9 +463,9 @@ for 각 슬롯 (Free 제외):
 **(a)가 꼭 필요한 이유 (코드 확인함)**
 
 - `UWorld::DestroyActor`는 대상 액터 **자기 컴포넌트**의 프록시·Tick만 정리한다. 다른 액터 소유인 이펙트 컴포넌트가 붙어 있어도 떼어내지 않는다.
-- `FlushPendingKill`이 대상을 delete한 뒤에도 이펙트의 `AttachParent`는 해제된 메모리를 가리킨다.
-- 다음 프레임에 `GetWorldLocation()` → `GetWorldMatrix()`가 부모를 따라 올라가다 **크래시**가 난다.
-- 떼어낼 때 `KeepWorld`를 쓰면 그 자리에 남아서 남은 연기가 자연스럽게 사라진다.
+- ~~delete된 부모를 가리켜 크래시가 난다~~ → **정정:** `USceneComponent`의 소멸자가 자식들의 `AttachParent`를 nullptr로 바꾸므로 크래시는 나지 않는다.
+- 대신 부모가 사라지는 순간 부모 기준이던 상대 위치가 그대로 월드 위치가 되어, 이펙트가 월드 원점 근처로 튀고 루프 이펙트는 거기서 계속 방출된다.
+- 그래서 `FlushPendingKill` 전에 떼어낸다. `KeepWorld`를 쓰면 그 자리에 남아서 남은 연기가 자연스럽게 사라진다.
 
 `ReleaseSlot(i)`
 

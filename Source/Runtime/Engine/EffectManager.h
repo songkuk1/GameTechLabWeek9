@@ -5,6 +5,8 @@
 #include "Core/NameTypes.h"
 #include "Math/Vector.h"
 #include "Math/Rotator.h"
+#include "Math/Transform.h"
+#include "UObject/WeakObjectPtr.h"
 #include "Component/ParticleSubUVComponent.h"
 
 class UWorld;
@@ -20,23 +22,33 @@ struct FEffectHandle
 };
 
 // 월드의 이펙트를 파티클 컴포넌트 풀에서 꺼내 재생하고, 끝나면 돌려받는다.
-// UWorld가 소유한다. 게임 월드의 NotifyBeginPlay에서 Init, EndPlay·ClearWorld에서 Shutdown 한다.
+// UWorld가 소유한다. 게임 월드의 NotifyBeginPlay 시작에서 Init, EndPlay·ClearWorld에서 Shutdown 한다.
 // 시뮬레이션은 각 컴포넌트의 TickComponent가 하고, 매니저 Tick은 수명만 관리한다.
 class FEffectManager
 {
 public:
+	// 기본 프리셋은 여기서 한 번만 등록한다. 프리셋 표는 Init/Shutdown과 상관없이 유지된다.
+	FEffectManager();
+
 	void Init(UWorld* InWorld);
 	void Shutdown();
 	// UWorld::Tick이 액터 Tick·겹침 이벤트·코루틴 뒤, FlushPendingKill 전에 부른다.
 	void Tick(float DeltaTime);
 
-	// 같은 이름이 있으면 덮어쓴다.
+	// 같은 이름이 있으면 덮어쓴다. Init 전에도 등록할 수 있다.
 	void RegisterEffect(FName Name, const FEffectDesc& Desc);
+	bool HasEffect(FName Name) const;
 
 	// Duration > 0: 그 시간 뒤 방출을 멈춘다.
 	// Duration <= 0: 루프면 StopEffect까지 계속, 루프가 아니면 한 번 방출하고 끝난다.
 	// 방출이 멈춘 뒤 남은 입자가 모두 사라지면 슬롯을 돌려받는다.
 	FEffectHandle SpawnEffect(FName Effect, const FVector& Location, const FRotator& Rotation = FRotator(),
+		bool bLoop = false, float Duration = 0.0f);
+
+	// Target의 루트 컴포넌트에 붙여 따라다니게 한다. Relative의 Location·Rotation만 쓴다.
+	// 방출 지점과 방향만 따라가고, 이미 나온 입자는 월드에 남는다 (발밑 연기의 꼬리).
+	// Target이 파괴되면 그 자리에 떼어 두고 방출을 멈춘다.
+	FEffectHandle SpawnEffectAttached(FName Effect, AActor* Target, const FTransform& Relative = FTransform(),
 		bool bLoop = false, float Duration = 0.0f);
 
 	// bImmediate가 false면 방출만 멈추고 남은 입자가 사라진 뒤 반환한다.
@@ -61,12 +73,19 @@ private:
 		ESlotState State = ESlotState::Free;
 		uint32 Generation = 0;
 		float RemainingTime = -1.0f;    // 남은 방출 시간. 음수면 제한 없음
+		bool bAttached = false;
+		// UUID로 찾으므로 대상이 Destroy 예정이거나 지워졌으면 IsValid()가 false다.
+		TWeakObjectPtr<AActor> AttachTarget;
 	};
 
 	void RegisterDefaultEffects();
 	bool AddPooledComponent();
 	int32 AcquireSlot();
+	// 트랜스폼을 정한 슬롯의 컴포넌트에 Desc를 넣고 방출을 시작한다.
+	FEffectHandle StartSlot(int32 Index, const FEffectDesc& Desc, bool bLoop, float Duration);
 	void ReleaseSlot(int32 Index);
+	// 붙어 있던 컴포넌트를 풀 액터 루트로 되돌린다. 월드 위치는 유지한다.
+	void DetachToPool(FSlot& Slot);
 	const FSlot* FindSlot(FEffectHandle Handle) const;
 
 	// 동시에 보일 이펙트 수 정도. 모자라면 MaxPoolSize까지 늘린다.

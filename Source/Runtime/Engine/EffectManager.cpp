@@ -1,7 +1,13 @@
 #include "EnginePCH.h"
 #include "Engine/EffectManager.h"
 #include "Engine/World.h"
+#include "Engine/Level.h"
 #include "GameFramework/Actor.h"
+
+FEffectManager::FEffectManager()
+{
+	RegisterDefaultEffects();
+}
 
 void FEffectManager::Init(UWorld* InWorld)
 {
@@ -14,7 +20,10 @@ void FEffectManager::Init(UWorld* InWorld)
 	World = InWorld;
 	++SessionGeneration;
 
-	PoolOwner = World->SpawnActor<AActor>(FName("EffectPool"));
+	// 같은 Outer에 같은 이름이 있으면 NewObject가 기존 객체를 재사용한다. 같은 월드에서 다시 Init하거나
+	// 레벨에 같은 이름의 액터가 있으면 한 액터가 레벨에 두 번 등록되어 두 번 지워지므로 이름을 고유하게 만든다.
+	const FName PoolName = MakeUniqueObjectName(World->GetPersistentLevel(), AActor::StaticClass(), FName("EffectPool"));
+	PoolOwner = World->SpawnActor<AActor>(PoolName);
 	if (!PoolOwner)
 	{
 		HTR_LOG(Error, "[Effect] failed to spawn pool owner");
@@ -29,16 +38,14 @@ void FEffectManager::Init(UWorld* InWorld)
 		if (!AddPooledComponent())
 			break;
 	}
-
-	RegisterDefaultEffects();
 }
 
 // 풀 액터와 컴포넌트는 월드가 액터를 정리할 때 함께 지운다. 여기서는 참조만 끊는다.
+// 프리셋 표는 다음 플레이에서도 쓰도록 남겨 둔다.
 void FEffectManager::Shutdown()
 {
 	Slots.Empty();
 	FreeSlots.Empty();
-	Descs.Empty();
 	PoolOwner = nullptr;
 	World = nullptr;
 }
@@ -55,6 +62,16 @@ void FEffectManager::Tick(float DeltaTime)
 			continue;
 
 		UParticleSubUVComponent* Component = Slot.Component;
+
+		// 대상이 Destroy되면 실제로 지워지기(FlushPendingKill) 전에 떼어 둔다. 붙인 채로 두면 부모가 지워질 때
+		// 부모 기준이던 상대 위치가 그대로 월드 위치가 되어 이펙트가 엉뚱한 곳으로 튄다.
+		if (Slot.bAttached && !Slot.AttachTarget.IsValid())
+		{
+			DetachToPool(Slot);
+			if (Slot.State == ESlotState::Active)
+				Component->StopEmitting();
+		}
+
 		if (Slot.State == ESlotState::Active)
 		{
 			if (Slot.RemainingTime >= 0.0f)
@@ -80,10 +97,18 @@ void FEffectManager::RegisterEffect(FName Name, const FEffectDesc& Desc)
 	Descs[Name] = Desc;
 }
 
+bool FEffectManager::HasEffect(FName Name) const
+{
+	return Descs.Find(Name) != nullptr;
+}
+
 FEffectHandle FEffectManager::SpawnEffect(FName Effect, const FVector& Location, const FRotator& Rotation, bool bLoop, float Duration)
 {
 	if (!World)
+	{
+		HTR_LOG(Warning, "[Effect] SpawnEffect({}) before the effect manager is initialized", Effect.ToString());
 		return FEffectHandle();
+	}
 
 	const FEffectDesc* Desc = Descs.Find(Effect);
 	if (!Desc)
@@ -96,12 +121,54 @@ FEffectHandle FEffectManager::SpawnEffect(FName Effect, const FVector& Location,
 	if (Index < 0)
 		return FEffectHandle();
 
+	// Activate가 방출 지점과 방향을 읽으므로 트랜스폼을 먼저 정한다.
+	Slots[Index].Component->SetWorldLocationAndRotation(Location, Rotation, false);
+	return StartSlot(Index, *Desc, bLoop, Duration);
+}
+
+FEffectHandle FEffectManager::SpawnEffectAttached(FName Effect, AActor* Target, const FTransform& Relative, bool bLoop, float Duration)
+{
+	if (!World)
+	{
+		HTR_LOG(Warning, "[Effect] SpawnEffectAttached({}) before the effect manager is initialized", Effect.ToString());
+		return FEffectHandle();
+	}
+
+	USceneComponent* TargetRoot = ::IsValid(Target) ? Target->GetRootComponent() : nullptr;
+	if (!TargetRoot)
+	{
+		HTR_LOG(Warning, "[Effect] SpawnEffectAttached({}): invalid target", Effect.ToString());
+		return FEffectHandle();
+	}
+
+	const FEffectDesc* Desc = Descs.Find(Effect);
+	if (!Desc)
+	{
+		HTR_LOG(Warning, "[Effect] unknown effect: {}", Effect.ToString());
+		return FEffectHandle();
+	}
+
+	const int32 Index = AcquireSlot();
+	if (Index < 0)
+		return FEffectHandle();
+
+	// 소유는 풀 액터 그대로 두고 부착만 대상 루트로 옮긴다. 부착은 컴포넌트끼리의 관계라
+	// 대상이 움직이면 MarkTransformDirty가 이 컴포넌트까지 전파된다.
+	FSlot& Slot = Slots[Index];
+	Slot.Component->SetupAttachment(TargetRoot, EAttachmentRule::KeepRelative);
+	Slot.Component->SetRelativeLocationAndRotation(Relative.Location, Relative.Rotation);
+	Slot.bAttached = true;
+	Slot.AttachTarget = TWeakObjectPtr<AActor>(Target);
+
+	return StartSlot(Index, *Desc, bLoop, Duration);
+}
+
+FEffectHandle FEffectManager::StartSlot(int32 Index, const FEffectDesc& Desc, bool bLoop, float Duration)
+{
 	FSlot& Slot = Slots[Index];
 	UParticleSubUVComponent* Component = Slot.Component;
 
-	// Activate가 방출 지점과 방향을 읽으므로 트랜스폼을 먼저 정한다.
-	Component->SetWorldLocationAndRotation(Location, Rotation, false);
-	Component->ApplyDesc(*Desc);
+	Component->ApplyDesc(Desc);
 	Component->SetLoop(bLoop);
 	Component->Activate();
 
@@ -225,14 +292,26 @@ int32 FEffectManager::AcquireSlot()
 	return Index;
 }
 
+// 즉시 정지·자연 종료·대상 파괴가 모두 여기를 지나므로 떼어내기도 여기서 한다.
 void FEffectManager::ReleaseSlot(int32 Index)
 {
 	FSlot& Slot = Slots[Index];
+	if (Slot.bAttached)
+		DetachToPool(Slot);
+
 	Slot.Component->Deactivate();
 	Slot.State = ESlotState::Free;
 	Slot.RemainingTime = -1.0f;
 	++Slot.Generation;
 	FreeSlots.Add(Index);
+}
+
+void FEffectManager::DetachToPool(FSlot& Slot)
+{
+	// KeepWorld: 대상이 사라진 자리에서 남은 입자가 마저 사라지게 한다.
+	Slot.Component->SetupAttachment(PoolOwner->GetRootComponent(), EAttachmentRule::KeepWorld);
+	Slot.bAttached = false;
+	Slot.AttachTarget.Reset();
 }
 
 const FEffectManager::FSlot* FEffectManager::FindSlot(FEffectHandle Handle) const
