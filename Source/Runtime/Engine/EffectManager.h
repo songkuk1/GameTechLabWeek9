@@ -6,6 +6,8 @@
 #include "Math/Vector.h"
 #include "Math/Rotator.h"
 #include "Math/Transform.h"
+#include "Math/Color.h"
+#include "Core/EngineString.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Component/ParticleSubUVComponent.h"
 
@@ -51,6 +53,10 @@ public:
 	FEffectHandle SpawnEffectAttached(FName Effect, AActor* Target, const FTransform& Relative = FTransform(),
 		bool bLoop = false, float Duration = 0.0f);
 
+	// Location에서 떠오르며 사라지는 텍스트 (데미지 숫자 등). 매 프레임 HUD 월드 텍스트로 그린다.
+	void SpawnTextEffect(const FString& Text, const FVector& Location,
+		const FLinearColor& Color = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), float Duration = 1.0f);
+
 	// bImmediate가 false면 방출만 멈추고 남은 입자가 사라진 뒤 반환한다.
 	void StopEffect(FEffectHandle Handle, bool bImmediate = false);
 	bool IsEffectActive(FEffectHandle Handle) const;
@@ -58,6 +64,7 @@ public:
 	bool IsInitialized() const { return World != nullptr; }
 	int32 GetPoolSize() const { return Slots.Num(); }
 	int32 GetActiveCount() const;
+	int32 GetTextEffectCount() const { return TextEffects.Num(); }
 
 private:
 	enum class ESlotState : uint8
@@ -78,6 +85,16 @@ private:
 		TWeakObjectPtr<AActor> AttachTarget;
 	};
 
+	struct FTextEffect
+	{
+		FString Text;
+		FVector Location;
+		FLinearColor Color;
+		float Age = 0.0f;
+		float Duration = 1.0f;
+	};
+
+	void TickTextEffects(float DeltaTime);
 	void RegisterDefaultEffects();
 	bool AddPooledComponent();
 	int32 AcquireSlot();
@@ -92,12 +109,21 @@ private:
 	static constexpr int32 InitialPoolSize = 16;
 	static constexpr int32 MaxPoolSize = 64;
 
+	// 텍스트 이펙트 모양. 크기는 HUD 기준 단위(1920x1080)
+	static constexpr float TextFontSize = 44.0f;
+	static constexpr float TextRiseSpeed = 0.8f;        // 월드 단위/초
+	static constexpr float TextFadeStart = 0.6f;        // 수명 비율이 이 값을 넘으면 페이드아웃
+	static constexpr float TextPopTime = 0.15f;         // 처음 이만큼은 크게 시작해 원래 크기로 줄어든다
+	static constexpr float TextPopScale = 1.4f;
+	static constexpr float TextShadowOffset = 3.0f;
+
 	UWorld* World = nullptr;
 	// 풀 컴포넌트를 소유하는 숨은 액터. 컴포넌트는 Owner를 통해 월드와 Scene·Tick에 등록된다.
 	AActor* PoolOwner = nullptr;
 
 	TArray<FSlot> Slots;
 	TArray<int32> FreeSlots;
+	TArray<FTextEffect> TextEffects;
 	TMap<FName, FEffectDesc, FNameHash> Descs;
 
 	// Init마다 올려 새 슬롯의 시작 Generation으로 쓴다. 이전 플레이의 핸들이 새 슬롯과 우연히 맞지 않게 한다.

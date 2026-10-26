@@ -38,8 +38,8 @@ Lua (충돌 이벤트 등)
 | 2. FEffectManager·풀·SpawnEffect | 완료 | 자동 점검 20개 통과 |
 | 중간점검 수정 | 완료 | Init을 `NotifyBeginPlay` 맨 앞으로, 프리셋 표를 Init/Shutdown과 분리(생성자에서 기본 등록), 풀 액터 이름 고유화 |
 | 3. SpawnEffectAttached·대상 파괴 처리 | 완료 | `TWeakObjectPtr`, 떼어내기는 `ReleaseSlot` 한 곳. 자동 점검 22개 통과 |
-| 4. 텍스트 이펙트 | 다음 | **설계 변경:** HUD에 월드 좌표 텍스트를 넣고 렌더 시점에 `FSceneView`로 투영 (4-3) |
-| 5. Lua 바인딩 | 남음 | Lua용 `RegisterEffect(이름, 테이블)` 추가해 C++ 재빌드 없이 튜닝 |
+| 4. 텍스트 이펙트 | 완료 | `FHUD::AddWorldText` + `RenderHUD(…, View)`에서 투영, 렌더러에서 글자 폭으로 가운데 맞춤. 상승·페이드·처음 크게 시작·그림자. 게임 화면 캡처로 확인 (4-3) |
+| 5. Lua 바인딩 | 다음 | Lua용 `RegisterEffect(이름, 테이블)` 추가해 C++ 재빌드 없이 튜닝 |
 | 6. Shutdown | 완료 | 2단계에서 처리. PIE 종료·Travel 모두 `EndPlay` → `ClearWorld` 순서 |
 | 7. 실제 아틀라스·튜닝 | 남음 | 지금 `PopcornCatch`/`HitSplash`는 기본 아틀라스 임시 사용 |
 

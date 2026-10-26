@@ -945,7 +945,7 @@ void UEditorEngine::RenderFrame(FViewport& Viewport, UWorld& ViewWorld, const FS
 	if (Viewport.GetActiveClient() == Viewport.GetGameClient())
 	{
 		ViewWorld.GetHUD().SetScreenSize(Viewport.GetOutputSize());
-		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD());
+		ScenePipeline.RenderHUD(Viewport, ViewWorld.GetHUD(), View);
 	}
 }
 

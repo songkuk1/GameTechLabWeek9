@@ -237,7 +237,7 @@ void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FS
 	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, Settings);
 	// 3. HUD
 	ViewWorld.GetHUD().SetScreenSize(InViewport.GetOutputSize());
-	ScenePipeline.RenderHUD(InViewport, ViewWorld.GetHUD());
+	ScenePipeline.RenderHUD(InViewport, ViewWorld.GetHUD(), View);
 }
 
 void UGameEngine::CopyViewportToBackbuffer()

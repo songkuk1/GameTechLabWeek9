@@ -46,6 +46,7 @@ void FEffectManager::Shutdown()
 {
 	Slots.Empty();
 	FreeSlots.Empty();
+	TextEffects.Empty();
 	PoolOwner = nullptr;
 	World = nullptr;
 }
@@ -90,6 +91,63 @@ void FEffectManager::Tick(float DeltaTime)
 		if (Slot.State == ESlotState::Stopping && Component->IsFinished())
 			ReleaseSlot(i);
 	}
+
+	TickTextEffects(DeltaTime);
+}
+
+// HUD는 매 프레임 비워지므로(UWorld::Tick 시작의 BeginFrame) 살아 있는 동안 매 프레임 다시 넣는다.
+// 화면 좌표는 HUD가 렌더 시점에 그 뷰포트의 View로 구한다.
+void FEffectManager::TickTextEffects(float DeltaTime)
+{
+	FHUD& HUD = World->GetHUD();
+
+	for (int32 i = TextEffects.Num() - 1; i >= 0; --i)
+	{
+		FTextEffect& Effect = TextEffects[i];
+		Effect.Age += DeltaTime;
+		if (Effect.Age >= Effect.Duration)
+		{
+			TextEffects.RemoveAtSwap(i);
+			continue;
+		}
+
+		Effect.Location.Z += TextRiseSpeed * DeltaTime;
+
+		const float LifeRatio = Effect.Age / Effect.Duration;
+		float Alpha = 1.0f;
+		if (LifeRatio > TextFadeStart)
+		{
+			const float T = (LifeRatio - TextFadeStart) / (1.0f - TextFadeStart);
+			Alpha = 1.0f - T * T * (3.0f - 2.0f * T);
+		}
+
+		// 처음엔 크게 튀어나왔다가 원래 크기로
+		const float PopRatio = std::min(Effect.Age / TextPopTime, 1.0f);
+		const float FontSize = TextFontSize * (TextPopScale + (1.0f - TextPopScale) * PopRatio);
+
+		FLinearColor Shadow(0.0f, 0.0f, 0.0f, 0.6f * Alpha);
+		FLinearColor Color = Effect.Color;
+		Color.A *= Alpha;
+
+		HUD.AddWorldText(Effect.Text, Effect.Location, FontSize, Shadow, FVector2(TextShadowOffset, TextShadowOffset));
+		HUD.AddWorldText(Effect.Text, Effect.Location, FontSize, Color);
+	}
+}
+
+void FEffectManager::SpawnTextEffect(const FString& Text, const FVector& Location, const FLinearColor& Color, float Duration)
+{
+	if (!World)
+	{
+		HTR_LOG(Warning, "[Effect] SpawnTextEffect({}) before the effect manager is initialized", Text);
+		return;
+	}
+
+	FTextEffect Effect;
+	Effect.Text = Text;
+	Effect.Location = Location;
+	Effect.Color = Color;
+	Effect.Duration = Duration > 0.0f ? Duration : 1.0f;
+	TextEffects.Add(Effect);
 }
 
 void FEffectManager::RegisterEffect(FName Name, const FEffectDesc& Desc)
