@@ -18,6 +18,17 @@ local ButtonWidth = 300
 local ButtonGap   = 60      -- 두 버튼 사이 가로 간격
 local ButtonTopY  = 0.68    -- 화면 높이 대비 버튼 윗변 위치
 
+local ActionPending = false
+local StartSound = nil
+local QuitSound = nil
+
+function BeginPlay()
+    ActionPending = false
+    StartSound = nil
+    QuitSound = nil
+    Audio.PlayBGM("Assets/Audio/BGM.wav")
+end
+
 function Tick(dt)
     local W, H = GetHUDSize()
 
@@ -34,11 +45,34 @@ function Tick(dt)
     local StartX = W * 0.5 - ButtonGap * 0.5 - ButtonWidth
     local ExitX = W * 0.5 + ButtonGap * 0.5
 
-    if HUDImageButton(StartImage, StartX, Y, ButtonWidth, ButtonH) then
-        OpenScene(GameScene)
+    local StartClicked = HUDImageButton(StartImage, StartX, Y, ButtonWidth, ButtonH)
+    local ExitClicked = HUDImageButton(ExitImage, ExitX, Y, ButtonWidth, ButtonH)
+
+    if ActionPending then
+        if StartSound ~= nil and not Audio.IsPlaying(StartSound) then
+            StartSound = nil
+            OpenScene(GameScene)
+        elseif QuitSound ~= nil and not Audio.IsPlaying(QuitSound) then
+            QuitSound = nil
+            QuitGame()
+        end
+        return
     end
 
-    if HUDImageButton(ExitImage, ExitX, Y, ButtonWidth, ButtonH) then
-        QuitGame()
+    if StartClicked then
+        ActionPending = true
+        StartSound = Audio.Play("Assets/Audio/Start_Oi.wav")
+        if StartSound == 0 then
+            StartSound = nil
+            OpenScene(GameScene)
+        end
+    elseif ExitClicked then
+        ActionPending = true
+        Audio.StopBGM()
+        QuitSound = Audio.Play("Assets/Audio/Quit.wav")
+        if QuitSound == 0 then
+            QuitSound = nil
+            QuitGame()
+        end
     end
 end
