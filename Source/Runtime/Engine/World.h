@@ -166,6 +166,9 @@ public:
 
 	using Super::Serialize;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
+
+	void SetTimeDilation(float InTimeDilation) { TimeDilation = InTimeDilation; }
+	float GetTimeDilation() const { return TimeDilation; }
 private:
 	EWorldType WorldType = EWorldType::None;
 
@@ -236,4 +239,6 @@ private:
 	// 비소유. Instance 는 Actor/Component 가 소유
 	TArray<FLuaScriptInstance*> ScriptInstances;
 	bool bTickingScripts = false;
+
+	float TimeDilation = 1.0f;
 };
