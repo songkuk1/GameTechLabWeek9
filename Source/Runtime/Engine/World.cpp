@@ -120,6 +120,7 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 void UWorld::Tick(float FrameDeltaTime)
 {
 	UpdateSlomo(FrameDeltaTime);
+	UpdateCameraShake(FrameDeltaTime);
 
 	const float DeltaTime = FrameDeltaTime * TimeDilation;
 	{
@@ -1250,4 +1251,34 @@ void UWorld::StartSlomo(float TargetDilation, float Duration)
 	SlomoHoldDuration = Duration;
 	SlomoElapsedTime = 0.0f;
 	SlomoPhase = ESlomoPhase::BlendIn;
+}
+
+void UWorld::StartCameraShake(float Strength, float Duration, float Frequency)
+{
+	CameraShakeStrength = FMath::Max(Strength, 0.0f);
+	CameraShakeDuration = FMath::Max(Duration, 0.0f);
+	CameraShakeFrequency = FMath::Max(Frequency, 0.0f);
+	CameraShakeElapsedTime = 0.0f;
+	CameraShakeOffset = FVector::ZeroVector;
+}
+
+void UWorld::UpdateCameraShake(float FrameDeltaTime)
+{
+	if (CameraShakeDuration <= 0.0f || CameraShakeElapsedTime >= CameraShakeDuration)
+		return;
+
+	CameraShakeElapsedTime += FrameDeltaTime;
+	if (CameraShakeElapsedTime >= CameraShakeDuration)
+	{
+		CameraShakeOffset = FVector::ZeroVector;
+		return;
+	}
+
+	const float Weight = 1.0f - CameraShakeElapsedTime / CameraShakeDuration;
+	const float Amplitude = CameraShakeStrength * Weight;
+	const float Phase = 2.0f * PI * CameraShakeFrequency * CameraShakeElapsedTime;
+
+	CameraShakeOffset = FVector(0.0f,
+		std::sin(Phase) * Amplitude,
+		std::sin(Phase * 1.3f) * Amplitude * 0.5f);
 }

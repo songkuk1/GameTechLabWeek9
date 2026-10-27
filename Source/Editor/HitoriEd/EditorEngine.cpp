@@ -499,6 +499,13 @@ void UEditorEngine::UpdateEditorViewportState(const float DeltaTime)
 // 월드를 한 번 Tick·Capture한 뒤 에디터와 피킹을 갱신한다.
 void UEditorEngine::TickWorldAndEditor(const float DeltaTime)
 {
+	// TEMP: Press F7 during PIE to replay the camera shake.
+	if (PlayWorld && !bIsPaused && !ImGui::GetIO().WantTextInput
+		&& FInputSystem::IsKeyPressed(EKeyCode::F7))
+	{
+		PlayWorld->StartCameraShake(0.1f, 0.5f);
+	}
+
 	// 월드 상태는 프레임마다 정확히 한 번 갱신하고 캡처한다.
 
 	{

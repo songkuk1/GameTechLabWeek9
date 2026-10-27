@@ -52,7 +52,10 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	Rotation.SetAxis(2, Forward.Cross(Right).Normalized());
 	FCameraProjection Projection = Camera->GetProjectionSettings();
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
-	return FSceneView(Camera->GetWorldLocation(), Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	// Rotate the cached local shake into the final camera basis without changing its component.
+	const FVector ViewLocation = Camera->GetWorldLocation()
+		+ Rotation.TransformVector(World->GetCameraShakeOffset());
+	return FSceneView(ViewLocation, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
 }
 
 void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 OutputSize)
