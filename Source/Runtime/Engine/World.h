@@ -169,6 +169,8 @@ public:
 
 	void SetTimeDilation(float InTimeDilation) { TimeDilation = FMath::Clamp(InTimeDilation, 0.01f, 10.0f); }
 	float GetTimeDilation() const { return TimeDilation; }
+
+	void StartSlomo(float TargetDilation, float Duration);
 private:
 	EWorldType WorldType = EWorldType::None;
 
@@ -241,4 +243,10 @@ private:
 	bool bTickingScripts = false;
 
 	float TimeDilation = 1.0f;
+
+	void UpdateSlomo(float FrameDeltaTime);
+
+	bool bSlomoActive = false;
+	float SlomoRemainingTime = 0.0f;
+	float SlomoRestoreDilation = 1.0f;
 };

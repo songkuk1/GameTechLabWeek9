@@ -1060,6 +1060,9 @@ void UEditorEngine::StartPlayInEditorSession()
 
 	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다.
 	PlayWorld->BeginPlay();
+
+	// TEMP: Test 0.2x speed for 3 seconds when PIE starts.
+	PlayWorld->StartSlomo(0.2f, 3.0f);
 }
 
 UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext& PIEContext, UWorld* InEditorWorld)

@@ -119,6 +119,8 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 
 void UWorld::Tick(float FrameDeltaTime)
 {
+	UpdateSlomo(FrameDeltaTime);
+
 	const float DeltaTime = FrameDeltaTime * TimeDilation;
 	{
 		SCOPE_CYCLE_COUNTER(STAT_UpdateAllTransforms);
@@ -881,6 +883,22 @@ void UWorld::TickScriptCoroutines(float DeltaTime)
 	}
 }
 
+void UWorld::UpdateSlomo(float FrameDeltaTime)
+{
+	if (!bSlomoActive)
+		return;
+
+	SlomoRemainingTime -= FrameDeltaTime;
+
+	if (SlomoRemainingTime <= 0.0f)
+	{
+		SetTimeDilation(SlomoRestoreDilation);
+
+		SlomoRemainingTime = 0.0f;
+		bSlomoActive = false;
+	}
+}
+
 // 다른 World의 객체를 제외하고 Component 교차 중 최근접 결과를 선택한다.
 bool UWorld::LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 	FBillboardTraceTransform ResolveBillboard, const void* ViewContext)
@@ -1164,4 +1182,18 @@ void UWorld::Serialize(FStructuredArchive::FRecord Record)
 
 	// (선택) 메인 카메라는 레벨에 속하지 않아 따로 쓴다. PIE 시작 시점이나 에디터 시점을 복원할 때 쓸 수 있다.
 	// MainCamera->GetCameraComponent()->Serialize(Record.EnterRecord("MainCamera"));
+}
+
+void UWorld::StartSlomo(float TargetDilation, float Duration)
+{
+	if (Duration <= 0.0f)
+		return;
+
+	if (!bSlomoActive)
+		SlomoRestoreDilation = GetTimeDilation();
+
+	SetTimeDilation(TargetDilation);
+
+	SlomoRemainingTime = Duration;
+	bSlomoActive = true;
 }
