@@ -885,17 +885,67 @@ void UWorld::TickScriptCoroutines(float DeltaTime)
 
 void UWorld::UpdateSlomo(float FrameDeltaTime)
 {
-	if (!bSlomoActive)
+	if (SlomoPhase == ESlomoPhase::Inactive)
 		return;
 
-	SlomoRemainingTime -= FrameDeltaTime;
+	constexpr float BlendInTime = 0.1f;
+	constexpr float BlendOutTime = 0.3f;
 
-	if (SlomoRemainingTime <= 0.0f)
+	SlomoElapsedTime += FrameDeltaTime;
+
+	// 한 프레임이 단계 경계를 넘으면 남은 시간을 다음 단계에 사용한다.
+	while (SlomoPhase != ESlomoPhase::Inactive)
 	{
-		SetTimeDilation(SlomoRestoreDilation);
+		switch (SlomoPhase)
+		{
+		case ESlomoPhase::BlendIn:
+		{
+			const float Alpha =
+				FMath::Clamp(SlomoElapsedTime / BlendInTime, 0.0f, 1.0f);
 
-		SlomoRemainingTime = 0.0f;
-		bSlomoActive = false;
+			SetTimeDilation(
+				SlomoStartDilation
+				+ (SlomoTargetDilation - SlomoStartDilation) * Alpha);
+
+			if (SlomoElapsedTime < BlendInTime)
+				return;
+
+			SlomoElapsedTime -= BlendInTime;
+			SlomoPhase = ESlomoPhase::Holding;
+			break;
+		}
+
+		case ESlomoPhase::Holding:
+		{
+			if (SlomoElapsedTime < SlomoHoldDuration)
+				return;
+
+			SlomoElapsedTime -= SlomoHoldDuration;
+			SlomoPhase = ESlomoPhase::BlendOut;
+			break;
+		}
+
+		case ESlomoPhase::BlendOut:
+		{
+			const float Alpha =
+				FMath::Clamp(SlomoElapsedTime / BlendOutTime, 0.0f, 1.0f);
+
+			SetTimeDilation(
+				SlomoTargetDilation
+				+ (SlomoRestoreDilation - SlomoTargetDilation) * Alpha);
+
+			if (SlomoElapsedTime < BlendOutTime)
+				return;
+
+			SetTimeDilation(SlomoRestoreDilation);
+			SlomoElapsedTime = 0.0f;
+			SlomoPhase = ESlomoPhase::Inactive;
+			return;
+		}
+
+		case ESlomoPhase::Inactive:
+			return;
+		}
 	}
 }
 
@@ -1189,11 +1239,15 @@ void UWorld::StartSlomo(float TargetDilation, float Duration)
 	if (Duration <= 0.0f)
 		return;
 
-	if (!bSlomoActive)
+	if (SlomoPhase == ESlomoPhase::Inactive)
+	{
 		SlomoRestoreDilation = GetTimeDilation();
+	}
 
-	SetTimeDilation(TargetDilation);
+	SlomoStartDilation = GetTimeDilation();
+	SlomoTargetDilation = FMath::Clamp(TargetDilation, 0.01f, 10.0f);
 
-	SlomoRemainingTime = Duration;
-	bSlomoActive = true;
+	SlomoHoldDuration = Duration;
+	SlomoElapsedTime = 0.0f;
+	SlomoPhase = ESlomoPhase::BlendIn;
 }

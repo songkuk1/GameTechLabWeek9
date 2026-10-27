@@ -245,8 +245,19 @@ private:
 	float TimeDilation = 1.0f;
 
 	void UpdateSlomo(float FrameDeltaTime);
+	enum class ESlomoPhase : uint8
+	{
+		Inactive,
+		BlendIn,
+		Holding,
+		BlendOut
+	};
+	ESlomoPhase SlomoPhase = ESlomoPhase::Inactive;
 
-	bool bSlomoActive = false;
-	float SlomoRemainingTime = 0.0f;
-	float SlomoRestoreDilation = 1.0f;
+	float SlomoElapsedTime = 0.0f; // 현재 단계의 경과 시간
+	float SlomoHoldDuration = 0.0f; // 목표 배율 유지 시간
+
+	float SlomoStartDilation = 1.0f; // 슬로모 시작 시의 시간 배율
+	float SlomoTargetDilation = 1.0f; // 목표 시간 배율
+	float SlomoRestoreDilation = 1.0f; // 슬로모 종료 후 복원할 시간 배율
 };
