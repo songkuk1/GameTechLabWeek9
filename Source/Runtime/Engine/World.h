@@ -167,7 +167,7 @@ public:
 	using Super::Serialize;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
 
-	void SetTimeDilation(float InTimeDilation) { TimeDilation = InTimeDilation; }
+	void SetTimeDilation(float InTimeDilation) { TimeDilation = FMath::Clamp(InTimeDilation, 0.01f, 10.0f); }
 	float GetTimeDilation() const { return TimeDilation; }
 private:
 	EWorldType WorldType = EWorldType::None;
