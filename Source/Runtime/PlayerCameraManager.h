@@ -14,16 +14,17 @@ public:
 	FViewTarget(const FViewTarget&) = delete;
 	FViewTarget& operator=(FViewTarget&) = delete;
 
-private:
 	TWeakObjectPtr<AActor> Target;
 	
-
+	FMinimalViewInfo POV;
 
 
 };
 
-class APlayerCameraManager
+class APlayerCameraManager : public AActor
 {
+	DECLARE_CLASS(APlayerCameraManager, AActor)
+
 public:
 	APlayerCameraManager() = default;
 	~APlayerCameraManager() = default;
@@ -31,7 +32,17 @@ public:
 	APlayerCameraManager(const APlayerCameraManager&) = delete;
 	APlayerCameraManager& operator=(APlayerCameraManager&) = delete;
 
+	void InitializeFor(APlayerController* PC);
+
+	void SetViewTarget(AActor* InActor);
+	void UpdateCamera(float deltaTime);
+	
 private:
+	void UpdateViewTarget(FViewTarget& VT, float DeltaTime);
+
+
+private:
+	APlayerController* PCOwner = nullptr;
 
 	//현재 카메라 시점을 제공하는 대상과,그 대상으로부터 이번 프레임에 계산한 POV
 	FViewTarget ViewTarget;

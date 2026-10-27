@@ -55,6 +55,8 @@ APlayerController* AGameModeBase::GetOrCreatePlayerController(int32 PlayerIndex)
 	// GameMode와 마찬가지로 씬 파일에 저장하지 않는다.
 	Controller->SetFlags(EObjectFlags::RF_Transient);
 	Controller->SetPlayerIndex(PlayerIndex);
+	//PCM 생성
+	Controller->SpawnPlayerCameraManager();
 	OwningWorld->AddPlayerController(Controller);
 	return Controller;
 }
