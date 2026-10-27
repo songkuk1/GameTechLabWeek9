@@ -58,6 +58,11 @@ void FSettingsPanel::OnRender()
 	ImGui::Checkbox("Depth View", &Settings.bDepthView);
 	ImGui::Checkbox("Linear Workflow", &Settings.bLinearWorkflow);
 	ImGui::SetItemTooltip("Off: no sRGB decode/encode (gamma-space rendering), for comparison.");
+	// Linear일 때만 의미가 있음.
+	ImGui::BeginDisabled(!Settings.bLinearWorkflow);
+	ImGui::Checkbox("Gamma Correction", &Settings.bGammaCorrection);
+	ImGui::SetItemTooltip("Off: linear scene color is shown without sRGB encoding (looks dark).");
+	ImGui::EndDisabled();
 	// 톤매핑은 View별 Lit에서만 적용되므로, 보이는 View 중 Lit이 하나라도 있어야 조작할 의미가 있다
 	const bool bAnyLitView = HasLitViewQuery ? HasLitViewQuery() : true;
 

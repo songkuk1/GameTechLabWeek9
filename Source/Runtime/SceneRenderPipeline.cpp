@@ -90,8 +90,9 @@ void FSceneRenderPipeline::RenderPostProcess(FViewport& Viewport, UWorld& ViewWo
         RenderFogPass(ViewWorld, SceneRenderingInfo, View.GetCameraLocation(), View.ViewProjection);
 
     // 2. Gamma Encode Pass: Linear 씬 컬러 → (Lit이면 ACES) → 표시용 sRGB
-    const bool bEncode = !bVisualizeData && ColorWorkflow::bLinear;
-    const bool bToneMap = bEncode && Settings.bToneMapping && ViewMode == EViewMode::Lit;
+    const bool bLinear = !bVisualizeData && ColorWorkflow::bLinear;
+    const bool bEncode = bLinear && Settings.bGammaCorrection;
+    const bool bToneMap = bLinear && Settings.bToneMapping && ViewMode == EViewMode::Lit;
     RenderGammaEncodePass(SceneRenderingInfo, ViewRenderingInfo, bEncode, bToneMap, Settings.ExposureEV);
 
     // 3. FXAA Pass: 밝기 계산이 감마 공간을 전제로 하므로 인코딩 뒤에 한다

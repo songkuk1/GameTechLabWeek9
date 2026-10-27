@@ -23,6 +23,7 @@ struct FSceneRenderSettings
 	bool bFog = true;
 	bool bFXAA = true;
 	bool bToneMapping = true;
+	bool bGammaCorrection = true;
 	float ExposureEV = 0.6f;
 };
 

@@ -901,6 +901,7 @@ FSceneRenderSettings UEditorEngine::MakeSceneRenderSettings() const
     Out.bFog = Settings.bExponentialHeightFog;
     Out.bFXAA = Settings.bEnableFXAA;
     Out.bToneMapping = Settings.bToneMapping;
+	Out.bGammaCorrection = Settings.bGammaCorrection;
     Out.ExposureEV = Settings.ExposureEV;
     return Out;
 }

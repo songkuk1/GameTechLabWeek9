@@ -27,6 +27,8 @@ struct FEditorSettings
 	bool bDepthView = false;
 	// 끄면 감마 공간 렌더링이 되어 Linear 작업 흐름과 비교할 수 있다 (ColorWorkflow.h)
 	bool bLinearWorkflow = true;
+	// 끄면 감마 sRGB 인코딩, 디코딩 모두 안 함 (켤 때보다 어두움)
+	bool bGammaCorrection = true;
 	// HDR 씬 컬러를 표시 범위로 압축하는 단계라 Linear 작업 흐름의 Lit 뷰에서만 적용된다
 	bool bToneMapping = true;
 	// ACES fitted는 중간 회색(0.18)을 어둡게 내리므로, +0.6EV에서 톤매핑 전과 비슷한 밝기가 된다
