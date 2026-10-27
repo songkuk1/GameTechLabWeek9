@@ -149,6 +149,7 @@ bool FSettingsPanel::SaveSettings() const
 	File << "DepthView=" << Settings.bDepthView << "\n";
 	File << "LinearWorkflow=" << Settings.bLinearWorkflow << "\n";
 	File << "ToneMapping=" << Settings.bToneMapping << "\n";
+	File << "GammaCorrection=" << Settings.bGammaCorrection << "\n";
 	File << "ExposureEV=" << Settings.ExposureEV << "\n";
 	File << "\n";
 
@@ -301,6 +302,7 @@ bool FSettingsPanel::LoadSettings()
 				else if (Key == "DepthView") Settings.bDepthView = std::stoi(ValueStr);
 				else if (Key == "LinearWorkflow") Settings.bLinearWorkflow = std::stoi(ValueStr);
 				else if (Key == "ToneMapping") Settings.bToneMapping = std::stoi(ValueStr);
+				else if (Key == "GammaCorrection") Settings.bGammaCorrection = std::stoi(ValueStr);
 				else if (Key == "ExposureEV") Settings.ExposureEV = std::stof(ValueStr);
 
 				else if (Key == "CullLightsByView") Settings.ShadowCulling.bCullLightsByView = std::stoi(ValueStr);

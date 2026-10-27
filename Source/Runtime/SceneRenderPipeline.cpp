@@ -85,18 +85,18 @@ void FSceneRenderPipeline::RenderPostProcess(FViewport& Viewport, UWorld& ViewWo
     const bool bVisualizeData = IsDataVisualization(ViewMode);
 
     //직교인 경우 안개 Pass를 그리지 않는다.
-    if (!View.IsOrthographic() && !bVisualizeData && Settings.bFog)
+    if (!View.IsOrthographic() && !bVisualizeData && Settings.ShowFlags.Fog)
         // 1. 안개 Pass (Linear 씬 컬러)
         RenderFogPass(ViewWorld, SceneRenderingInfo, View.GetCameraLocation(), View.ViewProjection);
 
     // 2. Gamma Encode Pass: Linear 씬 컬러 → (Lit이면 ACES) → 표시용 sRGB
     const bool bLinear = !bVisualizeData && ColorWorkflow::bLinear;
-    const bool bEncode = bLinear && Settings.bGammaCorrection;
-    const bool bToneMap = bLinear && Settings.bToneMapping && ViewMode == EViewMode::Lit;
+    const bool bEncode = bLinear && Settings.ShowFlags.GammaCorrection;
+    const bool bToneMap = bLinear && Settings.ShowFlags.Tonemapper && ViewMode == EViewMode::Lit;
     RenderGammaEncodePass(SceneRenderingInfo, ViewRenderingInfo, bEncode, bToneMap, Settings.ExposureEV);
 
     // 3. FXAA Pass: 밝기 계산이 감마 공간을 전제로 하므로 인코딩 뒤에 한다
-    if (!bVisualizeData && Settings.bFXAA)
+    if (!bVisualizeData && Settings.ShowFlags.AntiAliasing)
         RenderFXAAPass(Viewport.GetFxaaTarget(), ViewRenderingInfo);
 }
 

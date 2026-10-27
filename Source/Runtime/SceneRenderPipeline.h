@@ -7,6 +7,7 @@
 #include "Render/SkyboxRenderer.h"
 #include "Render/HUDRenderer.h"
 #include "Render/ShadowFrameData.h"
+#include "Render/ShowFlags.h"
 
 class FViewport;
 class UWorld;
@@ -20,10 +21,7 @@ struct FSceneRenderSettings
 {
 	bool bDrawPrimitives = true;
 	bool bVisualizeTileLightCount = false;
-	bool bFog = true;
-	bool bFXAA = true;
-	bool bToneMapping = true;
-	bool bGammaCorrection = true;
+	FEngineShowFlags ShowFlags;		// Fog, FXAA, ToneMapping, GammaCorrection 
 	float ExposureEV = 0.6f;
 };
 
