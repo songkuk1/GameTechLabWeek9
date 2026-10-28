@@ -88,6 +88,12 @@ public:
 	void StopCameraShake(UCameraShakeBase* Shake);
 	void StopAllCameraShakes();
 
+	// Fade (UE StartCameraFade): Duration 동안 화면을 Color로 FromAlpha → ToAlpha만큼 덮는다. 실제 시간으로 흐른다
+	void StartCameraFade(float FromAlpha, float ToAlpha, float Duration, FLinearColor Color = FLinearColor(0, 0, 0, 1));
+	void StopCameraFade();
+	// 화면을 덮을 색. A가 이번 프레임의 페이드 정도다
+	FLinearColor GetFadeOverlay() const { return FLinearColor(FadeColor.R, FadeColor.G, FadeColor.B, FadeAmount); }
+
 
 	// 현재 카메라 시점을 제공하는 대상. 블렌드 중이면 떠나는 쪽이다
 	AActor* GetViewTarget() const { return ViewTarget.Target.Get(); }
@@ -124,16 +130,19 @@ private:
 	FViewTarget PendingViewTarget;
 
 	//화면을 덮을 색
-	FLinearColor FadeColor;
+	FLinearColor FadeColor = FLinearColor(0, 0, 0, 1);
 
 	//현재 프레임의 페이드 정도
-	float FadeAmount;
+	float FadeAmount = 0.0f;
 
 	//시작값,끝값
 	FVector2 FadeAlpha;
 
 	//페이드에 걸리는 전체 시간
-	float FadeTime;
+	float FadeTime = 0.0f;
+
+	//페이드 남은 시간. 0이면 FadeAmount를 그대로 둔다
+	float FadeTimeRemaining = 0.0f;
 
 	//ViewTarget이 카메라 액터가 아닐 때, 그 대상에서 POV를 어떤 방식으로 뽑을지 고르는 스위치
 	// PlayerController::SetCameraMode로 바꾼다

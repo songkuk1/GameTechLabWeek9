@@ -41,10 +41,14 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	ViewInfo.Location = Camera->GetWorldLocation();
 	ViewInfo.Rotation = Camera->GetWorldRotation();
 	ViewInfo.Projection = Camera->GetProjectionSettings();
+	FLinearColor FadeOverlay(0, 0, 0, 0);
 
 	if (APlayerController* PC = World->GetPlayerController(0))
 		if (APlayerCameraManager* PCM = PC->GetCameraPlayerManager())
+		{
 			ViewInfo = PCM->GetCameraCacheView();
+			FadeOverlay = PCM->GetFadeOverlay();
+		}
 
 	// PIE는 기존처럼 Roll을 제거한다. 카메라를 변경하지 않고 Forward에서 수평 기저만 만든다.
 	// GetSafeNormal은 기존 inverse-length 곱셈 순서도 보존해 극점 포화 경계가 흔들리지 않는다.
@@ -63,7 +67,11 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	Rotation.SetAxis(2, Forward.Cross(Right).Normalized());
 	FCameraProjection Projection = ViewInfo.Projection;
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
-	return FSceneView(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	FSceneView View(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	View.PostProcessSettings = ViewInfo.PostProcessSettings;
+	View.LetterBoxAmount = ViewInfo.LetterBoxAmount;
+	View.OverlayColor = FadeOverlay;
+	return View;
 }
 
 void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 OutputSize)

@@ -182,6 +182,10 @@ return function(Config)
 	function Controller.Tick(dt)
 		-- 제한 시간 안에서만 움직인다 (시작 대기·결과 화면에서는 멈춤)
 		if not GameState.IsPlaying() then
+			-- 판이 끝나면 엔딩 시퀀스가 자리를 옮기므로 밀려나던 것을 멈춘다 (시퀀스와 같이 움직이면 떨린다)
+			if GameState.Phase == "TimeOver" and Knockback:IsKnockedBack() then
+				Knockback:StopKnockback()
+			end
 			bMoving = false
 			return
 		end

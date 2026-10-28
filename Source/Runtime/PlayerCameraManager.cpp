@@ -99,7 +99,28 @@ void APlayerCameraManager::UpdateCamera(float DeltaTime)
 	// ViewTarget마다 적용하면 블렌드 중에 쉐이크 시간이 두 번 흐른다
 	ApplyCameraModifiers(DeltaTime, NewPOV);
 
+	if (FadeTimeRemaining > 0.0f)
+	{
+		FadeTimeRemaining = FMath::Max(FadeTimeRemaining - DeltaTime, 0.0f);
+		FadeAmount = FMath::Lerp(FadeAlpha.Y, FadeAlpha.X, FadeTimeRemaining / FadeTime);
+	}
+
 	FillCameraCache(NewPOV);
+}
+
+void APlayerCameraManager::StartCameraFade(float FromAlpha, float ToAlpha, float Duration, FLinearColor Color)
+{
+	FadeColor = Color;
+	FadeAlpha = FVector2(FromAlpha, ToAlpha);
+	FadeTime = Duration;
+	FadeTimeRemaining = Duration;
+	FadeAmount = Duration > 0.0f ? FromAlpha : ToAlpha;
+}
+
+void APlayerCameraManager::StopCameraFade()
+{
+	FadeTimeRemaining = 0.0f;
+	FadeAmount = 0.0f;
 }
 
 void APlayerCameraManager::UpdateViewTarget(FViewTarget& OutVT, float DeltaTime)

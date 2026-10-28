@@ -343,6 +343,7 @@
                         }
                     ],
                     "Properties": {
+                        "BindingTag": "Player1",
                         "ScriptPath": "Assets/Scripts/Player1.lua"
                     }
                 },
@@ -496,6 +497,7 @@
                         }
                     ],
                     "Properties": {
+                        "BindingTag": "Player2",
                         "ScriptPath": "Assets/Scripts/Player2.lua"
                     }
                 },

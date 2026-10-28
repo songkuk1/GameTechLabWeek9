@@ -3,6 +3,8 @@
 
 #include "Engine/World.h"
 #include "Audio/AudioManager.h"
+#include "GameFramework/PlayerController.h"
+#include "PlayerCameraManager.h"
 
 namespace
 {
@@ -196,4 +198,12 @@ void ALevelSequenceActor::SpawnEffect(const FString& Name, const FVector& Locati
 {
 	if (UWorld* OwningWorld = GetWorld())
 		OwningWorld->GetEffectManager().SpawnEffect(FName(Name), Location);
+}
+
+void ALevelSequenceActor::StartCameraFade(float FromAlpha, float ToAlpha, float Duration)
+{
+	UWorld* OwningWorld = GetWorld();
+	APlayerController* PC = OwningWorld ? OwningWorld->GetPlayerController(0) : nullptr;
+	if (APlayerCameraManager* PCM = PC ? PC->GetCameraPlayerManager() : nullptr)
+		PCM->StartCameraFade(FromAlpha, ToAlpha, Duration);
 }
