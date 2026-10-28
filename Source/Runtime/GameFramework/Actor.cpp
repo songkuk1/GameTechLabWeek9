@@ -562,7 +562,7 @@ UActorComponent* AActor::AddComponent(UClass* ComponentClass, FName Name)
 }
 
 void AActor::DestroyComponent(UActorComponent* Component)
-{
+{ 
     if (!Component || Component->IsPendingKill())
         return;
 
@@ -676,4 +676,4 @@ bool AActor::TryGetActorBounds(FBox& OutBounds) const
     }
 
     return bHasBounds;
-}
+}

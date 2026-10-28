@@ -2,9 +2,7 @@
 #include "Script/LuaBindings.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "GameFramework/PlayerController.h"
 #include "Component/ActorComponent.h"
-#include "PlayerCameraManager.h"
 #include "UObject/Casts.h"
 #include <sol/sol.hpp>
 
@@ -25,14 +23,6 @@ namespace
 			return nullptr;
 
 		return World;
-	}
-
-	// 0번 플레이어의 카메라 매니저. 화면은 0번 플레이어 시점으로 그린다.
-	APlayerCameraManager* FindCameraManagerForObject(UObject* Object)
-	{
-		UWorld* World = FindGameWorldForObject(Object);
-		APlayerController* Controller = World ? World->GetPlayerController(0) : nullptr;
-		return Controller ? Controller->GetCameraPlayerManager() : nullptr;
 	}
 }
 
