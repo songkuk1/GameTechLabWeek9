@@ -29,3 +29,6 @@ void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner);
 // 카메라 함수 등록 (CameraShake, StopCameraShakes, GetMainCamera, SetViewTarget, GetViewTarget, IsViewTargetBlending,
 // GetCameraLocation, GetCameraRotation, SpawnCamera, SpawnMeshActor, FindLookAtRotation, GetActorBounds, GetComponentBounds)
 void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner);
+
+// 레벨 시퀀스 함수 등록 (PlaySequence)
+void RegisterLuaSequenceAPI(sol::environment& Env, UObject* Owner);

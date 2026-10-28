@@ -34,6 +34,26 @@ public:
 
 	TArray<FSequenceBinding> Bindings;
 
+	// 특정 액터에 붙지 않는 트랙 (UE의 Master Track). 지금은 Event 트랙만 쓴다.
+	// 이벤트는 시퀀스를 재생하는 ALevelSequenceActor(디렉터)의 리플렉션 함수로 간다 (PlaySound, SpawnEffect 등).
+	TArray<FSequenceTrack> MasterTracks;
+
+	// 시퀀스가 쓰는 이펙트 프리셋. { "이름": { Lua RegisterEffect와 같은 키 } }. 재생을 시작할 때 등록한다.
+	json Effects = json::object();
+
+	// 시네 카메라로 넘어갈 때 / 이전 ViewTarget으로 돌아갈 때 섞는 시간(초). 0이면 바로 전환한다.
+	float CameraBlendInTime = 0.0f;
+	float CameraBlendOutTime = 0.0f;
+	// 블렌드 곡선: Linear, Cubic, EaseIn, EaseOut, EaseInOut (Lua SetViewTarget과 같은 이름). Exp는 Ease 계열의 강도
+	FString CameraBlendFunction = "Cubic";
+	float CameraBlendExp = 2.0f;
+	// 시네 카메라를 쓰는 마지막 시간. 지나면 이전 ViewTarget으로 블렌드한다 (UE Camera Cut 섹션의 끝).
+	// 0보다 작으면 시퀀스가 끝날 때까지 쓴다.
+	float CineCameraEndTime = -1.0f;
+
+	// bIsCineCamera가 켜진 첫 바인딩. 없으면 INDEX_NONE
+	int32 FindCineCameraBinding() const;
+
 	// 마지막으로 읽거나 저장한 경로
 	const FString& GetAssetPath() const { return AssetPath; }
 

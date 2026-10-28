@@ -1,6 +1,9 @@
 #include "EnginePCH.h"
 #include "LevelSequenceActor.h"
 
+#include "Engine/World.h"
+#include "Audio/AudioManager.h"
+
 ALevelSequenceActor::~ALevelSequenceActor()
 {
 	delete SequencePlayer;
@@ -11,24 +14,41 @@ ALevelSequenceActor::~ALevelSequenceActor()
 	Sequence = nullptr;
 }
 
+ALevelSequenceActor* ALevelSequenceActor::SpawnAndPlay(UWorld* World, const FString& Path, const FMovieSceneSequencePlaybackSettings& Settings, bool bInDestroyOnFinish)
+{
+	if (!World)
+		return nullptr;
+
+	ALevelSequenceActor* Actor = World->SpawnActor<ALevelSequenceActor>();
+	if (!Actor)
+		return nullptr;
+
+	// 실행 중에 띄운 연출이므로 씬에 저장하지 않는다
+	Actor->SetFlags(EObjectFlags::RF_Transient);
+	Actor->SequencePath = Path;
+	Actor->bDestroyOnFinish = bInDestroyOnFinish;
+	Actor->SetPlaybackSettings(Settings);
+
+	// BeginPlay는 다음 프레임에 오므로 기다리지 않고 지금 읽어 바로 재생한다
+	if (!Actor->LoadSequenceFromPath())
+	{
+		Actor->Destroy();
+		return nullptr;
+	}
+
+	Actor->InitializePlayer();
+	Actor->Play();
+	return Actor;
+}
+
 void ALevelSequenceActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (!Sequence && !SequencePath.empty())
-	{
-		Sequence = ULevelSequence::LoadFromFile(SequencePath);
-		bOwnsSequence = Sequence != nullptr;
-	}
-
-	if (!Sequence)
-	{
-		if (!SequencePath.empty())
-			HTR_LOG(Warning, "LevelSequenceActor '{}': failed to load '{}'", GetName(), SequencePath);
+	if (!LoadSequenceFromPath())
 		return;
-	}
 
-	// CreateLevelSequencePlayer로 만들었으면 SetSequence가 이미 초기화했다. 그 사이 Play를 불렀을 수 있으니 다시 하지 않는다.
+	// SetSequence·SpawnAndPlay로 만들었으면 이미 초기화했다. 그 사이 Play를 불렀을 수 있으니 다시 하지 않는다.
 	if (!SequencePlayer)
 		InitializePlayer();
 	if (bAutoPlay && !SequencePlayer->IsPlaying())
@@ -37,11 +57,26 @@ void ALevelSequenceActor::BeginPlay()
 
 void ALevelSequenceActor::EndPlay()
 {
-	// 바꾼 값을 되돌리고 스폰한 액터를 지운다. 소멸자에서는 액터를 지울 수 없으므로 여기서 한다.
+	// 시점을 돌려주고 스폰한 액터를 지운다. 소멸자에서는 액터를 지울 수 없으므로 여기서 한다.
+	// 끝까지 재생하고 Keep State로 멈춘 뒤 지워지는 경우(bDestroyOnFinish)는 바꾼 값을 그대로 둔다.
 	if (SequencePlayer)
-		SequencePlayer->Stop();
+		SequencePlayer->ReleaseBindings(bRestoreState || SequencePlayer->IsPlaying());
 
 	Super::EndPlay();
+}
+
+bool ALevelSequenceActor::LoadSequenceFromPath()
+{
+	if (Sequence)
+		return true;
+	if (SequencePath.empty())
+		return false;
+
+	Sequence = ULevelSequence::LoadFromFile(SequencePath);
+	bOwnsSequence = Sequence != nullptr;
+	if (!Sequence)
+		HTR_LOG(Warning, "LevelSequenceActor '{}': failed to load '{}'", GetName(), SequencePath);
+	return Sequence != nullptr;
 }
 
 FMovieSceneSequencePlaybackSettings ALevelSequenceActor::GetPlaybackSettings() const
@@ -83,9 +118,20 @@ void ALevelSequenceActor::SetSequence(ULevelSequence* InSequence)
 void ALevelSequenceActor::InitializePlayer()
 {
 	if (!SequencePlayer)
+	{
 		SequencePlayer = NewObject<ULevelSequencePlayer>(this);
+		// 플레이어는 이 액터가 소유하므로 구독을 따로 풀 필요가 없다
+		SequencePlayer->OnFinished.AddDynamic(this, &ALevelSequenceActor::HandleSequenceFinished);
+	}
 
 	SequencePlayer->Initialize(Sequence, GetWorld(), GetPlaybackSettings());
+}
+
+void ALevelSequenceActor::HandleSequenceFinished()
+{
+	// 플레이어 Tick 안에서 불리지만 Destroy는 Frame 끝에서 delete 하므로 안전하다
+	if (bDestroyOnFinish)
+		Destroy();
 }
 
 void ALevelSequenceActor::Play()
@@ -115,4 +161,24 @@ void ALevelSequenceActor::SetPlaybackPosition(float Time)
 {
 	if (SequencePlayer)
 		SequencePlayer->SetPlaybackPosition(Time);
+}
+
+void ALevelSequenceActor::PlaySound(const FString& Path, float Volume)
+{
+	PlayingSounds.Add(Path, FAudioManager::Get().Play(Path, Volume));
+}
+
+void ALevelSequenceActor::StopSound(const FString& Path)
+{
+	if (const uint32* Id = PlayingSounds.Find(Path))
+	{
+		FAudioManager::Get().Stop(*Id);
+		PlayingSounds.Remove(Path);
+	}
+}
+
+void ALevelSequenceActor::SpawnEffect(const FString& Name, const FVector& Location)
+{
+	if (UWorld* OwningWorld = GetWorld())
+		OwningWorld->GetEffectManager().SpawnEffect(FName(Name), Location);
 }

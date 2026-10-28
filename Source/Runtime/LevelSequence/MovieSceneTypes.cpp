@@ -7,6 +7,8 @@ namespace
 {
 	// 키 Index에서의 자동 기울기. 양 옆 키를 잇는 직선의 기울기를 쓰고 (Catmull-Rom),
 	// 끝 키는 평평하게 둔다. 그래야 처음과 끝에서 부드럽게 멈춘다.
+	// 키가 꼭짓점(양 옆보다 크거나 작음)이거나 이웃과 값이 같으면 평평하게 둔다 (UE의 Auto 탄젠트 클램프).
+	// 그래야 머무는 구간에서 출렁이지 않고, 꼭짓점을 넘어서 튀지 않는다.
 	float GetAutoTangent(const TArray<FSequenceKey>& Keys, int32 Index)
 	{
 		if (Index <= 0 || Index >= Keys.Num() - 1)
@@ -14,6 +16,10 @@ namespace
 
 		const FSequenceKey& Prev = Keys[Index - 1];
 		const FSequenceKey& Next = Keys[Index + 1];
+		const float Value = Keys[Index].Value;
+		if ((Value >= Prev.Value && Value >= Next.Value) || (Value <= Prev.Value && Value <= Next.Value))
+			return 0.0f;
+
 		const float Duration = Next.Time - Prev.Time;
 		return Duration > 0.0f ? (Next.Value - Prev.Value) / Duration : 0.0f;
 	}
@@ -109,7 +115,12 @@ FSequenceSection& FSequenceTrack::AddSection(float StartTime, float EndTime)
 
 int32 FSequenceTrack::GetChannelCount(ESequenceTrackType Type)
 {
-	return Type == ESequenceTrackType::Transform ? 9 : 1;
+	switch (Type)
+	{
+	case ESequenceTrackType::Transform: return 9;
+	case ESequenceTrackType::Event:     return 0;
+	default:                            return 1;
+	}
 }
 
 const char* FSequenceTrack::GetChannelName(ESequenceTrackType Type, int32 ChannelIndex)
@@ -123,6 +134,8 @@ const char* FSequenceTrack::GetChannelName(ESequenceTrackType Type, int32 Channe
 
 	if (Type == ESequenceTrackType::Transform)
 		return (ChannelIndex >= 0 && ChannelIndex < 9) ? TransformChannels[ChannelIndex] : "";
+	if (Type == ESequenceTrackType::Event)
+		return "";
 	return ChannelIndex == 0 ? "Value" : "";
 }
 
@@ -133,13 +146,16 @@ const char* FSequenceTrack::GetTypeName(ESequenceTrackType Type)
 	case ESequenceTrackType::Transform: return "Transform";
 	case ESequenceTrackType::Float:     return "Float";
 	case ESequenceTrackType::Bool:      return "Bool";
+	case ESequenceTrackType::Event:     return "Event";
+	case ESequenceTrackType::Spawn:     return "Spawn";
 	}
 	return "";
 }
 
 bool FSequenceTrack::ParseTypeName(const FString& Name, ESequenceTrackType& OutType)
 {
-	for (ESequenceTrackType Type : { ESequenceTrackType::Transform, ESequenceTrackType::Float, ESequenceTrackType::Bool })
+	for (ESequenceTrackType Type : { ESequenceTrackType::Transform, ESequenceTrackType::Float, ESequenceTrackType::Bool,
+		ESequenceTrackType::Event, ESequenceTrackType::Spawn })
 	{
 		if (Name == GetTypeName(Type))
 		{
@@ -155,6 +171,16 @@ FSequenceTrack* FSequenceBinding::FindTrack(ESequenceTrackType Type, const FStri
 	for (FSequenceTrack& Track : Tracks)
 	{
 		if (Track.Type == Type && Track.PropertyPath == PropertyPath)
+			return &Track;
+	}
+	return nullptr;
+}
+
+const FSequenceTrack* FSequenceBinding::FindSpawnTrack() const
+{
+	for (const FSequenceTrack& Track : Tracks)
+	{
+		if (Track.Type == ESequenceTrackType::Spawn)
 			return &Track;
 	}
 	return nullptr;

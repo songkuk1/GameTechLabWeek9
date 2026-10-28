@@ -54,7 +54,15 @@ namespace
 			Channels[FSequenceTrack::GetChannelName(Type, i)] = std::move(Keys);
 		}
 
-		return { {"Start", Section.StartTime}, {"End", Section.EndTime}, {"Channels", std::move(Channels)} };
+		json Out = { {"Start", Section.StartTime}, {"End", Section.EndTime}, {"Channels", std::move(Channels)} };
+		if (Type == ESequenceTrackType::Event)
+		{
+			json Events = json::array();
+			for (const FSequenceEventKey& Event : Section.Events)
+				Events.push_back({ {"Time", Event.Time}, {"Function", Event.Function}, {"Args", Event.Args} });
+			Out["Events"] = std::move(Events);
+		}
+		return Out;
 	}
 
 	void SectionFromJson(const json& In, ESequenceTrackType Type, FSequenceSection& Out)
@@ -80,6 +88,56 @@ namespace
 			}
 			// 손으로 고친 파일이라도 시간순으로 읽히게 한다
 			Channel.SortKeys();
+		}
+
+		for (const json& EventJson : In.value("Events", json::array()))
+		{
+			FSequenceEventKey& Event = Out.Events.AddDefaulted_GetRef();
+			Event.Time = EventJson.value("Time", 0.0f);
+			Event.Function = EventJson.value("Function", FString());
+			Event.Args = EventJson.value("Args", json::array());
+		}
+		std::stable_sort(Out.Events.begin(), Out.Events.end(),
+			[](const FSequenceEventKey& A, const FSequenceEventKey& B) { return A.Time < B.Time; });
+	}
+
+	json TracksToJson(const TArray<FSequenceTrack>& Tracks)
+	{
+		json TracksJson = json::array();
+		for (const FSequenceTrack& Track : Tracks)
+		{
+			json SectionsJson = json::array();
+			for (const FSequenceSection& Section : Track.Sections)
+				SectionsJson.push_back(SectionToJson(Section, Track.Type));
+
+			TracksJson.push_back({
+				{"Type", FSequenceTrack::GetTypeName(Track.Type)},
+				{"Property", Track.PropertyPath},
+				{"Sections", std::move(SectionsJson)},
+			});
+		}
+		return TracksJson;
+	}
+
+	// Owner는 경고 메시지에 쓰는 이름 (바인딩 이름 또는 "Master")
+	void TracksFromJson(const json& In, const FString& Owner, TArray<FSequenceTrack>& Out)
+	{
+		Out.Reset();
+		for (const json& TrackJson : In)
+		{
+			ESequenceTrackType Type;
+			const FString TypeName = TrackJson.value("Type", FString());
+			if (!FSequenceTrack::ParseTypeName(TypeName, Type))
+			{
+				HTR_LOG(Warning, "LevelSequence: unknown track type '{}' in '{}', skipped", TypeName, Owner);
+				continue;
+			}
+
+			FSequenceTrack& Track = Out.AddDefaulted_GetRef();
+			Track.Type = Type;
+			Track.PropertyPath = TrackJson.value("Property", FString());
+			for (const json& SectionJson : TrackJson.value("Sections", json::array()))
+				SectionFromJson(SectionJson, Type, Track.Sections.AddDefaulted_GetRef());
 		}
 	}
 }
@@ -142,25 +200,12 @@ void ULevelSequence::ToJson(json& Out) const
 	json BindingsJson = json::array();
 	for (const FSequenceBinding& Binding : Bindings)
 	{
-		json TracksJson = json::array();
-		for (const FSequenceTrack& Track : Binding.Tracks)
-		{
-			json SectionsJson = json::array();
-			for (const FSequenceSection& Section : Track.Sections)
-				SectionsJson.push_back(SectionToJson(Section, Track.Type));
-
-			TracksJson.push_back({
-				{"Type", FSequenceTrack::GetTypeName(Track.Type)},
-				{"Property", Track.PropertyPath},
-				{"Sections", std::move(SectionsJson)},
-			});
-		}
-
 		BindingsJson.push_back({
 			{"Name", Binding.Name},
 			{"Tag", Binding.Tag},
 			{"Template", Binding.HasTemplate() ? Binding.Template : json(nullptr)},
-			{"Tracks", std::move(TracksJson)},
+			{"CineCamera", Binding.bIsCineCamera},
+			{"Tracks", TracksToJson(Binding.Tracks)},
 		});
 	}
 
@@ -168,6 +213,13 @@ void ULevelSequence::ToJson(json& Out) const
 		{"Version", SequenceVersion},
 		{"Duration", Duration},
 		{"DisplayRate", DisplayRate},
+		{"CameraBlendIn", CameraBlendInTime},
+		{"CameraBlendOut", CameraBlendOutTime},
+		{"CameraBlendFunction", CameraBlendFunction},
+		{"CameraBlendExp", CameraBlendExp},
+		{"CameraCutEnd", CineCameraEndTime},
+		{"Effects", Effects.is_object() ? Effects : json::object()},
+		{"MasterTracks", TracksToJson(MasterTracks)},
 		{"Bindings", std::move(BindingsJson)},
 	};
 }
@@ -179,33 +231,35 @@ bool ULevelSequence::FromJson(const json& In)
 
 	Duration = In.value("Duration", 5.0f);
 	DisplayRate = In.value("DisplayRate", 30.0f);
-	Bindings.Reset();
+	CameraBlendInTime = In.value("CameraBlendIn", 0.0f);
+	CameraBlendOutTime = In.value("CameraBlendOut", 0.0f);
+	CameraBlendFunction = In.value("CameraBlendFunction", FString("Cubic"));
+	CameraBlendExp = In.value("CameraBlendExp", 2.0f);
+	CineCameraEndTime = In.value("CameraCutEnd", -1.0f);
+	Effects = In.value("Effects", json::object());
+	TracksFromJson(In.value("MasterTracks", json::array()), "Master", MasterTracks);
 
+	Bindings.Reset();
 	for (const json& BindingJson : In.value("Bindings", json::array()))
 	{
 		FSequenceBinding& Binding = Bindings.AddDefaulted_GetRef();
 		Binding.Name = BindingJson.value("Name", FString());
 		Binding.Tag = BindingJson.value("Tag", FString());
 		Binding.Template = BindingJson.value("Template", json(nullptr));
-
-		for (const json& TrackJson : BindingJson.value("Tracks", json::array()))
-		{
-			ESequenceTrackType Type;
-			const FString TypeName = TrackJson.value("Type", FString());
-			if (!FSequenceTrack::ParseTypeName(TypeName, Type))
-			{
-				HTR_LOG(Warning, "LevelSequence: unknown track type '{}' in binding '{}', skipped", TypeName, Binding.Name);
-				continue;
-			}
-
-			FSequenceTrack& Track = Binding.Tracks.AddDefaulted_GetRef();
-			Track.Type = Type;
-			Track.PropertyPath = TrackJson.value("Property", FString());
-			for (const json& SectionJson : TrackJson.value("Sections", json::array()))
-				SectionFromJson(SectionJson, Type, Track.Sections.AddDefaulted_GetRef());
-		}
+		Binding.bIsCineCamera = BindingJson.value("CineCamera", false);
+		TracksFromJson(BindingJson.value("Tracks", json::array()), Binding.Name, Binding.Tracks);
 	}
 	return true;
+}
+
+int32 ULevelSequence::FindCineCameraBinding() const
+{
+	for (int32 i = 0; i < Bindings.Num(); ++i)
+	{
+		if (Bindings[i].bIsCineCamera)
+			return i;
+	}
+	return INDEX_NONE;
 }
 
 FSequenceBinding& ULevelSequence::AddBinding(const FString& Name)

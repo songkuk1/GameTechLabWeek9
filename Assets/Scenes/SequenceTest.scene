@@ -94,7 +94,7 @@
                         "SequencePath": "Assets/Sequences/SequenceTest.sequence",
                         "bAutoPlay": true,
                         "bRestoreState": true,
-                        "LoopCount": -1,
+                        "LoopCount": 1,
                         "PlayRate": 1.0,
                         "StartTime": 0.0
                     },

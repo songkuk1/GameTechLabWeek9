@@ -2,7 +2,71 @@
     "Version": 1,
     "Duration": 4.0,
     "DisplayRate": 30.0,
+    "CameraBlendIn": 1.0,
+    "CameraBlendOut": 1.0,
     "Bindings": [
+        {
+            "Name": "CineCam",
+            "Tag": "CineCam",
+            "CineCamera": true,
+            "Template": {
+                "Class": "ACameraActor",
+                "Properties": {},
+                "Components": [
+                    {
+                        "Name": "CameraComponent",
+                        "Class": "UCameraComponent",
+                        "Parent": "",
+                        "Properties": {
+                            "FieldOfView": 60.0,
+                            "Transform": {
+                                "Location": { "X": -9.0, "Y": -2.0, "Z": 1.2 },
+                                "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                                "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                            }
+                        }
+                    }
+                ]
+            },
+            "Tracks": [
+                {
+                    "Type": "Transform",
+                    "Property": "",
+                    "Sections": [
+                        {
+                            "Start": 0.0,
+                            "End": 4.0,
+                            "Channels": {
+                                "Location.X": [
+                                    { "Time": 0.0, "Value": -9.0, "Interp": "Cubic" },
+                                    { "Time": 4.0, "Value": -6.0, "Interp": "Cubic" }
+                                ],
+                                "Location.Y": [
+                                    { "Time": 0.0, "Value": -2.0, "Interp": "Linear" },
+                                    { "Time": 4.0, "Value": 2.0, "Interp": "Linear" }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "Type": "Float",
+                    "Property": "CameraComponent.FieldOfView",
+                    "Sections": [
+                        {
+                            "Start": 0.0,
+                            "End": 4.0,
+                            "Channels": {
+                                "Value": [
+                                    { "Time": 0.0, "Value": 60.0, "Interp": "Cubic" },
+                                    { "Time": 4.0, "Value": 40.0, "Interp": "Cubic" }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
         {
             "Name": "Hero",
             "Tag": "Hero",
