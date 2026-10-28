@@ -24,8 +24,12 @@ public:
     void AddActor(AActor* Actor);
     void ClearActors();
 
-    using Super::Serialize;   
+    using Super::Serialize;
     virtual void Serialize(FStructuredArchive::FRecord Record) override;
+
+    // 씬 파일의 액터 항목 하나({ "Class", "Components", "Properties" })를 읽어 이 레벨에 스폰한다.
+    // 씬 로드와 시퀀스 템플릿 스폰이 같이 쓴다. 클래스를 모르면 경고를 남기고 nullptr.
+    AActor* SpawnActorFromRecord(FStructuredArchive::FRecord ActorRecord);
 
     //virtual void Serialize(FArchive& Ar) override; // Save Level 구현예정
 

@@ -1,5 +1,78 @@
 #include "EnginePCH.h"
 #include "Engine/EffectManager.h"
+
+bool ApplyEffectDescField(FEffectDesc& Desc, const FString& Key, const IEffectValueReader& Value, FString& OutError, bool& bOutUnknownKey)
+{
+	bOutUnknownKey = false;
+
+	const auto Number = [&](float& Out)
+	{
+		if (Value.ReadNumber(Out))
+			return true;
+		OutError = std::format("{}는 숫자여야 합니다", Key);
+		return false;
+	};
+	const auto Count = [&](uint32 Min, uint32& Out)
+	{
+		float N = 0.0f;
+		if (!Number(N))
+			return false;
+		if (N < static_cast<float>(Min))
+		{
+			OutError = std::format("{}는 {} 이상이어야 합니다", Key, Min);
+			return false;
+		}
+		Out = static_cast<uint32>(N);
+		return true;
+	};
+	const auto Bool = [&](bool& Out)
+	{
+		if (Value.ReadBool(Out))
+			return true;
+		OutError = std::format("{}는 true/false여야 합니다", Key);
+		return false;
+	};
+	const auto Vector = [&](FVector& Out)
+	{
+		if (Value.ReadVector(Out))
+			return true;
+		OutError = std::format("{}는 FVector여야 합니다", Key);
+		return false;
+	};
+
+	uint32 Unsigned = 0;
+	if (Key == "TexturePath")
+	{
+		if (Value.ReadString(Desc.TexturePath))
+			return true;
+		OutError = "TexturePath는 문자열이어야 합니다";
+		return false;
+	}
+	if (Key == "Cols")              return Count(1, Desc.Cols);
+	if (Key == "Rows")              return Count(1, Desc.Rows);
+	if (Key == "FrameCount")        return Count(0, Desc.FrameCount);
+	if (Key == "FrameRate")         return Number(Desc.FrameRate);
+	if (Key == "bRandomStartFrame") return Bool(Desc.bRandomStartFrame);
+	if (Key == "ParticleCount")
+	{
+		if (!Count(0, Unsigned))
+			return false;
+		Desc.ParticleCount = static_cast<int32>(Unsigned);
+		return true;
+	}
+	if (Key == "MinLifeTime")       return Number(Desc.MinLifeTime);
+	if (Key == "MaxLifeTime")       return Number(Desc.MaxLifeTime);
+	if (Key == "MinVelocity")       return Vector(Desc.MinVelocity);
+	if (Key == "MaxVelocity")       return Vector(Desc.MaxVelocity);
+	if (Key == "Acceleration")      return Vector(Desc.Acceleration);
+	if (Key == "StartScale")        return Number(Desc.StartScale);
+	if (Key == "EndScale")          return Number(Desc.EndScale);
+	if (Key == "FadeStart")         return Number(Desc.FadeStart);
+	if (Key == "bBurst")            return Bool(Desc.bBurst);
+
+	bOutUnknownKey = true;
+	return false;
+}
 #include "Engine/World.h"
 #include "Engine/Level.h"
 #include "GameFramework/Actor.h"

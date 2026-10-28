@@ -13,6 +13,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "LevelSequence/LevelSequencePlayer.h"
 
 #include "UObject/UObjectIterator.h"
 
@@ -151,6 +152,9 @@ void UWorld::Tick(float FrameDeltaTime)
 					Controller->ProcessPlayerInput();
 			}
 		}
+
+		// 시퀀스는 액터 Tick보다 먼저 값을 써 둔다 (UE도 TG_PrePhysics 전에 시퀀스를 평가한다).
+		TickSequencePlayers(DeltaTime);
 
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ActorTick);
@@ -891,6 +895,46 @@ void UWorld::TickScriptCoroutines(float DeltaTime)
 	{
 		if (!ScriptInstances[i])
 			ScriptInstances.RemoveAt(i);
+	}
+}
+
+void UWorld::RegisterSequencePlayer(ULevelSequencePlayer* Player)
+{
+	if (Player && SequencePlayers.Find(Player) == INDEX_NONE)
+		SequencePlayers.Add(Player);
+}
+
+void UWorld::UnregisterSequencePlayer(ULevelSequencePlayer* Player)
+{
+	const int32 Index = SequencePlayers.Find(Player);
+	if (Index == INDEX_NONE)
+		return;
+
+	// 순회 중이면 인덱스가 밀리지 않게 비워만 두고, 순회가 끝난 뒤 정리한다
+	if (bTickingSequences)
+		SequencePlayers[Index] = nullptr;
+	else
+		SequencePlayers.RemoveAt(Index);
+}
+
+void UWorld::TickSequencePlayers(float DeltaTime)
+{
+	bTickingSequences = true;
+
+	// 순회 중 새로 등록된 플레이어는 다음 프레임부터 돈다
+	const int32 Count = SequencePlayers.Num();
+	for (int32 i = 0; i < Count; ++i)
+	{
+		if (ULevelSequencePlayer* Player = SequencePlayers[i])
+			Player->Tick(DeltaTime);
+	}
+
+	bTickingSequences = false;
+
+	for (int32 i = SequencePlayers.Num() - 1; i >= 0; --i)
+	{
+		if (!SequencePlayers[i])
+			SequencePlayers.RemoveAt(i);
 	}
 }
 

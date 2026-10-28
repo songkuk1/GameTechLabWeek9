@@ -207,6 +207,11 @@ bool UEditorEngine::Init()
 		}
 	);
 
+	SequencerPanel = EditorUI->AddEditorPanel<FSequencerPanel>();
+	SequencerPanel->SetWorld(EditorWorld);
+	SequencerPanel->SetViewportsPanel(ViewportsPanel);
+	SequencerPanel->SetSelectedActorQuery([this]() { return OutlinerPanel->GetSelectedActor(); });
+
 	OutlinerPanel->SetDeleteActorCallback(
 		[this](AActor* Actor)
 		{
@@ -429,7 +434,9 @@ void UEditorEngine::BeginFrame(const float DeltaTime)
 	FStatOverlay::Tick(DeltaTime);
 	EditorControlsPanel->FEditorControlsPanel::DeltaTime = DeltaTime;
 
-	if (!ImGui::GetIO().WantTextInput && FInputSystem::IsKeyPressed(EKeyCode::Delete))
+	// Sequencer 창에서 누른 Delete는 키 삭제이므로 액터를 지우지 않는다
+	const bool bSequencerFocused = SequencerPanel && SequencerPanel->IsFocused();
+	if (!ImGui::GetIO().WantTextInput && !bSequencerFocused && FInputSystem::IsKeyPressed(EKeyCode::Delete))
 		DeleteActor(OutlinerPanel->GetSelectedActor());
 }
 
@@ -991,6 +998,9 @@ void UEditorEngine::PresentFrame()
 void UEditorEngine::PreExit()
 {
 	// UObject 일괄 삭제와 Device 종료 전에 PIE의 모든 비소유 연결과 GPU 자원을 해제한다.
+	// 시퀀서는 에디터 월드에 미리보기 플레이어를 두므로 월드보다 먼저 정리한다.
+	if (SequencerPanel)
+		SequencerPanel->Shutdown();
 	EndPlayMap();
 	DestroyPIEWindow();
 	SceneRenderer.EndFrame();
@@ -1031,6 +1041,9 @@ void UEditorEngine::StartPlayInEditorSession()
 	if (PlayWorld)
 		return;
 	// 창 생성 실패 시 기존처럼 선택 슬롯에서 시작한다.
+	// 미리보기로 바뀐 값과 미리보기용 스폰 액터가 PIE 월드로 복제되지 않게 먼저 되돌린다
+	if (SequencerPanel)
+		SequencerPanel->ReleasePreview();
 	if (PlayMode == EPlayModeType::InEditorFloating)
 		CreatePIEWindow();
 	FWorldContext& PIEContext = CreateNewWorldContext(EWorldType::PIE);
@@ -1302,6 +1315,8 @@ void UEditorEngine::CreateNewScene()
 		HTR_LOG(Warning, "Cannot create a new scene during PIE. Stop the play session first.");
 		return;
 	}
+	if (SequencerPanel)
+		SequencerPanel->ReleasePreview();
 	for (int32 Index = 0; Index < ViewportsPanel->GetSlotCount(); ++Index)
 		ViewportsPanel->GetViewport(Index)->ClearSceneData();
 	ReleaseWorldShadowResources(EditorWorld);
@@ -1319,6 +1334,8 @@ void UEditorEngine::OpenScene()
 		HTR_LOG(Warning, "Cannot open a scene during PIE. Stop the play session first.");
 		return;
 	}
+	if (SequencerPanel)
+		SequencerPanel->ReleasePreview();
 	for (int32 Index = 0; Index < ViewportsPanel->GetSlotCount(); ++Index)
 		ViewportsPanel->GetViewport(Index)->ClearSceneData();
 	ReleaseWorldShadowResources(EditorWorld);
@@ -1336,6 +1353,9 @@ void UEditorEngine::SaveCurrentScene()
 		HTR_LOG(Warning, "Cannot save during PIE. Stop the play session first.");
 		return;
 	}
+	// 미리보기가 바꾼 값이 씬에 저장되지 않게 먼저 되돌린다
+	if (SequencerPanel)
+		SequencerPanel->ReleasePreview();
 	FEditorFileUtils::SaveScene(EditorWorld);
 }
 
@@ -1347,6 +1367,8 @@ void UEditorEngine::SaveSceneAs()
 		HTR_LOG(Warning, "Cannot save during PIE. Stop the play session first.");
 		return;
 	}
+	if (SequencerPanel)
+		SequencerPanel->ReleasePreview();
 	FEditorFileUtils::SaveSceneAs(EditorWorld);
 }
 

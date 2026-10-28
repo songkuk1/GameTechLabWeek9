@@ -8,6 +8,17 @@
 #include "Camera/CameraModifier_CameraShake.h"
 #include "Camera/WaveCameraShake.h"
 
+bool TryParseViewTargetBlendFunction(const FString& Name, EViewTargetBlendFunction& OutFunction)
+{
+	if (Name == "Linear")         OutFunction = EViewTargetBlendFunction::Linear;
+	else if (Name == "Cubic")     OutFunction = EViewTargetBlendFunction::Cubic;
+	else if (Name == "EaseIn")    OutFunction = EViewTargetBlendFunction::EaseIn;
+	else if (Name == "EaseOut")   OutFunction = EViewTargetBlendFunction::EaseOut;
+	else if (Name == "EaseInOut") OutFunction = EViewTargetBlendFunction::EaseInOut;
+	else return false;
+	return true;
+}
+
 APlayerCameraManager::~APlayerCameraManager()
 {
 	ClearCameraModifiers();
