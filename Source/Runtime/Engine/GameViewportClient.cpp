@@ -66,6 +66,8 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	FCameraProjection Projection = ViewInfo.Projection;
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
 	FSceneView View(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	// 비네트 등 카메라마다 다른 화면 효과
+	View.PostProcessSettings = ViewInfo.PostProcessSettings;
 
 	// 화면 Fade
 	if (PCM && PCM->IsFading())

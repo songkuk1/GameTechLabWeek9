@@ -2,6 +2,7 @@
 #include "EnginePCH.h"
 #include "Camera/CameraProjection.h"
 #include "Math/Rotator.h"
+#include "Render/PostProcessSettings.h"
 
 //카메라 시점 하나"를 표현하는 구조체.
 // 복사 가능한 값이다. Modifier는 매 프레임 새로 만든 기본 시점을 고친다.
@@ -21,6 +22,8 @@ public:
 		float AspectRatio = 1.333f;
 		//true면 AspectRatio를 강제하고 남는 영역은 검은 띠로 채움 -> letter box
 		bool bConstrainAspectRatio = false;
+		//화면 효과. 카메라 컴포넌트가 채우고 뷰포트가 SceneView로 넘긴다. 기본은 꺼짐
+		FPostProcessSettings PostProcessSettings = { 0.0f };
 
 	// 이 시점에서 Other 쪽으로 Alpha(0~1)만큼 섞는다
 	void BlendViewInfo(const FMinimalViewInfo& Other, float Alpha)
@@ -32,6 +35,7 @@ public:
 		Projection.NearClip = FMath::Lerp(Projection.NearClip, Other.Projection.NearClip, Alpha);
 		Projection.FarClip = FMath::Lerp(Projection.FarClip, Other.Projection.FarClip, Alpha);
 		AspectRatio = FMath::Lerp(AspectRatio, Other.AspectRatio, Alpha);
+		PostProcessSettings.VignetteIntensity = FMath::Lerp(PostProcessSettings.VignetteIntensity, Other.PostProcessSettings.VignetteIntensity, Alpha);
 
 		// 원근/직교는 중간값이 없어서 절반을 넘으면 도착 쪽 값으로 바꾼다
 		if (Alpha >= 0.5f)

@@ -15,6 +15,10 @@ class UCameraComponent : public USceneComponent
 	REFLECT_START(ClassName)
 		// 레벨 시퀀스 Float 트랙이 "CameraComponent.FieldOfView"로 줌을 움직일 수 있게 프로퍼티로도 노출한다
 		PROPERTY_FLAGS(FieldOfView, CPF_EditAnywhere)
+		// 화면 효과도 같은 이유로 프로퍼티다. 시퀀스가 시네 카메라의 값을 키로 움직인다
+		PROPERTY_FLAGS(VignetteIntensity, CPF_EditAnywhere)
+		PROPERTY_FLAGS(AspectRatio, CPF_EditAnywhere)
+		PROPERTY_FLAGS(bConstrainAspectRatio, CPF_EditAnywhere)
 		FUNCTION(GetFieldOfView)
 		FUNCTION(SetFieldOfView)
 		FUNCTION(GetAspectRatio)
@@ -101,6 +105,9 @@ public:
 	void UpdateZoom(float DeltaTime);     // 마우스 휠 줌
 
 	void GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV);
+
+	// 화면 모서리를 어둡게 하는 정도. 0이면 끔
+	float VignetteIntensity = 0.0f;
 protected:
 	float FieldOfView = 60.0f;
 	float AspectRatio = 16.0f / 9.0f;

@@ -29,6 +29,7 @@ class ALevelSequenceActor : public AActor
 		FUNCTION(PlaySound)
 		FUNCTION(StopSound)
 		FUNCTION(SpawnEffect)
+		FUNCTION(StartCameraFade)
 	REFLECT_END()
 
 public:
@@ -76,6 +77,8 @@ public:
 	void StopSound(const FString& Path);
 	// 월드의 EffectManager로 이펙트를 Location에 한 번 터뜨린다. 시퀀스의 Effects 프리셋을 쓸 수 있다
 	void SpawnEffect(const FString& Name, const FVector& Location);
+	// 0번 플레이어 화면을 Duration 동안 검게 FromAlpha → ToAlpha로 덮는다 (UE Fade 트랙 대신)
+	void StartCameraFade(float FromAlpha, float ToAlpha, float Duration);
 
 private:
 	// 플레이어가 없으면 만들고, 지금 에셋과 설정으로 다시 초기화한다

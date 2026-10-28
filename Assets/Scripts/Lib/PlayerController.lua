@@ -34,8 +34,7 @@ return function(Config)
 	local PushCooldown = Config.PushCooldown or 2.0 -- 다시 밀 수 있을 때까지 (초). 실제로 밀었을 때만 돈다
 	local PushRange = Config.PushRange or 1.5       -- 이 거리 안의 상대만 민다
 	local PushHalfAngle = Config.PushHalfAngle or 60 -- 바라보는 방향에서 좌우 이 각도(도) 안의 상대만 민다
-	local KnockbackDistance = Config.KnockbackDistance or 2.0 -- 밀려나는 총 거리
-	local KnockbackTime = Config.KnockbackTime or 0.3         -- 밀려나는 데 걸리는 시간. 이동안은 조작 불가
+	-- 밀려나는 거리·시간은 액터의 Knockback 컴포넌트(UKnockbackComponent)에 있다. 밀려나는 동안은 조작 불가
 	-- 맞밀기 유예: 밀려나기 시작한 지 이 시간(초) 안에 누르면 밀려나는 중이어도 상대를 민다.
 	-- 사람이 "동시에" 눌러도 수 프레임 차이가 나서, 이게 없으면 먼저 누른 쪽만 민다
 	local TradeWindow = Config.TradeWindow or 0.15
@@ -52,16 +51,18 @@ return function(Config)
 	local bMoving = false   -- 이번 프레임에 이동 입력이 있었는지 (발밑 연기 등에 쓴다)
 
 	local PushCooldownLeft = 0
-	local Knockback = nil   -- { X, Y, Remaining, bTraded } 밀려나는 중일 때만 있다
+	local Knockback = nil   -- UKnockbackComponent: 밀려나기 (C++)
+	local HitSquash = nil   -- UHitSquashComponent: 맞은 순간 찌그러지기 (C++)
+	local bTraded = false   -- 이번 밀림에서 이미 맞밀었는지
 
 	local Controller = {}
 
 	-- 앞에 상대가 있으면 밀친다. Push 바인딩이 부른다 (액터 Tick보다 먼저)
 	local function TryPush()
 		-- 밀려나는 중에는 못 밀지만, 맞은 직후 유예 시간 안이면 한 번 맞밀 수 있다
-		local bTrade = Knockback ~= nil and not Knockback.bTraded
-			and (KnockbackTime - Knockback.Remaining) <= TradeWindow
-		if not GameState.IsPlaying() or PushCooldownLeft > 0 or (Knockback and not bTrade) then
+		local bKnockedBack = Knockback:IsKnockedBack()
+		local bTrade = bKnockedBack and not bTraded and Knockback:GetElapsedTime() <= TradeWindow
+		if not GameState.IsPlaying() or PushCooldownLeft > 0 or (bKnockedBack and not bTrade) then
 			return
 		end
 		local Other = GameState.Players[3 - PlayerNumber]
@@ -89,7 +90,7 @@ return function(Config)
 		-- 실제로 밀었을 때만 쿨타임이 돈다. 헛치면 바로 다시 누를 수 있다
 		PushCooldownLeft = PushCooldown
 		if bTrade then
-			Knockback.bTraded = true
+			bTraded = true
 		end
 
 		-- 나에게서 상대 쪽으로 민다
@@ -113,33 +114,24 @@ return function(Config)
 		end
 	end
 
-	-- 밀려나는 중이면 한 프레임만큼 밀고 true. 처음엔 빠르고 점점 느려진다
-	local function UpdateKnockback(dt)
+	-- 밀침을 받았으면 Knockback·HitSquash 컴포넌트를 시작한다. 실제 이동·찌그러짐은 컴포넌트가 Tick에서 한다.
+	-- 밀려나는 중이면 true
+	local function UpdateKnockback()
 		local Incoming = GameState.TakeKnockback(PlayerNumber)
 		if Incoming then
-			Knockback = { X = Incoming.X, Y = Incoming.Y, Remaining = KnockbackTime }
+			Knockback:Launch(FVector(Incoming.X, Incoming.Y, 0))
+			HitSquash:Squash()
+			bTraded = false
 			if Config.KnockbackSound then
 				Audio.Play(Config.KnockbackSound)
 			end
 		end
-		if not Knockback then
+		if not Knockback:IsKnockedBack() then
 			return false
 		end
 
-		-- 속도를 시간에 따라 1 → 0으로 줄인다. 그 넓이가 KnockbackDistance가 되도록 처음 속도는 2D/T
-		local Step = math.min(dt, Knockback.Remaining)
-		local Speed = 2 * KnockbackDistance / KnockbackTime * (Knockback.Remaining / KnockbackTime)
-		local MoveX = Knockback.X * Speed * Step
-		local MoveY = Knockback.Y * Speed * Step
-		-- 벽에 닿으면 멈추도록 Sweep한다. 이동처럼 축을 나눠 벽을 따라 미끄러지게 한다
-		if MoveX ~= 0 then Actor:AddActorWorldOffset(FVector(MoveX, 0, 0), true) end
-		if MoveY ~= 0 then Actor:AddActorWorldOffset(FVector(0, MoveY, 0), true) end
+		-- 벽 Box가 1차로 막지만 빠르게 밀려나면 넘어갈 수 있어 원형 영역 안으로 가둔다
 		ClampToFloor()
-
-		Knockback.Remaining = Knockback.Remaining - dt
-		if Knockback.Remaining <= 0 then
-			Knockback = nil
-		end
 		return true
 	end
 
@@ -166,8 +158,11 @@ return function(Config)
 		PlayerController:AddActionMapping("Push", Config.PushKey)
 		Input:BindAction("Push", "Pressed", TryPush)
 
+		Knockback = Owner:FindComponentByName("Knockback")
+		HitSquash = Owner:FindComponentByName("HitSquash")
 		PushCooldownLeft = 0
-		Knockback = nil
+		Knockback:StopKnockback()
+		bTraded = false
 
 		-- 바닥 중앙을 기준으로 좌우에 세운다. 높이(Z)는 씬에 배치한 값을 그대로 쓴다
 		if SpawnOffsetY then
@@ -187,6 +182,10 @@ return function(Config)
 	function Controller.Tick(dt)
 		-- 제한 시간 안에서만 움직인다 (시작 대기·결과 화면에서는 멈춤)
 		if not GameState.IsPlaying() then
+			-- 판이 끝나면 엔딩 시퀀스가 자리를 옮기므로 밀려나던 것을 멈춘다 (시퀀스와 같이 움직이면 떨린다)
+			if GameState.Phase == "TimeOver" and Knockback:IsKnockedBack() then
+				Knockback:StopKnockback()
+			end
 			bMoving = false
 			return
 		end
@@ -194,7 +193,7 @@ return function(Config)
 		PushCooldownLeft = math.max(0, PushCooldownLeft - dt)
 
 		-- 밀려나는 동안은 입력으로 움직이지 않는다
-		if UpdateKnockback(dt) then
+		if UpdateKnockback() then
 			bMoving = false
 			return
 		end
@@ -228,6 +227,8 @@ return function(Config)
 	function Controller.EndPlay()
 		Actor = nil
 		Root = nil   -- 참조를 놓아서 삭제된 뒤 접근하지 않게 함
+		Knockback = nil
+		HitSquash = nil
 	end
 
 	return Controller

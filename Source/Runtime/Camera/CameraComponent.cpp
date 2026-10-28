@@ -54,6 +54,7 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV)
     OutPOV.Projection = GetProjectionSettings();
     OutPOV.AspectRatio = AspectRatio;
     OutPOV.bConstrainAspectRatio = bConstrainAspectRatio;
+    OutPOV.PostProcessSettings.VignetteIntensity = VignetteIntensity;
 }
 
 

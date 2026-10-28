@@ -290,6 +290,26 @@
                             }
                         },
                         {
+                            "Class": "UKnockbackComponent",
+                            "Name": "Knockback",
+                            "Parent": "",
+                            "Properties": {
+                                "KnockbackDistance": 2.0,
+                                "KnockbackTime": 0.3,
+                                "ScriptPath": ""
+                            }
+                        },
+                        {
+                            "Class": "UHitSquashComponent",
+                            "Name": "HitSquash",
+                            "Parent": "",
+                            "Properties": {
+                                "ScriptPath": "",
+                                "SquashAmount": 0.3,
+                                "SquashTime": 0.25
+                            }
+                        },
+                        {
                             "Class": "UStaticMeshComponent",
                             "Name": "Mesh",
                             "OverrideMaterials": [],
@@ -323,6 +343,7 @@
                         }
                     ],
                     "Properties": {
+                        "BindingTag": "Player1",
                         "ScriptPath": "Assets/Scripts/Player1.lua"
                     }
                 },
@@ -423,6 +444,26 @@
                             }
                         },
                         {
+                            "Class": "UKnockbackComponent",
+                            "Name": "Knockback",
+                            "Parent": "",
+                            "Properties": {
+                                "KnockbackDistance": 2.0,
+                                "KnockbackTime": 0.3,
+                                "ScriptPath": ""
+                            }
+                        },
+                        {
+                            "Class": "UHitSquashComponent",
+                            "Name": "HitSquash",
+                            "Parent": "",
+                            "Properties": {
+                                "ScriptPath": "",
+                                "SquashAmount": 0.3,
+                                "SquashTime": 0.25
+                            }
+                        },
+                        {
                             "Class": "UStaticMeshComponent",
                             "Name": "Mesh",
                             "OverrideMaterials": [],
@@ -456,6 +497,7 @@
                         }
                     ],
                     "Properties": {
+                        "BindingTag": "Player2",
                         "ScriptPath": "Assets/Scripts/Player2.lua"
                     }
                 },

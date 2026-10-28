@@ -4,7 +4,8 @@
 -- 같은 이유로 PIE를 다시 시작해도 값이 남아 있으므로 GameHUD의 BeginPlay가 Reset을 부른다.
 -- (require는 파일을 다시 읽지 않으므로 이 파일을 고치면 에디터를 다시 켜야 반영된다)
 --
--- 진행: Intro(시작 카메라 연출) → Ready(시작 대기) → Playing(제한 시간 동안 줍기) → Result(승자·이름 입력·스코어보드)
+-- 진행: Intro(시작 카메라 연출) → Ready(시작 대기) → Playing(제한 시간 동안 줍기)
+--       → TimeOver(TIME OVER! 글자 → 승자 엔딩 시퀀스) → Result(결과 영상·이름 입력·스코어보드)
 -- Intro는 CameraIntro가 FinishIntro로 끝내고, 나머지 단계를 넘기는 건 GameHUD가 한다.
 -- 다른 스크립트는 IsPlaying으로 지금 움직여도 되는지만 본다.
 
@@ -62,14 +63,14 @@ function GameState.IsPlaying()
 	return GameState.Phase == "Playing" and not GameState.bPaused
 end
 
--- 월드가 멈춰 있어야 하는지: 일시정지 중이거나 판이 끝난 뒤(결과 화면). 떨어지던 것까지 그 자리에 멈춘다
+-- 월드가 멈춰 있어야 하는지: 일시정지 중이거나 판이 끝난 뒤(엔딩·결과 화면). 떨어지던 것까지 그 자리에 멈춘다
 function GameState.IsFrozen()
-	return GameState.bPaused or GameState.Phase == "Result"
+	return GameState.bPaused or GameState.Phase == "TimeOver" or GameState.Phase == "Result"
 end
 
--- 시작 대기·제한 시간 중에만 멈출 수 있다. 결과 화면에서는 무시한다
+-- 시작 대기·제한 시간 중에만 멈출 수 있다. 엔딩·결과 화면에서는 무시한다 (시퀀스는 일시정지로 멈추지 않는다)
 function GameState.TogglePause()
-	if GameState.Phase == "Result" then
+	if GameState.Phase == "TimeOver" or GameState.Phase == "Result" then
 		return
 	end
 	GameState.bPaused = not GameState.bPaused

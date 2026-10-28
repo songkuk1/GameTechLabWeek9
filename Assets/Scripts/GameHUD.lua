@@ -2,6 +2,8 @@
 --   Intro   : 시작 카메라 연출 (CameraIntro.lua). 이동·낙하 멈춤, 카운트다운 없음
 --   Ready   : 카메라가 게임 시점에 도착한 뒤 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
 --   Playing : GameState.TimeLimit 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
+--   TimeOver: 가운데 TIME OVER! → 승자 엔딩 시퀀스(Assets/Sequences/Ending*.sequence)
+--             두 캐릭터를 나란히 세우고 승자 쪽으로 카메라를 당긴 뒤 승자가 두 번 뛴다. 무승부면 둘 다 뛴다
 --   Result  : 승자·무승부 영상 → 승자 표시 → 3등 안에 든 플레이어 이름 입력 → RANK 팝업과 다시하기·메인 메뉴 버튼
 --   Esc     : Ready·Playing 중 일시정지 팝업 (음량 슬라이더·메인·재시작). 다시 누르면 이어 한다
 -- 단계와 점수는 Lib/GameState.lua, 기록 저장은 Lib/Scoreboard.lua가 맡는다.
@@ -33,6 +35,15 @@ local TimeFontSize = 72
 local ScoreFontSize = 64
 local WarningTime = 10      -- 남은 시간이 이 아래면 타이머를 Hurry 이미지로
 local GoShowTime = 0.8      -- 시작할 때 GO!를 보여 줄 시간 (초)
+local TimeOverShowTime = 1.5   -- 시간이 다 되면 TIME OVER!를 보여 준 뒤 엔딩 시퀀스를 튼다 (초)
+local EndingTimeout = 8        -- 엔딩 시퀀스가 끝났다는 신호가 없을 때 결과로 넘기는 시간 (초). 안전장치
+
+-- 승자별 엔딩 시퀀스. [1] = P1(치이카와), [2] = P2(우사기), Draw = 무승부
+local EndingSequences = {
+	"Assets/Sequences/EndingP1.sequence",
+	"Assets/Sequences/EndingP2.sequence",
+	Draw = "Assets/Sequences/EndingDraw.sequence",
+}
 
 -- 일시정지 창. 팝업 이미지 위쪽에 PAUSE 글자가 있고, 그 아래 테두리 상자 안에 위부터 음량 슬라이더·메인·재시작을 놓는다.
 -- 안쪽 요소의 X, Y, Width는 팝업 이미지 크기에 대한 비율(0~1)이다. X·Y는 왼쪽 위, 세로 크기는 원본 비율(Aspect)로 맞춘다
@@ -111,6 +122,18 @@ local function StartResult()
 		return A < B
 	end)
 	StartNextEntry()
+end
+
+-- 엔딩 시퀀스 상태
+local EndingSequence = nil   -- 재생 중인 시퀀스 액터. 끝나면 스스로 지워진다
+local bEndingStarted = false
+
+local function StartEnding()
+	bEndingStarted = true
+	EndingSequence = PlaySequence(EndingSequences[GameState.GetWinner() or "Draw"])
+	if not EndingSequence then
+		StartResult()   -- 시퀀스를 못 읽으면 바로 결과로
+	end
 end
 
 -- 이름 입력 키. 결과 화면에서 입력 차례일 때만 받는다
@@ -343,7 +366,19 @@ function Tick(dt)
 		elseif GameState.Phase == "Ready" and GameState.PhaseTime >= GameState.ReadyTime then
 			GameState.SetPhase("Playing")
 		elseif GameState.Phase == "Playing" and GameState.PhaseTime >= GameState.TimeLimit then
-			StartResult()
+			GameState.SetPhase("TimeOver")
+			bEndingStarted = false
+		elseif GameState.Phase == "TimeOver" then
+			if not bEndingStarted and GameState.PhaseTime >= TimeOverShowTime then
+				StartEnding()
+			elseif bEndingStarted and (not IsValid(EndingSequence) or GameState.PhaseTime >= TimeOverShowTime + EndingTimeout) then
+				-- 시퀀스가 끝나 지워지면 결과 영상으로. 같은 프레임에 영상을 그려서 게임 화면이 비치지 않는다
+				if IsValid(EndingSequence) then
+					EndingSequence:Stop()
+				end
+				EndingSequence = nil
+				StartResult()
+			end
 		end
 
 		-- 카메라가 게임 시점에 도착하면(Intro가 끝나면) BGM을 튼다
@@ -363,6 +398,10 @@ function Tick(dt)
 		DrawVideo(W, H)
 		return
 	end
+	-- 엔딩 시퀀스 동안은 상단 바를 숨겨 화면을 비운다
+	if GameState.Phase == "TimeOver" and bEndingStarted then
+		return
+	end
 	DrawTopBar(W)
 
 	if GameState.bPaused then
@@ -372,11 +411,17 @@ function Tick(dt)
 		DrawCentered(tostring(Count), W * 0.5, H * 0.5 - 120, 200, Yellow)
 	elseif GameState.Phase == "Playing" and GameState.PhaseTime < GoShowTime then
 		DrawCentered("GO!", W * 0.5, H * 0.5 - 120, 200, Yellow)
+	elseif GameState.Phase == "TimeOver" then
+		DrawCentered("TIME OVER!", W * 0.5, H * 0.5 - 120, 200, Yellow)
 	elseif GameState.Phase == "Result" then
 		DrawResult(W, H)
 	end
 end
 
 function EndPlay()
+	if IsValid(EndingSequence) then
+		EndingSequence:Stop()
+	end
+	EndingSequence = nil
 	ResultVideo.Reset()
 end
