@@ -156,3 +156,32 @@ void APlayerController::ProcessPlayerInput()
 
 	std::memcpy(bPrevKeyDown, bKeyDown, sizeof(bPrevKeyDown));
 }
+
+void APlayerController::SpawnPlayerCameraManager()
+{
+
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	// 클래스를 지정하지 않았으면 기본 매니저
+	UClass* Class = PlayerCameraManagerClass ? PlayerCameraManagerClass : APlayerCameraManager::StaticClass();
+
+	PlayerCameraManager = Cast<APlayerCameraManager>(World->SpawnActor(Class));
+	if (!PlayerCameraManager)
+		return;
+
+	// 컨트롤러처럼 씬 파일에 저장되지 않게 함 (언리얼도 RF_Transient)
+	PlayerCameraManager->SetFlags(EObjectFlags::RF_Transient);
+	PlayerCameraManager->InitializeFor(this);
+
+
+}
+
+void APlayerController::UpdatePlayerCameraManager(float DeltaTime)
+{
+
+	PlayerCameraManager->UpdateCamera(DeltaTime);
+
+
+}
