@@ -12,7 +12,6 @@
 #include "Render/GeometryGenerator.h"
 
 #include "Engine/World.h"
-#include "GameFramework/PlayerController.h"
 #include "Component/BillboardComponent.h"
 #include "Core/Stats/EditorStats.h"
 #include "Engine/Level.h"
@@ -500,17 +499,6 @@ void UEditorEngine::UpdateEditorViewportState(const float DeltaTime)
 // 월드를 한 번 Tick·Capture한 뒤 에디터와 피킹을 갱신한다.
 void UEditorEngine::TickWorldAndEditor(const float DeltaTime)
 {
-	// TEMP: Press F7 during PIE to replay the camera shake.
-	if (PlayWorld && !bIsPaused && !ImGui::GetIO().WantTextInput
-		&& FInputSystem::IsKeyPressed(EKeyCode::F7))
-	{
-        if (APlayerController* Controller = PlayWorld->GetPlayerController(0))
-        {
-            if (APlayerCameraManager* Manager = Controller->GetCameraPlayerManager())
-                Manager->StartCameraShake(0.1f, 0.5f);
-        }
-	}
-
 	// 월드 상태는 프레임마다 정확히 한 번 갱신하고 캡처한다.
 
 	{
@@ -1072,9 +1060,6 @@ void UEditorEngine::StartPlayInEditorSession()
 
 	// 월드 준비가 끝났다. GameMode::StartPlay가 액터들의 BeginPlay를 시작시킨다.
 	PlayWorld->BeginPlay();
-
-	// TEMP: Test 0.2x speed for 3 seconds when PIE starts.
-	PlayWorld->StartSlomo(0.2f, 3.0f);
 }
 
 UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext& PIEContext, UWorld* InEditorWorld)
