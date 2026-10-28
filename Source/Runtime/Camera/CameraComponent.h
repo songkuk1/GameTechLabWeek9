@@ -19,6 +19,8 @@ class UCameraComponent : public USceneComponent
 		FUNCTION(SetFieldOfView)
 		FUNCTION(GetAspectRatio)
 		FUNCTION(SetAspectRatio)
+		FUNCTION(GetConstrainAspectRatio)
+		FUNCTION(SetConstrainAspectRatio)
 		FUNCTION(GetNearZ)
 		FUNCTION(SetNearZ)
 		FUNCTION(GetFarZ)
@@ -64,6 +66,10 @@ public:
 	float GetAspectRatio() const { return AspectRatio; }
 	void SetAspectRatio(float InAspectRatio) { AspectRatio = InAspectRatio; }
 
+	// true면 화면 비율이 AspectRatio와 다를 때 남는 영역을 검은 띠로 채운다
+	bool GetConstrainAspectRatio() const { return bConstrainAspectRatio; }
+	void SetConstrainAspectRatio(bool bInConstrainAspectRatio) { bConstrainAspectRatio = bInConstrainAspectRatio; }
+
 	float GetNearZ() const { return NearClipPlane; }
 	void SetNearZ(float InNearZ) { NearClipPlane = InNearZ; }
 
@@ -98,6 +104,7 @@ public:
 protected:
 	float FieldOfView = 60.0f;
 	float AspectRatio = 16.0f / 9.0f;
+	bool bConstrainAspectRatio = false;
 	float NearClipPlane = 0.1f;
 	float FarClipPlane = 10000.0f;
 
