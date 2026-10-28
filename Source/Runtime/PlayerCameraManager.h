@@ -80,6 +80,8 @@ public:
 	UCameraShakeBase* StartCameraShake(UClass* ShakeClass, float Scale = 1.0f,
 		ECameraShakePlaySpace Space = ECameraShakePlaySpace::CameraLocal);
 	UCameraShakeBase* StartCameraShake(float Strength, float Duration, float Frequency = 20.0f);
+	// 사인파 대신 펄린 노이즈로 흔든다 (불규칙한 손떨림·지진 느낌)
+	UCameraShakeBase* StartPerlinNoiseCameraShake(float Strength, float Duration, float Frequency = 10.0f);
 	void StopCameraShake(UCameraShakeBase* Shake);
 	void StopAllCameraShakes();
 

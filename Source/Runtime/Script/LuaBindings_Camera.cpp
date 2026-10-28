@@ -95,6 +95,14 @@ void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 				Manager->StartCameraShake(Strength, Duration, Frequency.value_or(20.0f));
 		});
 
+	// NoiseShake(Strength, Duration, Frequency = 10): 펄린 노이즈로 불규칙하게 흔든다. Frequency가 높을수록 빠르게 떨린다.
+	Env.set_function("NoiseShake",
+		[Owner](float Strength, float Duration, sol::optional<float> Frequency)
+		{
+			if (APlayerCameraManager* Manager = FindCameraManager(Owner, 0))
+				Manager->StartPerlinNoiseCameraShake(Strength, Duration, Frequency.value_or(10.0f));
+		});
+
 	Env.set_function("StopCameraShakes",
 		[Owner]()
 		{

@@ -7,6 +7,7 @@
 #include "Camera/CameraModifier.h"
 #include "Camera/CameraModifier_CameraShake.h"
 #include "Camera/WaveCameraShake.h"
+#include "Camera/PerlinNoiseCameraShake.h"
 
 APlayerCameraManager::~APlayerCameraManager()
 {
@@ -180,6 +181,18 @@ UCameraShakeBase* APlayerCameraManager::StartCameraShake(float Strength, float D
 	if (!Modifier)
 		return nullptr;
 	UWaveCameraShake* Shake = NewObject<UWaveCameraShake>(Modifier);
+	if (!Shake)
+		return nullptr;
+	Shake->Configure(Strength, Duration, Frequency);
+	return Modifier->AddCameraShake(Shake);
+}
+
+UCameraShakeBase* APlayerCameraManager::StartPerlinNoiseCameraShake(float Strength, float Duration, float Frequency)
+{
+	UCameraModifier_CameraShake* Modifier = GetCameraShakeModifier();
+	if (!Modifier)
+		return nullptr;
+	UPerlinNoiseCameraShake* Shake = NewObject<UPerlinNoiseCameraShake>(Modifier);
 	if (!Shake)
 		return nullptr;
 	Shake->Configure(Strength, Duration, Frequency);
