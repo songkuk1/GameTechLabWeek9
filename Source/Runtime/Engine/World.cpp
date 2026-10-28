@@ -163,6 +163,15 @@ void UWorld::Tick(float DeltaTime)
 
 		// 이번 프레임의 스폰(겹침 이벤트·스크립트)까지 받은 뒤, 지워지기 전에 이펙트 수명을 정리한다.
 		EffectManager.Tick(DeltaTime);
+
+
+		{
+			const TArray<APlayerController*> Controllers = PlayerControllers;
+			for (APlayerController* Controller : Controllers)
+				if (::IsValid(Controller))
+					Controller->UpdatePlayerCameraManager(DeltaTime);
+		}
+
 	}
 
 	// Frame 끝에서 Destroy 된 객체 실제로 지우기

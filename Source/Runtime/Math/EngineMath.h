@@ -36,6 +36,13 @@ namespace FMath
 		return Max(InMin, Min(InValue, InMax));
 	}
 
+	// A에서 B까지 Alpha(0~1) 비율만큼 간 값
+	template <typename T>
+	static inline T Lerp(const T& A, const T& B, float Alpha)
+	{
+		return A + (B - A) * Alpha;
+	}
+
 	static inline bool IsNearlyZero(float Value, float ErrorTolerance = 1e-20f)
 	{
 		return std::abs(Value) <= ErrorTolerance;

@@ -246,3 +246,35 @@ FQuat FQuat::MakeFromEuler(float RollRadian, float PitchRadian, float YawRadian)
 		CR * CP * CY + SR * SP * SY
 	);
 }
+
+FQuat FQuat::Slerp(const FQuat& A, const FQuat& B, float Alpha)
+{
+	float CosTheta = A.X * B.X + A.Y * B.Y + A.Z * B.Z + A.W * B.W;
+
+	// q와 -q는 같은 회전이므로, 내적이 음수면 B를 뒤집어 짧은 쪽으로 돈다
+	FQuat End = B;
+	if (CosTheta < 0.0f)
+	{
+		CosTheta = -CosTheta;
+		End = FQuat(-B.X, -B.Y, -B.Z, -B.W);
+	}
+
+	float ScaleA = 1.0f - Alpha;
+	float ScaleB = Alpha;
+
+	// 두 회전이 거의 같으면 sin(Theta)가 0에 가까워 나눗셈이 불안정하므로 선형 보간으로 대신한다
+	if (CosTheta < 0.9999f)
+	{
+		const float Theta = acosf(CosTheta);
+		const float InvSinTheta = 1.0f / sinf(Theta);
+		ScaleA = sinf((1.0f - Alpha) * Theta) * InvSinTheta;
+		ScaleB = sinf(Alpha * Theta) * InvSinTheta;
+	}
+
+	return FQuat(
+		ScaleA * A.X + ScaleB * End.X,
+		ScaleA * A.Y + ScaleB * End.Y,
+		ScaleA * A.Z + ScaleB * End.Z,
+		ScaleA * A.W + ScaleB * End.W
+	).Normalized();
+}
