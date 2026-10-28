@@ -31,8 +31,25 @@ void APlayerCameraManager::UpdateCamera(float DeltaTime)
 	
 }
 
-void APlayerCameraManager::UpdateViewTarget(FViewTarget& VT, float DeltaTime)
+void APlayerCameraManager::UpdateViewTarget(FViewTarget& OutVT, float DeltaTime)
 {
+	// 1. 기본값으로 리셋
+	OutVT.POV = FMinimalViewInfo();
+	OutVT.POV.Fov = DefaultFOV;
 
+	// 2. Target의 시점 계산
+	AActor* Target = OutVT.Target.Get();
+	if (!Target)
+		return;
 
+	//타겟이 CameraActor면 CameraComponent에서 계산하고 아니면 액터에 붙은 CameraComponent에서 계산
+	if (ACameraActor* CamActor = Cast<ACameraActor>(Target))
+		CamActor->GetCameraComponent()->GetCameraView(DeltaTime, OutVT.POV);
+	else
+		Target->CalcCamera(DeltaTime, OutVT.POV);     
+
+	// 3. Modifier
+	// ApplyCameraModifiers(DeltaTime, OutVT.POV);
 }
+
+

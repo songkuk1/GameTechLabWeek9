@@ -2,6 +2,7 @@
 #include "CameraComponent.h"
 #include "Input/InputSystem.h"
 #include "../Collision/Ray.h"
+#include "CameraTypes.h"
 
 // 외부 입력 관리 시 기본 입력을 생략해 뷰포트 입력과 카메라의 중복 갱신을 막는다.
 void UCameraComponent::TickComponent(float DeltaTime)
@@ -44,6 +45,13 @@ void UCameraComponent::UpdateZoom(float DeltaTime)
     if (WheelDelta == 0) return;
 
     Transform.Location += Transform.GetForward() * WheelSpeed * WheelDelta * DeltaTime;
+}
+
+void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV)
+{
+    OutPOV.Location = GetWorldLocation();
+    OutPOV.Rotation = GetWorldRotation();
+    OutPOV.Fov = GetFieldOfView();
 }
 
 

@@ -4,7 +4,7 @@
 #include "Core/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
 #include "GameFramework/Actor.h"
-
+#include "CameraTypes.h"
 struct FViewTarget
 {
 public:
@@ -66,5 +66,9 @@ private:
 	///Default,FreeCam,ThirdPerson 등이 존재함
 	FName CameraStyle;
 
+	//아무도 정하지 않았을 때 쓰는 값
+	float DefaultFOV = 90.0f;
+	float DefaultAspectRatio = 1.333f;
+	bool bDefaultConstrainAspectRatio = false;
 
 };

@@ -8,13 +8,11 @@ public:
 	FMinimalViewInfo() = default;
 	~FMinimalViewInfo() = default;
 	FMinimalViewInfo(const FMinimalViewInfo&) = delete;
-	FMinimalViewInfo& operator=(const FMinimalViewInfo&) = delete;
 
-private:
 		//카메라 위치
 		FVector Location;
 		//카메라 방향
-		FVector Rotation;
+		FRotator Rotation;
 		//시야각
 		float Fov;
 		//화면비
