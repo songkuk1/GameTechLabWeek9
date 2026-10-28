@@ -104,7 +104,9 @@ bool FSequencerPanel::Init()
 
 void FSequencerPanel::Tick(float DeltaTime)
 {
+	// 재생 중 Spawn 트랙이 액터를 지울 수 있다
 	Sequencer.Tick(DeltaTime);
+	ClearSelectionIfDestroyed();
 	PilotViewport();
 }
 
@@ -137,6 +139,53 @@ void FSequencerPanel::OnRender()
 	HandleShortcuts();
 
 	ImGui::End();
+	FlushDeferredActions();
+	ClearSelectionIfDestroyed();
+}
+
+void FSequencerPanel::ClearSelectionIfDestroyed()
+{
+	AActor* Selected = GetSelectedActor ? GetSelectedActor() : nullptr;
+	if (Selected && Selected->IsPendingKill() && ResetSelection)
+		ResetSelection();
+}
+
+void FSequencerPanel::FlushDeferredActions()
+{
+	// 실행 중에 또 미룰 수 있으므로 꺼낸 뒤 돈다
+	TArray<std::function<void()>> Actions = std::move(DeferredActions);
+	DeferredActions.Reset();
+	for (const std::function<void()>& Action : Actions)
+		Action();
+}
+
+void FSequencerPanel::ShiftExpandedAfterRemove(int32 Binding, int32 Track)
+{
+	std::unordered_set<uint64> Shifted;
+	for (uint64 Key : ExpandedRows)
+	{
+		int32 B = static_cast<int32>(Key >> 32) - 2;
+		int32 T = static_cast<int32>(Key & 0xFFFFFFFFull) - 1;
+
+		if (Track < 0)
+		{
+			// 바인딩을 지웠다: 그 바인딩 줄은 버리고 뒤쪽 바인딩을 당긴다
+			if (B == Binding)
+				continue;
+			if (B > Binding)
+				--B;
+		}
+		else if (B == Binding)
+		{
+			// 트랙을 지웠다: 같은 바인딩 안에서 뒤쪽 트랙을 당긴다
+			if (T == Track)
+				continue;
+			if (T > Track)
+				--T;
+		}
+		Shifted.insert((static_cast<uint64>(B + 2) << 32) | static_cast<uint32>(T + 1));
+	}
+	ExpandedRows = std::move(Shifted);
 }
 
 void FSequencerPanel::DrawToolbar()
@@ -219,7 +268,7 @@ void FSequencerPanel::DrawToolbar()
 	ImGui::SameLine();
 	ImGui::Checkbox("Cine Cam View", &Sequencer.bPilotCineCamera);
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Moves the active editor viewport to the cine camera while previewing.");
+		ImGui::SetTooltip("While playing or scrubbing, moves the active editor viewport to the cine camera.\nWhen paused you can fly the viewport freely; scrub again to snap back.");
 
 	ImGui::SameLine();
 	float Time = Sequencer.GetTime();
@@ -448,8 +497,34 @@ void FSequencerPanel::SetExpanded(int32 Binding, int32 Track, bool bExpanded)
 		ExpandedRows.erase(Key);
 }
 
+bool FSequencerPanel::IsRowValid(const FRow& Row)
+{
+	ULevelSequence* Sequence = Sequencer.GetSequence();
+	if (!Sequence)
+		return false;
+
+	switch (Row.Type)
+	{
+	case ERowType::Master:
+		return true;
+	case ERowType::Binding:
+		return Row.Binding >= 0 && Row.Binding < Sequence->Bindings.Num();
+	case ERowType::Track:
+		return Sequencer.GetTrack(Row.Binding, Row.Track) != nullptr;
+	case ERowType::Channel:
+	{
+		const FSequenceTrack* Track = Sequencer.GetTrack(Row.Binding, Row.Track);
+		return Track && Row.Channel >= 0 && Row.Channel < FSequenceTrack::GetChannelCount(Track->Type);
+	}
+	}
+	return false;
+}
+
 void FSequencerPanel::DrawRowLabel(const FRow& Row)
 {
+	if (!IsRowValid(Row))
+		return;
+
 	ULevelSequence* Sequence = Sequencer.GetSequence();
 	ImGui::Indent(Row.Depth * 14.0f);
 
@@ -538,11 +613,13 @@ void FSequencerPanel::DrawLabelContextMenu(const FRow& Row)
 	{
 	case ERowType::Master:
 		if (ImGui::MenuItem("Add Event Track"))
-			Sequencer.AddTrack(-1, ESequenceTrackType::Event, "");
+			Defer([this]() { Sequencer.AddTrack(-1, ESequenceTrackType::Event, ""); });
 		break;
 
 	case ERowType::Binding:
 	{
+		if (Row.Binding < 0 || Row.Binding >= Sequence->Bindings.Num())
+			break;
 		FSequenceBinding& Binding = Sequence->Bindings[Row.Binding];
 		if (ImGui::BeginMenu("Add Track"))
 		{
@@ -567,13 +644,22 @@ void FSequencerPanel::DrawLabelContextMenu(const FRow& Row)
 		}
 		ImGui::Separator();
 		if (ImGui::MenuItem("Delete Binding"))
-			Sequencer.RemoveBinding(Row.Binding);
+		{
+			const int32 BindingIndex = Row.Binding;
+			Defer([this, BindingIndex]()
+			{
+				Sequencer.RemoveBinding(BindingIndex);
+				ShiftExpandedAfterRemove(BindingIndex, -1);
+			});
+		}
 		break;
 	}
 
 	case ERowType::Track:
 	{
 		const FSequenceTrack* Track = Sequencer.GetTrack(Row.Binding, Row.Track);
+		if (!Track)
+			break;
 		if (Track->Type == ESequenceTrackType::Event)
 		{
 			if (ImGui::MenuItem("Add Event At Playhead"))
@@ -585,7 +671,15 @@ void FSequencerPanel::DrawLabelContextMenu(const FRow& Row)
 		}
 		ImGui::Separator();
 		if (ImGui::MenuItem("Delete Track"))
-			Sequencer.RemoveTrack(Row.Binding, Row.Track);
+		{
+			const int32 BindingIndex = Row.Binding;
+			const int32 TrackIndex = Row.Track;
+			Defer([this, BindingIndex, TrackIndex]()
+			{
+				Sequencer.RemoveTrack(BindingIndex, TrackIndex);
+				ShiftExpandedAfterRemove(BindingIndex, TrackIndex);
+			});
+		}
 		break;
 	}
 
@@ -608,8 +702,14 @@ void FSequencerPanel::DrawAddTrackMenu(int32 BindingIndex)
 		Sequencer.SetTime(Sequencer.GetTime());
 	AActor* Actor = Sequencer.GetBoundActor(BindingIndex);
 
+	// 트랙 추가는 이번 프레임의 줄 목록이 끝난 뒤에 한다
+	const auto AddTrackLater = [this, BindingIndex](ESequenceTrackType Type, const FString& Path)
+	{
+		Defer([this, BindingIndex, Type, Path]() { Sequencer.AddTrack(BindingIndex, Type, Path); });
+	};
+
 	if (ImGui::MenuItem("Transform (Root)"))
-		Sequencer.AddTrack(BindingIndex, ESequenceTrackType::Transform, "");
+		AddTrackLater(ESequenceTrackType::Transform, "");
 
 	if (ImGui::BeginMenu("Transform (Component)", Actor != nullptr))
 	{
@@ -618,7 +718,7 @@ void FSequencerPanel::DrawAddTrackMenu(int32 BindingIndex)
 			if (Cast<USceneComponent>(Component) && Component != Actor->GetRootComponent())
 			{
 				if (ImGui::MenuItem(Component->GetName().c_str()))
-					Sequencer.AddTrack(BindingIndex, ESequenceTrackType::Transform, Component->GetName());
+					AddTrackLater(ESequenceTrackType::Transform, Component->GetName());
 			}
 		}
 		ImGui::EndMenu();
@@ -635,7 +735,7 @@ void FSequencerPanel::DrawAddTrackMenu(int32 BindingIndex)
 		for (const FString& Path : Paths)
 		{
 			if (ImGui::MenuItem(Path.c_str()))
-				Sequencer.AddTrack(BindingIndex, TrackType, Path);
+				AddTrackLater(TrackType, Path);
 		}
 		ImGui::EndMenu();
 	};
@@ -643,9 +743,9 @@ void FSequencerPanel::DrawAddTrackMenu(int32 BindingIndex)
 	PropertyMenu("Bool", ESequenceTrackType::Bool, EPropertyType::Bool);
 
 	if (ImGui::MenuItem("Event"))
-		Sequencer.AddTrack(BindingIndex, ESequenceTrackType::Event, "");
+		AddTrackLater(ESequenceTrackType::Event, "");
 	if (ImGui::MenuItem("Spawn", nullptr, false, Binding.HasTemplate()))
-		Sequencer.AddTrack(BindingIndex, ESequenceTrackType::Spawn, "");
+		AddTrackLater(ESequenceTrackType::Spawn, "");
 
 	if (!Actor)
 		ImGui::TextDisabled("Bind an actor to list its components and properties.");
@@ -653,6 +753,9 @@ void FSequencerPanel::DrawAddTrackMenu(int32 BindingIndex)
 
 void FSequencerPanel::DrawRowTimeline(const FRow& Row)
 {
+	if (!IsRowValid(Row))
+		return;
+
 	ULevelSequence* Sequence = Sequencer.GetSequence();
 	ImDrawList* DrawList = ImGui::GetWindowDrawList();
 	const ImVec2 Origin = ImGui::GetCursorScreenPos();
@@ -1125,11 +1228,21 @@ void FSequencerPanel::HandleShortcuts()
 void FSequencerPanel::PilotViewport()
 {
 	if (!Sequencer.bPilotCineCamera || !Sequencer.IsPreviewActive() || !Viewports)
+	{
+		bPilotApplied = false;
+		return;
+	}
+
+	// 재생 중이거나 시간이 바뀌었을 때(스크럽)만 맞춘다. 멈춰 있으면 사용자가 뷰포트를 자유롭게 움직일 수 있다
+	const float Time = Sequencer.GetTime();
+	if (bPilotApplied && !Sequencer.IsPlaying() && Time == LastPilotTime)
 		return;
 
 	ACameraActor* Camera = Cast<ACameraActor>(Sequencer.GetActiveCineCamera());
 	if (!Camera)
 		return;
+	bPilotApplied = true;
+	LastPilotTime = Time;
 
 	const int32 ViewIndex = Viewports->GetActiveViewIndex();
 	FEditorViewportClient* Client = Viewports->GetEditorClient(ViewIndex);

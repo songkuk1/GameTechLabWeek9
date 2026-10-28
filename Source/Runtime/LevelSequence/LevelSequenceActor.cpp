@@ -205,5 +205,5 @@ void ALevelSequenceActor::StartCameraFade(float FromAlpha, float ToAlpha, float 
 	UWorld* OwningWorld = GetWorld();
 	APlayerController* PC = OwningWorld ? OwningWorld->GetPlayerController(0) : nullptr;
 	if (APlayerCameraManager* PCM = PC ? PC->GetCameraPlayerManager() : nullptr)
-		PCM->StartCameraFade(FromAlpha, ToAlpha, Duration);
+		PCM->StartCameraFade(FromAlpha, ToAlpha, Duration, FLinearColor(0, 0, 0, 1), ToAlpha > 0.0f);   // 덮는 쪽이면 끝나도 유지
 }

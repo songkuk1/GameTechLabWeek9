@@ -211,6 +211,7 @@ bool UEditorEngine::Init()
 	SequencerPanel->SetWorld(EditorWorld);
 	SequencerPanel->SetViewportsPanel(ViewportsPanel);
 	SequencerPanel->SetSelectedActorQuery([this]() { return OutlinerPanel->GetSelectedActor(); });
+	SequencerPanel->SetResetSelectionCallback([this]() { ResetSceneSelection(); });
 
 	OutlinerPanel->SetDeleteActorCallback(
 		[this](AActor* Actor)

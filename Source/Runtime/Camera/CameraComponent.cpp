@@ -52,8 +52,9 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV)
     OutPOV.Location = GetWorldLocation();
     OutPOV.Rotation = GetWorldRotation();
     OutPOV.Projection = GetProjectionSettings();
+    OutPOV.AspectRatio = AspectRatio;
+    OutPOV.bConstrainAspectRatio = bConstrainAspectRatio;
     OutPOV.PostProcessSettings.VignetteIntensity = VignetteIntensity;
-    OutPOV.LetterBoxAmount = LetterBoxAmount;
 }
 
 

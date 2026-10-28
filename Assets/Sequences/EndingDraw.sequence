@@ -176,8 +176,8 @@
                     ]
                 },
                 {
-                    "Type": "Float",
-                    "Property": "CameraComponent.LetterBoxAmount",
+                    "Type": "Bool",
+                    "Property": "CameraComponent.bConstrainAspectRatio",
                     "Sections": [
                         {
                             "Start": 0,
@@ -187,16 +187,40 @@
                                     {
                                         "Time": 0,
                                         "Value": 0,
+                                        "Interp": "Constant"
+                                    },
+                                    {
+                                        "Time": 0.9,
+                                        "Value": 1,
+                                        "Interp": "Constant"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "Type": "Float",
+                    "Property": "CameraComponent.AspectRatio",
+                    "Sections": [
+                        {
+                            "Start": 0,
+                            "End": 4.4,
+                            "Channels": {
+                                "Value": [
+                                    {
+                                        "Time": 0,
+                                        "Value": 1.778,
                                         "Interp": "Cubic"
                                     },
                                     {
                                         "Time": 0.9,
-                                        "Value": 0,
+                                        "Value": 1.778,
                                         "Interp": "Cubic"
                                     },
                                     {
                                         "Time": 1.4,
-                                        "Value": 1,
+                                        "Value": 2.35,
                                         "Interp": "Cubic"
                                     }
                                 ]

@@ -17,11 +17,14 @@ class UCameraComponent : public USceneComponent
 		PROPERTY_FLAGS(FieldOfView, CPF_EditAnywhere)
 		// 화면 효과도 같은 이유로 프로퍼티다. 시퀀스가 시네 카메라의 값을 키로 움직인다
 		PROPERTY_FLAGS(VignetteIntensity, CPF_EditAnywhere)
-		PROPERTY_FLAGS(LetterBoxAmount, CPF_EditAnywhere)
+		PROPERTY_FLAGS(AspectRatio, CPF_EditAnywhere)
+		PROPERTY_FLAGS(bConstrainAspectRatio, CPF_EditAnywhere)
 		FUNCTION(GetFieldOfView)
 		FUNCTION(SetFieldOfView)
 		FUNCTION(GetAspectRatio)
 		FUNCTION(SetAspectRatio)
+		FUNCTION(GetConstrainAspectRatio)
+		FUNCTION(SetConstrainAspectRatio)
 		FUNCTION(GetNearZ)
 		FUNCTION(SetNearZ)
 		FUNCTION(GetFarZ)
@@ -67,6 +70,10 @@ public:
 	float GetAspectRatio() const { return AspectRatio; }
 	void SetAspectRatio(float InAspectRatio) { AspectRatio = InAspectRatio; }
 
+	// true면 화면 비율이 AspectRatio와 다를 때 남는 영역을 검은 띠로 채운다
+	bool GetConstrainAspectRatio() const { return bConstrainAspectRatio; }
+	void SetConstrainAspectRatio(bool bInConstrainAspectRatio) { bConstrainAspectRatio = bInConstrainAspectRatio; }
+
 	float GetNearZ() const { return NearClipPlane; }
 	void SetNearZ(float InNearZ) { NearClipPlane = InNearZ; }
 
@@ -101,11 +108,10 @@ public:
 
 	// 화면 모서리를 어둡게 하는 정도. 0이면 끔
 	float VignetteIntensity = 0.0f;
-	// 위아래 시네마틱 띠. 0 = 없음, 1 = 완전
-	float LetterBoxAmount = 0.0f;
 protected:
 	float FieldOfView = 60.0f;
 	float AspectRatio = 16.0f / 9.0f;
+	bool bConstrainAspectRatio = false;
 	float NearClipPlane = 0.1f;
 	float FarClipPlane = 10000.0f;
 
