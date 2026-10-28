@@ -60,38 +60,3 @@ void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner)
 			return World ? World->GetTimeDilation() : 1.0f;
 		});
 }
-
-void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
-{
-	// CameraShake(Strength, Duration, Frequency = 20): 감쇠하는 사인파로 카메라를 흔든다. 여러 번 부르면 겹쳐서 흔들린다.
-	Env.set_function("CameraShake",
-		[Owner](float Strength, float Duration, sol::optional<float> Frequency)
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StartCameraShake(Strength, Duration, Frequency.value_or(20.0f));
-		});
-
-	Env.set_function("StopCameraShakes",
-		[Owner]()
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StopAllCameraShakes();
-		});
-
-	// StartCameraFade(From, To, Duration, R = 0, G = 0, B = 0, Hold = false): 화면을 색으로 덮는 양을 From -> To로 바꾼다.
-	// Hold가 false면 끝나는 순간 Fade가 꺼진다
-	Env.set_function("StartCameraFade",
-		[Owner](float From, float To, float Duration, sol::optional<float> R, sol::optional<float> G, sol::optional<float> B, sol::optional<bool> bHold)
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StartCameraFade(From, To, Duration,
-					FLinearColor(R.value_or(0.0f), G.value_or(0.0f), B.value_or(0.0f), 1.0f), bHold.value_or(false));
-		});
-
-	Env.set_function("StopCameraFade",
-		[Owner]()
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StopCameraFade();
-		});
-}

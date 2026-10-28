@@ -102,6 +102,23 @@ void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 				Manager->StopAllCameraShakes();
 		});
 
+	// StartCameraFade(From, To, Duration, [R = 0], [G = 0], [B = 0], [Hold = false]): 0번 플레이어 화면을 색으로 덮는 양을 From -> To로 바꾼다.
+	// Hold가 false면 끝나는 순간 Fade가 꺼진다
+	Env.set_function("StartCameraFade",
+		[Owner](float From, float To, float Duration, sol::optional<float> R, sol::optional<float> G, sol::optional<float> B, sol::optional<bool> bHold)
+		{
+			if (APlayerCameraManager* Manager = FindCameraManager(Owner, 0))
+				Manager->StartCameraFade(From, To, Duration,
+					FLinearColor(R.value_or(0.0f), G.value_or(0.0f), B.value_or(0.0f), 1.0f), bHold.value_or(false));
+		});
+
+	Env.set_function("StopCameraFade",
+		[Owner]()
+		{
+			if (APlayerCameraManager* Manager = FindCameraManager(Owner, 0))
+				Manager->StopCameraFade();
+		});
+
 	// local Main = GetMainCamera() → 월드의 메인 카메라 액터. 게임 월드가 아니면 nil
 	Env.set_function("GetMainCamera",
 		[Owner](sol::this_state S) -> sol::object
