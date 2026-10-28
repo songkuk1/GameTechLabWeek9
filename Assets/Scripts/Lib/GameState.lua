@@ -4,14 +4,16 @@
 -- 같은 이유로 PIE를 다시 시작해도 값이 남아 있으므로 GameHUD의 BeginPlay가 Reset을 부른다.
 -- (require는 파일을 다시 읽지 않으므로 이 파일을 고치면 에디터를 다시 켜야 반영된다)
 --
--- 진행: Ready(시작 대기) → Playing(제한 시간 동안 줍기) → Result(승자·이름 입력·스코어보드)
--- 단계를 넘기는 건 GameHUD가 한다. 다른 스크립트는 IsPlaying으로 지금 움직여도 되는지만 본다.
+-- 진행: Intro(시작 카메라 연출) → Ready(시작 대기) → Playing(제한 시간 동안 줍기) → Result(승자·이름 입력·스코어보드)
+-- Intro는 CameraIntro가 FinishIntro로 끝내고, 나머지 단계를 넘기는 건 GameHUD가 한다.
+-- 다른 스크립트는 IsPlaying으로 지금 움직여도 되는지만 본다.
 
 local GameState = {
+	IntroTimeout = 10,   -- 카메라 연출이 끝났다고 알려 오지 않을 때 Ready로 넘기는 시간 (초). 안전장치
 	ReadyTime = 3,       -- 시작 전 대기 (초). 이동·낙하·점수 모두 멈춘다
 	TimeLimit = 15,      -- 제한 시간 (초)
 
-	Phase = "Ready",     -- "Ready" | "Playing" | "Result"
+	Phase = "Intro",     -- "Intro" | "Ready" | "Playing" | "Result"
 	PhaseTime = 0,       -- 지금 단계에 들어온 뒤 지난 시간 (초)
 	bPaused = false,     -- Esc 일시정지. 켜져 있으면 시간·이동·낙하·점수가 모두 멈춘다
 	Scores = { 0, 0 },   -- [1] = P1, [2] = P2
@@ -24,7 +26,7 @@ local GameState = {
 -- 단계·점수만 비운다. Players는 BeginPlay 순서상 Reset보다 먼저 등록될 수 있어 지우지 않는다.
 -- 지난 PIE의 액터는 파괴된 핸들이라 비교해도 같지 않고, 새 판에서 RegisterPlayer가 덮어쓴다.
 function GameState.Reset()
-	GameState.Phase = "Ready"
+	GameState.Phase = "Intro"
 	GameState.PhaseTime = 0
 	GameState.bPaused = false
 	GameState.Scores = { 0, 0 }
@@ -48,6 +50,13 @@ function GameState.SetPhase(Phase)
 	GameState.PhaseTime = 0
 end
 
+-- 시작 카메라 연출이 끝나면 부른다. 이때부터 Ready 카운트다운이 시작된다
+function GameState.FinishIntro()
+	if GameState.Phase == "Intro" then
+		GameState.SetPhase("Ready")
+	end
+end
+
 -- 제한 시간 안이고 일시정지가 아닐 때만 true
 function GameState.IsPlaying()
 	return GameState.Phase == "Playing" and not GameState.bPaused
@@ -66,9 +75,9 @@ function GameState.TogglePause()
 	GameState.bPaused = not GameState.bPaused
 end
 
--- 화면에 보일 남은 시간. 대기 중에는 꽉 찬 제한 시간, 끝나면 0
+-- 화면에 보일 남은 시간. 연출·대기 중에는 꽉 찬 제한 시간, 끝나면 0
 function GameState.GetRemainingTime()
-	if GameState.Phase == "Ready" then
+	if GameState.Phase == "Intro" or GameState.Phase == "Ready" then
 		return GameState.TimeLimit
 	elseif GameState.Phase == "Playing" then
 		return math.max(0, GameState.TimeLimit - GameState.PhaseTime)

@@ -83,6 +83,12 @@ public:
 	void StopCameraShake(UCameraShakeBase* Shake);
 	void StopAllCameraShakes();
 
+
+	// 현재 카메라 시점을 제공하는 대상. 블렌드 중이면 떠나는 쪽이다
+	AActor* GetViewTarget() const { return ViewTarget.Target.Get(); }
+	// PendingViewTarget으로 블렌드하는 중인지
+	bool IsBlending() const { return PendingViewTarget.Target.Get() != nullptr; }
+
 private:
 	void UpdateViewTarget(FViewTarget& VT, float DeltaTime);
 	void FillCameraCache(const FMinimalViewInfo& InCameraCachePov);

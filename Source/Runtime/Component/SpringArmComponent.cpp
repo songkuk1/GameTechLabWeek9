@@ -5,27 +5,9 @@
 #include "Component/CapsuleComponent.h"
 #include "Component/SphereComponent.h"
 #include "Collision/ShapeCollision.h"
+#include "Math/Interp.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-
-namespace
-{
-	// TEMP: C 파트의 FMath::VInterpTo / QInterpTo가 들어오면 그걸로 바꾼다.
-	// 남은 거리의 DeltaTime * Speed 비율만큼 다가간다. 비율을 1로 묶어 큰 프레임 간격에서도 목표를 넘지 않는다
-	FVector VInterpTo(const FVector& Current, const FVector& Target, float DeltaTime, float InterpSpeed)
-	{
-		if (InterpSpeed <= 0.0f)
-			return Target;
-		return Current + (Target - Current) * FMath::Clamp(DeltaTime * InterpSpeed, 0.0f, 1.0f);
-	}
-
-	FQuat QInterpTo(const FQuat& Current, const FQuat& Target, float DeltaTime, float InterpSpeed)
-	{
-		if (InterpSpeed <= 0.0f)
-			return Target;
-		return FQuat::Slerp(Current, Target, FMath::Clamp(DeltaTime * InterpSpeed, 0.0f, 1.0f));
-	}
-}
 
 USpringArmComponent::USpringArmComponent()
 {
@@ -71,7 +53,7 @@ void USpringArmComponent::UpdateDesiredArmLocation(bool bDoTrace, bool bDoLocati
 	// 1. 팔 회전
 	FRotator DesiredRot = GetTargetRotation();
 	if (bDoRotationLag)
-		DesiredRot = QInterpTo(PreviousDesiredRot.Quaternion(), DesiredRot.Quaternion(), DeltaTime, CameraRotationLagSpeed).ToFRotator();
+		DesiredRot = FMath::RInterpTo(PreviousDesiredRot, DesiredRot, DeltaTime, CameraRotationLagSpeed);
 	PreviousDesiredRot = DesiredRot;
 
 	// 2. 피벗. Lag는 팔 끝이 아니라 피벗에 걸어 팔 길이·방향은 그대로 두고 따라오는 속도만 늦춘다
@@ -79,7 +61,7 @@ void USpringArmComponent::UpdateDesiredArmLocation(bool bDoTrace, bool bDoLocati
 	FVector DesiredLoc = ArmOrigin;
 	if (bDoLocationLag)
 	{
-		DesiredLoc = VInterpTo(PreviousDesiredLoc, ArmOrigin, DeltaTime, CameraLagSpeed);
+		DesiredLoc = FMath::VInterpTo(PreviousDesiredLoc, ArmOrigin, DeltaTime, CameraLagSpeed);
 		const FVector FromOrigin = DesiredLoc - ArmOrigin;
 		if (CameraLagMaxDistance > 0.0f && FromOrigin.SizeSquared() > CameraLagMaxDistance * CameraLagMaxDistance)
 			DesiredLoc = ArmOrigin + FromOrigin.GetClampedToMaxSize(CameraLagMaxDistance);

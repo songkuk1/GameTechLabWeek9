@@ -6,6 +6,8 @@
 #include "Math/Frustum.h"
 #include "Collision/Ray.h"
 #include "Asset/LOD/StaticMeshLODSelector.h"
+#include "Render/PostProcessSettings.h"
+#include "Math/Color.h"
 
 // 준비/렌더 호출의 값 스냅샷. 카메라 원본이나 World를 소유하지 않는다.
 struct FSceneView
@@ -23,6 +25,11 @@ struct FSceneView
     FMatrix ProjectionMatrix;
     FMatrix ViewProjection;
     FFrustumPlanes Frustum;
+    // PCM 에서 채우는 값
+    FPostProcessSettings PostProcessSettings;
+    FLinearColor OverlayColor = FLinearColor(0, 0, 0, 0);      // RGB = FadeColor, A = FadeAmount
+    float LetterBoxAspect = 2.35f;                             // 목표 비율
+    float LetterBoxAmount = 0.0f;                              // 0 = 띠 없음, 1 = 완전 띠 (PCM이 보간)
 
     bool IsOrthographic() const { return ProjectionSettings.Mode == EProjectionMode::Orthographic; }
     FVector GetCameraLocation() const { return CameraLocation; }

@@ -1,11 +1,8 @@
 #include "EnginePCH.h"
 #include "Script/LuaBindings.h"
-#include "Script/LuaReflection.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "GameFramework/PlayerController.h"
 #include "Component/ActorComponent.h"
-#include "PlayerCameraManager.h"
 #include "UObject/Casts.h"
 #include <sol/sol.hpp>
 
@@ -26,14 +23,6 @@ namespace
 			return nullptr;
 
 		return World;
-	}
-
-	// 0번 플레이어의 카메라 매니저. 화면은 0번 플레이어 시점으로 그린다.
-	APlayerCameraManager* FindCameraManagerForObject(UObject* Object)
-	{
-		UWorld* World = FindGameWorldForObject(Object);
-		APlayerController* Controller = World ? World->GetPlayerController(0) : nullptr;
-		return Controller ? Controller->GetCameraPlayerManager() : nullptr;
 	}
 }
 
@@ -69,37 +58,5 @@ void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner)
 		{
 			UWorld* World = FindGameWorldForObject(Owner);
 			return World ? World->GetTimeDilation() : 1.0f;
-		});
-}
-
-void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
-{
-	// CameraShake(Strength, Duration, Frequency = 20): 감쇠하는 사인파로 카메라를 흔든다. 여러 번 부르면 겹쳐서 흔들린다.
-	Env.set_function("CameraShake",
-		[Owner](float Strength, float Duration, sol::optional<float> Frequency)
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StartCameraShake(Strength, Duration, Frequency.value_or(20.0f));
-		});
-
-	Env.set_function("StopCameraShakes",
-		[Owner]()
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StopAllCameraShakes();
-		});
-
-	// SetViewTarget(Actor, BlendTime = 0): 화면이 Actor의 카메라 컴포넌트로 보게 한다. BlendTime > 0이면 그 시간 동안 섞으며 넘어간다
-	Env.set_function("SetViewTarget",
-		[Owner](sol::object TargetObject, sol::optional<float> BlendTime)
-		{
-			// 스크립트의 obj는 AActor*가 아니라 약한 참조 FLuaObjectRef로 넘어온다 (SpawnEffectAttached와 같은 방식)
-			AActor* Target = TargetObject.is<FLuaObjectRef>() ? Cast<AActor>(TargetObject.as<FLuaObjectRef>().Weak.Get()) : nullptr;
-			APlayerCameraManager* Manager = FindCameraManagerForObject(Owner);
-			if (!Manager || !Target)
-				return;
-			FViewTargetTransitionParams Params;
-			Params.BlendTime = BlendTime.value_or(0.0f);
-			Manager->SetViewTarget(Target, Params);
 		});
 }

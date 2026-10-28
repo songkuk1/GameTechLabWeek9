@@ -26,5 +26,6 @@ void RegisterLuaEffectAPI(sol::environment& Env, UObject* Owner);
 // 시간 배율 함수 등록 (HitStop, Slomo, SetTimeDilation, GetTimeDilation)
 void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner);
 
-// 카메라 연출 함수 등록 (CameraShake, StopCameraShakes, SetViewTarget)
+// 카메라 함수 등록 (CameraShake, StopCameraShakes, GetMainCamera, SetViewTarget, GetViewTarget, IsViewTargetBlending,
+// GetCameraLocation, GetCameraRotation, SpawnCamera, SpawnMeshActor, FindLookAtRotation, GetActorBounds, GetComponentBounds)
 void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner);

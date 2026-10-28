@@ -26,6 +26,8 @@ public:
 	void TravelToScene(const FString& ScenePath) override;
 	void QuitGame() override;
 
+	FSceneRenderSettings RenderSettings{};
+
 private:
 	UWorld* GameWorld = nullptr;
 	// Lua가 요청한 다음 씬. 월드 Tick 도중에 월드를 지울 수 없으므로 다음 프레임 시작에 바꾼다.

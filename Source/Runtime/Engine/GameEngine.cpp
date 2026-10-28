@@ -198,7 +198,7 @@ void UGameEngine::RenderViewports()
 	UWorld* ViewWorld = Client->GetWorld();
 	const FSceneView View = Viewport.CreateSceneView();
 	// 쉐도우 맵은 World의 첫 View를 그릴 때 준비되므로, 그 전에 그림자를 쓰는 View를 등록한다.
-	if (ScenePipeline.ViewSupportsShadows(View, FSceneRenderSettings{}))
+	if (ScenePipeline.ViewSupportsShadows(View, RenderSettings))
 		SceneRenderer.AddShadowView(*ViewWorld, View);
 	FSceneRenderData& Data = Viewport.GetSceneRenderData();
 	SceneRenderer.PrepareView(*ViewWorld, View, Data);
@@ -214,10 +214,8 @@ void UGameEngine::RenderViewports()
 
 void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FSceneView& View)
 {
-	const FSceneRenderSettings Settings{};   // TODO: 렌더 설정을 엔진 멤버로
-
 	// 그림자 자원 번호는 World 컨텍스트에 보관하고 처음 쓸 때 할당한다.
-	const bool bShadows = ScenePipeline.ViewSupportsShadows(View, Settings);
+	const bool bShadows = ScenePipeline.ViewSupportsShadows(View, RenderSettings);
 	uint32 ShadowResourceIndex = InvalidShadowResourceIndex;
 	if (bShadows)
 	{
@@ -231,9 +229,9 @@ void UGameEngine::RenderFrame(FViewport& InViewport, UWorld& ViewWorld, const FS
 
 	// 1. 그림자,라이팅,불투명,반투명 
 	FShadowFrameData DirectionalFrame;
-	ScenePipeline.RenderScene(InViewport, ViewWorld, View, SceneRenderer, ShadowResourceIndex, bShadows, Settings, DirectionalFrame);
+	ScenePipeline.RenderScene(InViewport, ViewWorld, View, SceneRenderer, ShadowResourceIndex, bShadows, RenderSettings, DirectionalFrame);
 	// 2. 후처리: Fog -> Gamma -> FXAA (표시용 sRGB)
-	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, Settings);
+	ScenePipeline.RenderPostProcess(InViewport, ViewWorld, View, RenderSettings);
 	// 3. HUD
 	ViewWorld.GetHUD().SetScreenSize(InViewport.GetOutputSize());
 	ScenePipeline.RenderHUD(InViewport, ViewWorld.GetHUD(), View);
