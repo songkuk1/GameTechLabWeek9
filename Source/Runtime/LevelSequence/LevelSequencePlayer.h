@@ -92,6 +92,10 @@ public:
 	TArray<AActor*> GetBoundActors(int32 BindingIndex) const;
 	static void FindActorsByTag(UWorld* World, const FString& Tag, TArray<AActor*>& OutActors);
 
+	// PropertyPath("Prop" 또는 "Component.Prop")가 가리키는 객체와 프로퍼티. 못 찾거나 타입이 다르면 false
+	// 에디터 Sequencer가 키를 찍을 때 지금 값을 읽는 데도 쓴다
+	static bool FindTargetProperty(AActor* Actor, const FString& PropertyPath, EPropertyType Type, UObject*& OutObject, const FProperty*& OutProperty);
+
 	// 끝까지 재생해 멈췄을 때 (Stop·Pause로는 불리지 않는다)
 	TMulticastDelegate<> OnFinished;
 
@@ -121,8 +125,6 @@ private:
 	// 시퀀스의 이펙트 프리셋을 월드의 EffectManager에 등록한다 (Play 때)
 	void RegisterEffects();
 
-	// PropertyPath("Prop" 또는 "Component.Prop")가 가리키는 객체와 프로퍼티. 못 찾거나 타입이 다르면 false
-	static bool FindTargetProperty(AActor* Actor, const FString& PropertyPath, EPropertyType Type, UObject*& OutObject, const FProperty*& OutProperty);
 
 	// 처음 건드리기 직전에 원래 값을 저장해 둔다 (UE의 Pre-Animated State)
 	void SavePreAnimatedTransform(USceneComponent* Component);
@@ -153,6 +155,7 @@ private:
 
 	ULevelSequence* Sequence = nullptr;
 	UWorld* World = nullptr;
+	uint32 WorldUUID = 0;
 	FMovieSceneSequencePlaybackSettings Settings;
 
 	float CurrentTime = 0.0f;

@@ -13,6 +13,7 @@
 #include "UObject/Property.h"
 
 #include "UObject/Function.h"
+#include "Serialization/TypeSerializer.h"
 #include "Engine/EffectManager.h"
 #include "Component/ParticleSubUVComponent.h"
 #include "Script/LuaScriptInstance.h"
@@ -25,62 +26,59 @@
 static bool JsonToScriptValue(const json& In, EPropertyType Type, FScriptValue& Out);
 static sol::object JsonToLua(sol::state_view Lua, const json& In);
 
-// Lua RegisterEffect와 같은 키를 읽는다. 벡터는 [x, y, z]. 모르는 키는 경고만 한다
-static bool JsonToEffectDesc(const json& In, FEffectDesc& Desc)
+// TypeSerializer의 from_json은 모양을 검사하지 않으므로, 숫자 Count개짜리 배열인지 먼저 본다
+static bool IsNumberArray(const json& In, size_t Count)
+{
+	if (!In.is_array() || In.size() != Count)
+		return false;
+	for (const json& Element : In)
+	{
+		if (!Element.is_number())
+			return false;
+	}
+	return true;
+}
+
+// 시퀀스 Effects 프리셋 값 하나. 키 → 필드 규칙은 ApplyEffectDescField가 Lua RegisterEffect와 같이 쓴다. 벡터는 [x, y, z]
+struct FJsonEffectValue : IEffectValueReader
+{
+	explicit FJsonEffectValue(const json& InValue) : Value(InValue) {}
+	bool ReadNumber(float& Out) const override { if (!Value.is_number()) return false; Out = Value.get<float>(); return true; }
+	bool ReadBool(bool& Out) const override { if (!Value.is_boolean()) return false; Out = Value.get<bool>(); return true; }
+	bool ReadString(FString& Out) const override { if (!Value.is_string()) return false; Out = Value.get<FString>(); return true; }
+	bool ReadVector(FVector& Out) const override { if (!IsNumberArray(Value, 3)) return false; Out = Value.get<FVector>(); return true; }
+	const json& Value;
+};
+
+// 모르는 키는 경고만 하고, 값이 틀리면 그 프리셋을 버린다
+static bool JsonToEffectDesc(const FString& Name, const json& In, FEffectDesc& Desc)
 {
 	if (!In.is_object())
 		return false;
 
-	const auto ReadVector = [](const json& V, FVector& Out)
+	for (const auto& [Key, Value] : In.items())
 	{
-		if (!V.is_array() || V.size() != 3)
-			return false;
-		Out = FVector(V[0].get<float>(), V[1].get<float>(), V[2].get<float>());
-		return true;
-	};
-
-	// 타입이 다른 값은 json::get이 예외를 던진다. 잘못된 프리셋 하나 때문에 게임이 멈추지 않게 받아서 실패로 돌린다
-	try
-	{
-		for (const auto& [Key, Value] : In.items())
+		FString Error;
+		bool bUnknownKey = false;
+		if (ApplyEffectDescField(Desc, Key, FJsonEffectValue(Value), Error, bUnknownKey))
+			continue;
+		if (bUnknownKey)
 		{
-			bool bOk = true;
-			if (Key == "TexturePath")             { bOk = Value.is_string(); if (bOk) Desc.TexturePath = Value.get<FString>(); }
-			else if (Key == "Cols")               Desc.Cols = Value.get<uint32>();
-			else if (Key == "Rows")               Desc.Rows = Value.get<uint32>();
-			else if (Key == "FrameCount")         Desc.FrameCount = Value.get<uint32>();
-			else if (Key == "FrameRate")          Desc.FrameRate = Value.get<float>();
-			else if (Key == "bRandomStartFrame")  Desc.bRandomStartFrame = Value.get<bool>();
-			else if (Key == "ParticleCount")      Desc.ParticleCount = Value.get<int32>();
-			else if (Key == "MinLifeTime")        Desc.MinLifeTime = Value.get<float>();
-			else if (Key == "MaxLifeTime")        Desc.MaxLifeTime = Value.get<float>();
-			else if (Key == "MinVelocity")        bOk = ReadVector(Value, Desc.MinVelocity);
-			else if (Key == "MaxVelocity")        bOk = ReadVector(Value, Desc.MaxVelocity);
-			else if (Key == "Acceleration")       bOk = ReadVector(Value, Desc.Acceleration);
-			else if (Key == "StartScale")         Desc.StartScale = Value.get<float>();
-			else if (Key == "EndScale")           Desc.EndScale = Value.get<float>();
-			else if (Key == "FadeStart")          Desc.FadeStart = Value.get<float>();
-			else if (Key == "bBurst")             Desc.bBurst = Value.get<bool>();
-			else HTR_LOG(Warning, "LevelSequence: effect key '{}' ignored", Key);
-
-			if (!bOk)
-				return false;
+			HTR_LOG(Warning, "LevelSequence: effect '{}': unknown key '{}' ignored", Name, Key);
+			continue;
 		}
-	}
-	catch (const json::exception&)
-	{
+		HTR_LOG(Warning, "LevelSequence: effect '{}': {}", Name, Error);
 		return false;
 	}
 	return !Desc.TexturePath.empty();
 }
 
+// 모르는 이름이면 Cubic (Lua SetViewTarget의 기본값과 같다)
 static EViewTargetBlendFunction ParseBlendFunction(const FString& Name)
 {
-	if (Name == "Linear")    return EViewTargetBlendFunction::Linear;
-	if (Name == "EaseIn")    return EViewTargetBlendFunction::EaseIn;
-	if (Name == "EaseOut")   return EViewTargetBlendFunction::EaseOut;
-	if (Name == "EaseInOut") return EViewTargetBlendFunction::EaseInOut;
-	return EViewTargetBlendFunction::Cubic;
+	EViewTargetBlendFunction Function = EViewTargetBlendFunction::Cubic;
+	TryParseViewTargetBlendFunction(Name, Function);
+	return Function;
 }
 
 ULevelSequencePlayer::~ULevelSequencePlayer()
@@ -88,7 +86,8 @@ ULevelSequencePlayer::~ULevelSequencePlayer()
 	// 여기서는 액터를 Destroy 하지 않는다. 월드를 비울 때(ClearActors) 액터 배열을 도는 중에 불릴 수 있어서다.
 	// 정리가 필요하면 지우기 전에 Stop을 부른다 (ALevelSequenceActor는 EndPlay에서 부른다).
 	// 남은 스폰 액터는 RF_Transient라 씬에 저장되지 않고, 월드와 함께 지워진다.
-	if (World)
+	// 엔진 종료 때는 월드가 먼저 지워졌을 수 있으므로 살아 있을 때만 등록을 푼다.
+	if (World && FindObjectByUUID(WorldUUID) == World)
 		World->UnregisterSequencePlayer(this);
 }
 
@@ -125,6 +124,7 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InSequence, UWorld* InWorl
 
 	Sequence = InSequence;
 	World = InWorld;
+	WorldUUID = World ? World->GetUUID() : 0;
 	Settings = InSettings;
 	CurrentTime = Settings.StartTime;
 	LoopsDone = 0;
@@ -235,7 +235,7 @@ void ULevelSequencePlayer::RegisterEffects()
 	for (const auto& [Name, DescJson] : Sequence->Effects.items())
 	{
 		FEffectDesc Desc;
-		if (!JsonToEffectDesc(DescJson, Desc))
+		if (!JsonToEffectDesc(Name, DescJson, Desc))
 		{
 			HTR_LOG(Warning, "LevelSequence: effect '{}' is invalid, skipped", Name);
 			continue;
@@ -396,20 +396,6 @@ void ULevelSequencePlayer::TriggerEvent(AActor* Actor, const FSequenceEventKey& 
 
 static bool JsonToScriptValue(const json& In, EPropertyType Type, FScriptValue& Out)
 {
-	const auto ReadFloats = [&In](int32 Count, float* OutValues)
-	{
-		if (!In.is_array() || static_cast<int32>(In.size()) != Count)
-			return false;
-		for (int32 i = 0; i < Count; ++i)
-		{
-			if (!In[i].is_number())
-				return false;
-			OutValues[i] = In[i].get<float>();
-		}
-		return true;
-	};
-
-	float V[4] = {};
 	switch (Type)
 	{
 	case EPropertyType::Float:
@@ -433,20 +419,20 @@ static bool JsonToScriptValue(const json& In, EPropertyType Type, FScriptValue& 
 		Out = FScriptValue(std::in_place_type<FName>, FName(In.get<FString>()));
 		return true;
 	case EPropertyType::Vector:
-		if (!ReadFloats(3, V)) return false;
-		Out = FScriptValue(std::in_place_type<FVector>, FVector(V[0], V[1], V[2]));
+		if (!IsNumberArray(In, 3)) return false;
+		Out = FScriptValue(std::in_place_type<FVector>, In.get<FVector>());
 		return true;
 	case EPropertyType::Rotator:
-		if (!ReadFloats(3, V)) return false;
-		Out = FScriptValue(std::in_place_type<FRotator>, FRotator(V[0], V[1], V[2]));
+		if (!IsNumberArray(In, 3)) return false;
+		Out = FScriptValue(std::in_place_type<FRotator>, In.get<FRotator>());
 		return true;
 	case EPropertyType::Vector4:
-		if (!ReadFloats(4, V)) return false;
-		Out = FScriptValue(std::in_place_type<FVector4>, FVector4(V[0], V[1], V[2], V[3]));
+		if (!IsNumberArray(In, 4)) return false;
+		Out = FScriptValue(std::in_place_type<FVector4>, In.get<FVector4>());
 		return true;
 	case EPropertyType::LinearColor:
-		if (!ReadFloats(4, V)) return false;
-		Out = FScriptValue(std::in_place_type<FLinearColor>, FLinearColor(V[0], V[1], V[2], V[3]));
+		if (!IsNumberArray(In, 4)) return false;
+		Out = FScriptValue(std::in_place_type<FLinearColor>, In.get<FLinearColor>());
 		return true;
 	default:
 		return false;
@@ -462,8 +448,8 @@ static sol::object JsonToLua(sol::state_view Lua, const json& In)
 	if (In.is_string())
 		return sol::make_object(Lua, In.get<FString>());
 	// 숫자 3개짜리 배열은 FVector로 넘긴다
-	if (In.is_array() && In.size() == 3 && In[0].is_number() && In[1].is_number() && In[2].is_number())
-		return sol::make_object(Lua, FVector(In[0].get<float>(), In[1].get<float>(), In[2].get<float>()));
+	if (IsNumberArray(In, 3))
+		return sol::make_object(Lua, In.get<FVector>());
 	return sol::make_object(Lua, sol::lua_nil);
 }
 

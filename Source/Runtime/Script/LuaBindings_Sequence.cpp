@@ -8,25 +8,6 @@
 #include "UObject/Casts.h"
 #include <sol/sol.hpp>
 
-namespace
-{
-	// 스크립트 주인의 게임 월드. 게임 월드가 아니면 nullptr (FindEffectManagerForObject와 같은 규칙)
-	UWorld* FindGameWorldForObject(UObject* Object)
-	{
-		AActor* Actor = Cast<AActor>(Object);
-		if (!Actor)
-		{
-			if (UActorComponent* Component = Cast<UActorComponent>(Object))
-				Actor = Component->GetOwner();
-		}
-
-		UWorld* World = Actor ? Actor->GetWorld() : nullptr;
-		if (!World || !World->IsGameWorld())
-			return nullptr;
-		return World;
-	}
-}
-
 void RegisterLuaSequenceAPI(sol::environment& Env, UObject* Owner)
 {
 	// local Seq = PlaySequence(Path, [Options]) → 시퀀스를 띄워 바로 재생한다. 씬에 저장되지 않는다

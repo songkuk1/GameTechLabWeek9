@@ -4,13 +4,25 @@
 #include "Engine/World.h"
 #include "Audio/AudioManager.h"
 
+namespace
+{
+	// 엔진 종료 때 FEngineLoop가 모든 UObject를 배열 끝(나중에 만든 것)부터 지운다.
+	// 그러면 이 액터가 BeginPlay에서 만든 플레이어·에셋이 액터보다 먼저 지워질 수 있으므로,
+	// 아직 살아 있을 때만 지운다 (UUID 맵에서 같은 객체를 찾으면 살아 있다).
+	void DeleteIfAlive(UObject* Object, uint32 ObjectUUID)
+	{
+		if (Object && FindObjectByUUID(ObjectUUID) == Object)
+			delete Object;
+	}
+}
+
 ALevelSequenceActor::~ALevelSequenceActor()
 {
-	delete SequencePlayer;
+	DeleteIfAlive(SequencePlayer, SequencePlayerUUID);
 	SequencePlayer = nullptr;
 
 	if (bOwnsSequence)
-		delete Sequence;
+		DeleteIfAlive(Sequence, SequenceUUID);
 	Sequence = nullptr;
 }
 
@@ -74,6 +86,7 @@ bool ALevelSequenceActor::LoadSequenceFromPath()
 
 	Sequence = ULevelSequence::LoadFromFile(SequencePath);
 	bOwnsSequence = Sequence != nullptr;
+	SequenceUUID = Sequence ? Sequence->GetUUID() : 0;
 	if (!Sequence)
 		HTR_LOG(Warning, "LevelSequenceActor '{}': failed to load '{}'", GetName(), SequencePath);
 	return Sequence != nullptr;
@@ -108,8 +121,9 @@ void ALevelSequenceActor::SetSequence(ULevelSequence* InSequence)
 		return;
 
 	if (bOwnsSequence)
-		delete Sequence;
+		DeleteIfAlive(Sequence, SequenceUUID);
 	Sequence = InSequence;
+	SequenceUUID = Sequence ? Sequence->GetUUID() : 0;
 	bOwnsSequence = false;
 
 	InitializePlayer();
@@ -120,6 +134,7 @@ void ALevelSequenceActor::InitializePlayer()
 	if (!SequencePlayer)
 	{
 		SequencePlayer = NewObject<ULevelSequencePlayer>(this);
+		SequencePlayerUUID = SequencePlayer->GetUUID();
 		// 플레이어는 이 액터가 소유하므로 구독을 따로 풀 필요가 없다
 		SequencePlayer->OnFinished.AddDynamic(this, &ALevelSequenceActor::HandleSequenceFinished);
 	}

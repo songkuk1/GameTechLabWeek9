@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "MovieSceneTypes.h"
+#include "Math/Interp.h"
 
 #include <algorithm>
 
@@ -52,17 +53,12 @@ float FSequenceChannel::Evaluate(float Time, bool bStep) const
 
 	const float Alpha = (Time - Key0.Time) / Duration;
 	if (Key0.Interp == ESequenceInterp::Linear)
-		return Key0.Value + (Key1.Value - Key0.Value) * Alpha;
+		return FMath::Lerp(Key0.Value, Key1.Value, Alpha);
 
-	// Cubic Hermite: 두 키의 값과 기울기로 3차 곡선을 만든다
+	// Cubic Hermite: 두 키의 값과 기울기로 3차 곡선을 만든다. 기울기는 초당 값이라 구간 길이를 곱해 0~1 구간 단위로 바꾼다
 	const float Tangent0 = GetAutoTangent(Keys, Index0) * Duration;
 	const float Tangent1 = GetAutoTangent(Keys, Index1) * Duration;
-	const float A2 = Alpha * Alpha;
-	const float A3 = A2 * Alpha;
-	return (2.0f * A3 - 3.0f * A2 + 1.0f) * Key0.Value
-		+ (A3 - 2.0f * A2 + Alpha) * Tangent0
-		+ (-2.0f * A3 + 3.0f * A2) * Key1.Value
-		+ (A3 - A2) * Tangent1;
+	return FMath::CubicInterp(Key0.Value, Tangent0, Key1.Value, Tangent1, Alpha);
 }
 
 int32 FSequenceChannel::AddKey(float Time, float Value, ESequenceInterp Interp)

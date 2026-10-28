@@ -44,9 +44,11 @@ public:
 	// 시네 카메라로 넘어갈 때 / 이전 ViewTarget으로 돌아갈 때 섞는 시간(초). 0이면 바로 전환한다.
 	float CameraBlendInTime = 0.0f;
 	float CameraBlendOutTime = 0.0f;
+
 	// 블렌드 곡선: Linear, Cubic, EaseIn, EaseOut, EaseInOut (Lua SetViewTarget과 같은 이름). Exp는 Ease 계열의 강도
 	FString CameraBlendFunction = "Cubic";
 	float CameraBlendExp = 2.0f;
+
 	// 시네 카메라를 쓰는 마지막 시간. 지나면 이전 ViewTarget으로 블렌드한다 (UE Camera Cut 섹션의 끝).
 	// 0보다 작으면 시퀀스가 끝날 때까지 쓴다.
 	float CineCameraEndTime = -1.0f;

@@ -86,10 +86,13 @@ private:
 	void HandleSequenceFinished();
 
 	ULevelSequence* Sequence = nullptr;
+	uint32 SequenceUUID = 0;
 	// SequencePath로 직접 읽은 에셋이면 소멸할 때 지운다
 	bool bOwnsSequence = false;
 
 	ULevelSequencePlayer* SequencePlayer = nullptr;
+	// 소멸자에서 아직 살아 있는지 확인하는 데 쓴다 (엔진 종료 때 먼저 지워질 수 있다)
+	uint32 SequencePlayerUUID = 0;
 
 	// PlaySound로 튼 소리. 경로 → FAudioManager 재생 Id
 	TMap<FString, uint32> PlayingSounds;
