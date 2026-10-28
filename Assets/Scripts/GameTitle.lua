@@ -33,8 +33,8 @@ local CloseSize = 90        -- 창 오른쪽 위 X 버튼 크기
 -- CloseTop: 테두리 상자 윗변(이미지 위에서 23%)보다 조금 아래, PAUSE 팝업과 같은 방식
 local HowToPopup = { Path = "Assets/UI/Popup/HOWTO_POPUP.png", Aspect = 2462 / 2270, Height = 820, CloseTop = 0.26 }
 
--- 크레딧 화면. 이미지 아래쪽 약 11%는 빈 띠라서 그림 부분(ContentBottom 위)이 화면을 덮도록 키운다
-local CreditScene = { Path = "Assets/UI/Backgrounds/CREDIT_SCENE.png", Aspect = 4406 / 2784, ContentBottom = 0.886 }
+-- 크레딧 화면. 빈 띠 없이 꽉 찬 그림이라 이미지 전체(ContentBottom = 1)가 화면을 덮도록 키운다
+local CreditScene = { Path = "Assets/UI/Backgrounds/CREDIT_SCENE.png", Aspect = 3428 / 1935, ContentBottom = 1.0 }
 local CreditCloseMargin = 40   -- 화면 오른쪽 위 모서리에서 X 버튼까지
 
 local DimColor = FLinearColor(0, 0, 0, 0.75)
