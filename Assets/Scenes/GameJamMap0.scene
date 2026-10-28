@@ -1680,6 +1680,7 @@
                         }
                     ],
                     "Properties": {
+                        "BindingTag": "IntroVolcano",
                         "ScriptPath": "Assets/Scripts/CameraIntro.lua"
                     }
                 },

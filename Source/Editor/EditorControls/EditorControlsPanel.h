@@ -12,6 +12,7 @@
 #include "GameFramework/Actor/PointLightActor.h"
 #include "GameFramework/Actor/SpotLightActor.h"
 #include "GameFramework/Actor/CollisionTestActor.h"
+#include "LevelSequence/LevelSequenceActor.h"
 
 class FViewportsPanel;
 
@@ -34,8 +35,8 @@ public:
 
 	int32 SelectedIndex = 0;
 
-	const char* Items[10] ={"Actor", "StaticMesh","Particle","Text","ExponentialHeightFog",
-		"AmbientLight","DirectionalLight","PointLight","SpotLight","CollisionTest"};
+	const char* Items[11] ={"Actor", "StaticMesh","Particle","Text","ExponentialHeightFog",
+		"AmbientLight","DirectionalLight","PointLight","SpotLight","CollisionTest","LevelSequence"};
 
 	FGizmo* Gizmo = nullptr;
 	int32 GizmoSelectedIndex = 0;
@@ -55,7 +56,8 @@ public:
 		ADirectionalLightActor::StaticClass(),
 		APointLightActor::StaticClass(),
 		ASpotLightActor::StaticClass(),
-		ACollisionTestActor::StaticClass()
+		ACollisionTestActor::StaticClass(),
+		ALevelSequenceActor::StaticClass()
 	};
 
     void SetViewportsPanel(FViewportsPanel* InPanel) { ViewportsPanel = InPanel; }

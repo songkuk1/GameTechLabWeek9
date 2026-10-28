@@ -20,6 +20,9 @@ enum class EViewTargetBlendFunction : uint8
 	EaseInOut,
 };
 
+// "Linear", "Cubic", "EaseIn", "EaseOut", "EaseInOut" → enum. 모르는 이름이면 false (Lua SetViewTarget, 레벨 시퀀스가 같이 쓴다)
+bool TryParseViewTargetBlendFunction(const FString& Name, EViewTargetBlendFunction& OutFunction);
+
 struct FViewTarget
 {
 	FViewTarget() = default;

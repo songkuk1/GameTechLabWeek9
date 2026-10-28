@@ -10,6 +10,58 @@
 
 namespace
 {
+	struct FFileDialogOptions
+	{
+		const char* Filter = nullptr;        // "Name (*.ext)\0*.ext\0..."
+		const char* DefaultExt = nullptr;
+		FString InitialDir;                  // 비어 있으면 시스템이 정한다
+		bool bSave = false;                  // 저장 대화상자 (덮어쓰기 확인)
+		bool bOwnedByActiveWindow = false;   // 활성 창을 부모로 두어 그 위에 뜨게 한다
+		bool bProjectRelative = false;       // 작업 디렉터리(저장소 루트) 기준 상대 경로로 돌려준다
+	};
+
+	// Windows 열기·저장 대화상자. 취소하면 빈 문자열
+	FString ShowFileDialog(const FFileDialogOptions& Options)
+	{
+		char FilePath[MAX_PATH] = {};
+
+		OPENFILENAMEA ofn = {};
+		ofn.lStructSize = sizeof(OPENFILENAMEA);
+		ofn.hwndOwner = Options.bOwnedByActiveWindow ? GetActiveWindow() : nullptr;
+		ofn.lpstrFile = FilePath;
+		ofn.nMaxFile = MAX_PATH;
+		ofn.lpstrFilter = Options.Filter;
+		ofn.lpstrDefExt = Options.DefaultExt;
+		ofn.lpstrInitialDir = Options.InitialDir.empty() ? nullptr : Options.InitialDir.c_str();
+		ofn.Flags = OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | (Options.bSave ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+
+		const BOOL bOk = Options.bSave ? GetSaveFileNameA(&ofn) : GetOpenFileNameA(&ofn);
+		if (!bOk)
+			return FString();
+		if (!Options.bProjectRelative)
+			return FString(FilePath);
+
+		// 씬·시퀀스 파일에 절대 경로가 남으면 다른 PC에서 열 수 없으므로 작업 디렉터리(저장소 루트) 기준으로 바꾼다
+		std::error_code Ec;
+		const std::filesystem::path Relative = std::filesystem::relative(FilePath, std::filesystem::current_path(), Ec);
+		if (Ec || Relative.empty())
+			return FString(FilePath);
+		return Relative.generic_string();
+	}
+
+	// 저장소 루트 아래 폴더. 없으면 bCreate일 때 만들고, 그래도 없으면 빈 문자열
+	FString ProjectFolder(const std::filesystem::path& SubPath, bool bCreate)
+	{
+		const std::filesystem::path Folder = std::filesystem::current_path() / SubPath;
+		std::error_code Ec;
+		if (bCreate)
+			std::filesystem::create_directories(Folder, Ec);
+		return std::filesystem::is_directory(Folder, Ec) ? Folder.string() : FString();
+	}
+}
+
+namespace
+{
 	// 콘솔 창 없이 프로그램을 실행하고 표준 출력을 받아 온다
 	std::string RunAndCaptureOutput(std::wstring CommandLine)
 	{
@@ -203,98 +255,50 @@ bool FEditorFileUtils::LoadScene(UWorld* World)
 
 FString FEditorFileUtils::OpenSaveSceneDialog()
 {
-	char FilePath[MAX_PATH] = {};
-
-	OPENFILENAMEA ofn = {};
-	ofn.lStructSize = sizeof(OPENFILENAMEA);
-	ofn.hwndOwner = nullptr;
-	ofn.lpstrFile = FilePath;
-	ofn.nMaxFile = MAX_PATH;
-
-	ofn.lpstrFilter = "Scene Files (*.scene)\0*.scene\0";
-	ofn.lpstrDefExt = "scene";
-	ofn.lpstrInitialDir = "Scene/";
-
-	ofn.Flags =
-		OFN_PATHMUSTEXIST |
-		OFN_OVERWRITEPROMPT |
-		OFN_NOCHANGEDIR;
-
-	if (GetSaveFileNameA(&ofn))
-	{
-		return FString(FilePath);
-	}
-
-	return FString();
+	FFileDialogOptions Options;
+	Options.Filter = "Scene Files (*.scene)\0*.scene\0";
+	Options.DefaultExt = "scene";
+	Options.InitialDir = "Scene/";
+	Options.bSave = true;
+	return ShowFileDialog(Options);
 }
 
 FString FEditorFileUtils::OpenLoadSceneDialog()
 {
-	char FilePath[MAX_PATH] = {};
-
-	OPENFILENAMEA ofn = {};
-	ofn.lStructSize = sizeof(OPENFILENAMEA);
-	ofn.hwndOwner = nullptr;
-
-	ofn.lpstrFile = FilePath;
-	ofn.nMaxFile = MAX_PATH;
-
-	ofn.lpstrFilter =
+	FFileDialogOptions Options;
+	Options.Filter =
 		"Scene Files (*.scene)\0*.scene\0"
 		"All Files (*.*)\0*.*\0";
-
-	ofn.lpstrDefExt = "scene";
-	ofn.lpstrInitialDir = "Scene/";
-
-	ofn.Flags =
-		OFN_FILEMUSTEXIST |
-		OFN_PATHMUSTEXIST |
-		OFN_NOCHANGEDIR;
-
-	if (GetOpenFileNameA(&ofn))
-	{
-		return FString(FilePath);
-	}
-
-	return FString();
+	Options.DefaultExt = "scene";
+	Options.InitialDir = "Scene/";
+	return ShowFileDialog(Options);
 }
 
 FString FEditorFileUtils::OpenScriptFileDialog()
 {
-	char FilePath[MAX_PATH] = {};
-
-	const std::filesystem::path Root = std::filesystem::current_path();
-	const FString InitialDir = (Root / "Assets" / "Scripts").string();
-
-	OPENFILENAMEA ofn = {};
-	ofn.lStructSize = sizeof(OPENFILENAMEA);
-	ofn.hwndOwner = GetActiveWindow();
-
-	ofn.lpstrFile = FilePath;
-	ofn.nMaxFile = MAX_PATH;
-
-	ofn.lpstrFilter =
+	FFileDialogOptions Options;
+	Options.Filter =
 		"Lua Scripts (*.lua)\0*.lua\0"
 		"All Files (*.*)\0*.*\0";
+	Options.DefaultExt = "lua";
+	Options.InitialDir = ProjectFolder(std::filesystem::path("Assets") / "Scripts", false);
+	Options.bOwnedByActiveWindow = true;
+	Options.bProjectRelative = true;
+	return ShowFileDialog(Options);
+}
 
-	ofn.lpstrDefExt = "lua";
-	ofn.lpstrInitialDir = std::filesystem::is_directory(InitialDir) ? InitialDir.c_str() : nullptr;
-
-	ofn.Flags =
-		OFN_FILEMUSTEXIST |
-		OFN_PATHMUSTEXIST |
-		OFN_NOCHANGEDIR;
-
-	if (!GetOpenFileNameA(&ofn))
-		return FString();
-
-	// 씬 파일에 절대 경로가 남으면 다른 PC에서 열 수 없으므로 작업 디렉터리(저장소 루트) 기준으로 바꾼다.
-	std::error_code Ec;
-	std::filesystem::path Relative = std::filesystem::relative(FilePath, Root, Ec);
-	if (Ec || Relative.empty())
-		return FString(FilePath);
-
-	return Relative.generic_string();
+FString FEditorFileUtils::OpenSequenceFileDialog(bool bSave)
+{
+	FFileDialogOptions Options;
+	Options.Filter =
+		"Level Sequences (*.sequence)\0*.sequence\0"
+		"All Files (*.*)\0*.*\0";
+	Options.DefaultExt = "sequence";
+	Options.InitialDir = ProjectFolder(std::filesystem::path("Assets") / "Sequences", true);
+	Options.bSave = bSave;
+	Options.bOwnedByActiveWindow = true;
+	Options.bProjectRelative = true;
+	return ShowFileDialog(Options);
 }
 
 FString FEditorFileUtils::CreateScriptFile(UObject* Owner)

@@ -15,6 +15,20 @@ class UWorld;
 class AActor;
 
 // SpawnEffect가 돌려주는 핸들. 슬롯이 반환·재사용되면 Generation이 달라져 옛 핸들은 무시된다.
+// 이펙트 프리셋 값 하나를 읽는 쪽 (Lua 테이블, 시퀀스 JSON). 타입이 맞지 않으면 false
+struct IEffectValueReader
+{
+	virtual ~IEffectValueReader() = default;
+	virtual bool ReadNumber(float& Out) const = 0;
+	virtual bool ReadBool(bool& Out) const = 0;
+	virtual bool ReadString(FString& Out) const = 0;
+	virtual bool ReadVector(FVector& Out) const = 0;
+};
+
+// 프리셋 키 하나를 FEffectDesc 필드에 넣는다. 키 이름은 C++ 필드 이름과 같다 (Lua RegisterEffect와 시퀀스 Effects가 같이 쓴다).
+// 실패하면 false: 모르는 키면 bOutUnknownKey, 값이 틀리면 OutError에 "{키}는 숫자여야 합니다" 같은 이유를 남긴다.
+bool ApplyEffectDescField(FEffectDesc& Desc, const FString& Key, const IEffectValueReader& Value, FString& OutError, bool& bOutUnknownKey);
+
 struct FEffectHandle
 {
 	int32 Index = -1;

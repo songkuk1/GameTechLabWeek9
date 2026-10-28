@@ -83,30 +83,37 @@ void ULevel::Serialize(FStructuredArchive::FRecord Record)
 	FStructuredArchive::FArray ActorArray = Record.EnterArray("Actors", Num);
 	for (int32 i = 0; i < Num; ++i)
 	{
-		FStructuredArchive::FRecord ActorRecord = ActorArray.EnterElement().EnterRecord();
-
-		FString ClassName;
-		ActorRecord << SA_VALUE("Class", ClassName);
-
-		UClass* Class = FindClass(ClassName);
-		if (!Class || !Class->IsChildOf(AActor::StaticClass()))
-		{
-			HTR_LOG(Warning, "Load: unknown actor class '{}', skipped", ClassName);
-			continue;
-		}
-
-		if (AActor* Actor = OwningWorld->SpawnActor(Class))
-		{
-			Actor->Serialize(ActorRecord);
-
-			// SpawnActor가 기본값으로 등록한 Fog·Light를 방금 읽은 값으로 갱신한다.
-			for (UActorComponent* Component : Actor->GetComponents())
-			{
-				if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))
-					OwningWorld->GetScene().UpdateFogInfo(Fog->GetUUID(), Fog->GetFogInfo());
-				else if (ULightComponentBase* Light = Cast<ULightComponentBase>(Component))
-					Light->MarkSceneProxyDirty();
-			}
-		}
+		SpawnActorFromRecord(ActorArray.EnterElement().EnterRecord());
 	}
+}
+
+AActor* ULevel::SpawnActorFromRecord(FStructuredArchive::FRecord ActorRecord)
+{
+	assert(OwningWorld);
+
+	FString ClassName;
+	ActorRecord << SA_VALUE("Class", ClassName);
+
+	UClass* Class = FindClass(ClassName);
+	if (!Class || !Class->IsChildOf(AActor::StaticClass()))
+	{
+		HTR_LOG(Warning, "Load: unknown actor class '{}', skipped", ClassName);
+		return nullptr;
+	}
+
+	AActor* Actor = OwningWorld->SpawnActor(Class);
+	if (!Actor)
+		return nullptr;
+
+	Actor->Serialize(ActorRecord);
+
+	// SpawnActor가 기본값으로 등록한 Fog·Light를 방금 읽은 값으로 갱신한다.
+	for (UActorComponent* Component : Actor->GetComponents())
+	{
+		if (UExponentialHeightFogComponent* Fog = Cast<UExponentialHeightFogComponent>(Component))
+			OwningWorld->GetScene().UpdateFogInfo(Fog->GetUUID(), Fog->GetFogInfo());
+		else if (ULightComponentBase* Light = Cast<ULightComponentBase>(Component))
+			Light->MarkSceneProxyDirty();
+	}
+	return Actor;
 }

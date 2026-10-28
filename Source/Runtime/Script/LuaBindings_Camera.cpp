@@ -17,22 +17,6 @@
 
 namespace
 {
-	// 스크립트 주인의 게임 월드. 게임 월드가 아니면 nullptr
-	UWorld* FindGameWorldForObject(UObject* Object)
-	{
-		AActor* Actor = Cast<AActor>(Object);
-		if (!Actor)
-		{
-			if (UActorComponent* Component = Cast<UActorComponent>(Object))
-				Actor = Component->GetOwner();
-		}
-
-		UWorld* World = Actor ? Actor->GetWorld() : nullptr;
-		if (!World || !World->IsGameWorld())
-			return nullptr;
-		return World;
-	}
-
 	APlayerCameraManager* FindCameraManager(UObject* Owner, int32 PlayerIndex)
 	{
 		UWorld* World = FindGameWorldForObject(Owner);
@@ -51,12 +35,10 @@ namespace
 
 	EViewTargetBlendFunction ToBlendFunction(const std::string& Name)
 	{
-		if (Name == "Linear")    return EViewTargetBlendFunction::Linear;
-		if (Name == "Cubic")     return EViewTargetBlendFunction::Cubic;
-		if (Name == "EaseIn")    return EViewTargetBlendFunction::EaseIn;
-		if (Name == "EaseOut")   return EViewTargetBlendFunction::EaseOut;
-		if (Name == "EaseInOut") return EViewTargetBlendFunction::EaseInOut;
-		throw sol::error(std::format("SetViewTarget: 블렌드 함수는 Linear, Cubic, EaseIn, EaseOut, EaseInOut 중 하나입니다 ('{}')", Name));
+		EViewTargetBlendFunction Function;
+		if (!TryParseViewTargetBlendFunction(Name, Function))
+			throw sol::error(std::format("SetViewTarget: 블렌드 함수는 Linear, Cubic, EaseIn, EaseOut, EaseInOut 중 하나입니다 ('{}')", Name));
+		return Function;
 	}
 
 	// From에서 To를 바라보는 회전. Pitch·Yaw 부호 규칙을 가정하지 않고, 실제 Forward가 방향과 가장 잘 맞는 조합을 고른다
