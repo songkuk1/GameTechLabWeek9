@@ -87,6 +87,16 @@ void APlayerCameraManager::UpdateCamera(float DeltaTime)
 	// ViewTarget마다 적용하면 블렌드 중에 쉐이크 시간이 두 번 흐른다
 	ApplyCameraModifiers(DeltaTime, NewPOV);
 
+	if (bEnableFading && bAutoAnimateFade)
+	{
+		FadeTimeRemaining = FMath::Max(FadeTimeRemaining - DeltaTime, 0.0f);
+		if (FadeTime > 0.0f)
+			FadeAmount = FadeAlpha.X + ((1.0f - FadeTimeRemaining / FadeTime) * (FadeAlpha.Y - FadeAlpha.X));
+
+		if (!bHoldFadeWhenFinished && FadeTimeRemaining <= 0.0f)
+			StopCameraFade();
+	}
+
 	FillCameraCache(NewPOV);
 }
 
@@ -236,4 +246,31 @@ float APlayerCameraManager::GetBlendAlpha(float T) const
 	return T;
 }
 
+void APlayerCameraManager::StartCameraFade(float FromAlpha, float ToAlpha, float InFadeTime, FLinearColor InFadeColor, bool bInHoldWhenFinished)
+{
+	bEnableFading = true;
+	FadeColor = InFadeColor;
+	FadeAlpha = FVector2(FromAlpha, ToAlpha);
+	FadeTime = InFadeTime;
+	FadeTimeRemaining = InFadeTime;
+	bAutoAnimateFade = true;
+	bHoldFadeWhenFinished = bInHoldWhenFinished;
+}
 
+void APlayerCameraManager::StopCameraFade()
+{
+	if (bEnableFading)
+	{
+		FadeAmount = FadeAlpha.Y;
+		bEnableFading = false;
+	}
+}
+
+void APlayerCameraManager::SetManualCameraFade(float InFadeAmount, FLinearColor InFadeColor)
+{
+	bEnableFading = true;
+	FadeColor = InFadeColor;
+	FadeAmount = InFadeAmount;
+	bAutoAnimateFade = false;
+	FadeTimeRemaining = 0.0f;
+}
