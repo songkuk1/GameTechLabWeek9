@@ -349,10 +349,28 @@ bool FObjImporter::ParseObj(const FString& Path, FObjInfo& Out)
 		}
 		else if (Keyword == "mtllib")
 		{
-			FString Mtl;
-			while (Stream >> Mtl)
+			// Blender는 공백이 든 파일 이름("Wii Grumble Volcano.mtl")을 그대로 쓴다.
+			// 줄 나머지 전체가 실제 파일이면 이름 하나로 보고, 아니면 스펙대로 공백으로 나뉜 여러 파일로 본다.
+			FString Rest;
+			std::getline(Stream >> std::ws, Rest);
+			while (!Rest.empty() && (Rest.back() == ' ' || Rest.back() == '\t'))
 			{
-				Info.Mtllibs.Add(Mtl);
+				Rest.pop_back();
+			}
+
+			FString WholePath;
+			if (TransformPath(Path, Rest, WholePath) && std::filesystem::exists(WholePath))
+			{
+				Info.Mtllibs.Add(Rest);
+			}
+			else
+			{
+				std::istringstream Names(Rest);
+				FString Mtl;
+				while (Names >> Mtl)
+				{
+					Info.Mtllibs.Add(Mtl);
+				}
 			}
 		}
 	}
