@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
+#include "GameFramework/Actor/StaticMeshActor.h"
+#include "Asset/AssetManager.h"
+#include "Render/Mesh.h"
 #include "Component/ActorComponent.h"
 #include "Component/SceneComponent.h"
 #include "UObject/Casts.h"
@@ -84,6 +87,21 @@ namespace
 
 void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 {
+	// CameraShake(Strength, Duration, Frequency = 20): 감쇠하는 사인파로 0번 플레이어 카메라를 흔든다. 여러 번 부르면 겹쳐서 흔들린다.
+	Env.set_function("CameraShake",
+		[Owner](float Strength, float Duration, sol::optional<float> Frequency)
+		{
+			if (APlayerCameraManager* Manager = FindCameraManager(Owner, 0))
+				Manager->StartCameraShake(Strength, Duration, Frequency.value_or(20.0f));
+		});
+
+	Env.set_function("StopCameraShakes",
+		[Owner]()
+		{
+			if (APlayerCameraManager* Manager = FindCameraManager(Owner, 0))
+				Manager->StopAllCameraShakes();
+		});
+
 	// local Main = GetMainCamera() → 월드의 메인 카메라 액터. 게임 월드가 아니면 nil
 	Env.set_function("GetMainCamera",
 		[Owner](sol::this_state S) -> sol::object
@@ -158,6 +176,27 @@ void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 			return LuaReflection::MakeObject(sol::state_view(S), Camera);
 		});
 
+	// local Actor = SpawnMeshActor(MeshPath, Location, [Rotation], [Scale = 1]) → 그 자리에 메시 액터를 만든다. 씬에 저장되지 않는다
+	// MeshPath는 씬 파일의 "StaticMesh" 값과 같은 키다. 메시를 못 찾으면 nil. 다 쓰면 Actor:Destroy()로 지운다
+	Env.set_function("SpawnMeshActor",
+		[Owner](const FString& MeshPath, const FVector& Location, sol::optional<FRotator> Rotation, sol::optional<float> Scale,
+			sol::this_state S) -> sol::object
+		{
+			UWorld* World = FindGameWorldForObject(Owner);
+			UStaticMesh* Mesh = UAssetManager::GetAssetByPath<UStaticMesh>(MeshPath);
+			AStaticMeshActor* Actor = (World && Mesh) ? Cast<AStaticMeshActor>(World->SpawnActor(AStaticMeshActor::StaticClass())) : nullptr;
+			if (!Actor)
+				return sol::make_object(S, sol::lua_nil);
+
+			Actor->SetFlags(EObjectFlags::RF_Transient);
+			UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+			Component->SetStaticMesh(Mesh);
+			const float Size = Scale.value_or(1.0f);
+			Component->SetRelativeScale3D(FVector(Size, Size, Size));
+			Component->SetWorldLocationAndRotation(Location, Rotation.value_or(FRotator(0.0f, 0.0f, 0.0f)), false);
+			return LuaReflection::MakeObject(sol::state_view(S), Actor);
+		});
+
 	// local Rotation = FindLookAtRotation(From, To) → From에서 To를 바라보는 회전
 	Env.set_function("FindLookAtRotation",
 		[](const FVector& From, const FVector& To)
@@ -191,5 +230,17 @@ void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 			if (!bHasBounds)
 				return std::make_tuple(Actor->GetActorLocation(), 0.0f);
 			return std::make_tuple((Min + Max) * 0.5f, (Max - Min).Length() * 0.5f);
+		});
+
+	// local Center, Radius = GetComponentBounds(Component) → 컴포넌트 하나의 월드 AABB 중심과 반지름
+	Env.set_function("GetComponentBounds",
+		[](sol::object Target)
+		{
+			const USceneComponent* Scene = Target.is<FLuaObjectRef>() ? Cast<USceneComponent>(Target.as<FLuaObjectRef>().Weak.Get()) : nullptr;
+			if (!Scene)
+				throw sol::error("GetComponentBounds: 살아 있는 씬 컴포넌트가 필요합니다");
+
+			const FBox Box = Scene->CalcBounds();
+			return std::make_tuple((Box.Min + Box.Max) * 0.5f, (Box.Max - Box.Min).Length() * 0.5f);
 		});
 }

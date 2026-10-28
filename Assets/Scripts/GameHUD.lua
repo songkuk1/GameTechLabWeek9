@@ -143,6 +143,8 @@ local function ConfirmName()
 	StartNextEntry()
 end
 
+local bBGMStarted = false
+
 local function TogglePause()
 	local bWasPaused = GameState.bPaused
 	GameState.TogglePause()
@@ -158,7 +160,9 @@ end
 function BeginPlay()
 	ResultVideo.Reset()
 	GameState.Reset()
-	Audio.PlayBGM("Assets/Audio/BGM.wav")
+	-- BGM은 시작 카메라 연출이 끝나고 Tick에서 튼다. 타이틀에서 이어지던 BGM은 연출 동안 끈다
+	Audio.StopBGM()
+	bBGMStarted = false
 
 	-- 키보드는 하나라 0번 컨트롤러로 이름을 받는다. 이동 바인딩과 같이 올라가지만 단계가 달라 겹치지 않는다
 	local Input = EnableInput(0)
@@ -340,6 +344,12 @@ function Tick(dt)
 			GameState.SetPhase("Playing")
 		elseif GameState.Phase == "Playing" and GameState.PhaseTime >= GameState.TimeLimit then
 			StartResult()
+		end
+
+		-- 카메라가 게임 시점에 도착하면(Intro가 끝나면) BGM을 튼다
+		if not bBGMStarted and GameState.Phase ~= "Intro" then
+			bBGMStarted = true
+			Audio.PlayBGM("Assets/Audio/BGM.wav")
 		end
 	end
 

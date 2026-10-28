@@ -26,14 +26,6 @@ namespace
 
 		return World;
 	}
-
-	// 0번 플레이어의 카메라 매니저. 화면은 0번 플레이어 시점으로 그린다.
-	APlayerCameraManager* FindCameraManagerForObject(UObject* Object)
-	{
-		UWorld* World = FindGameWorldForObject(Object);
-		APlayerController* Controller = World ? World->GetPlayerController(0) : nullptr;
-		return Controller ? Controller->GetCameraPlayerManager() : nullptr;
-	}
 }
 
 void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner)
@@ -68,23 +60,5 @@ void RegisterLuaTimeAPI(sol::environment& Env, UObject* Owner)
 		{
 			UWorld* World = FindGameWorldForObject(Owner);
 			return World ? World->GetTimeDilation() : 1.0f;
-		});
-}
-
-void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
-{
-	// CameraShake(Strength, Duration, Frequency = 20): 감쇠하는 사인파로 카메라를 흔든다. 여러 번 부르면 겹쳐서 흔들린다.
-	Env.set_function("CameraShake",
-		[Owner](float Strength, float Duration, sol::optional<float> Frequency)
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StartCameraShake(Strength, Duration, Frequency.value_or(20.0f));
-		});
-
-	Env.set_function("StopCameraShakes",
-		[Owner]()
-		{
-			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
-				Manager->StopAllCameraShakes();
 		});
 }
