@@ -1,3 +1,4 @@
+#pragma once
 struct FEngineShowFlags
 {
     bool Fog = true;

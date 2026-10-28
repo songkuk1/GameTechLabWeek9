@@ -7,6 +7,8 @@
 #include "Math/Vector.h"
 #include "Render/ViewMode.h"
 #include "Render/ShadowCulling.h"
+#include "Render/PostprocessSettings.h"
+
 class FViewportsPanel;
 
 class UWorld;
@@ -33,6 +35,8 @@ struct FEditorSettings
 	bool bToneMapping = true;
 	// ACES fitted는 중간 회색(0.18)을 어둡게 내리므로, +0.6EV에서 톤매핑 전과 비슷한 밝기가 된다
 	float ExposureEV = 0.6f;
+	bool bVignette = true;
+	FScreenEffectDebug ScreenEffectDebug;
 
 	// Shadow Culling·Caching: 매 프레임 FSceneRenderer에 넘긴다. UI는 Debug 패널이 그리고 저장은 여기서 한다.
 	FShadowCullingSettings ShadowCulling;

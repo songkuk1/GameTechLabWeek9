@@ -902,7 +902,9 @@ FSceneRenderSettings UEditorEngine::MakeSceneRenderSettings() const
     Out.ShowFlags.AntiAliasing = Settings.bEnableFXAA;
     Out.ShowFlags.Tonemapper = Settings.bToneMapping;
 	Out.ShowFlags.GammaCorrection = Settings.bGammaCorrection;
+	Out.ShowFlags.Vignette = Settings.bVignette;
     Out.ExposureEV = Settings.ExposureEV;
+	Out.ScreenEffectDebug = Settings.ScreenEffectDebug;
     return Out;
 }
 

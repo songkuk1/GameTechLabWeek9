@@ -47,6 +47,7 @@ void FSettingsPanel::OnRender()
 	ImGui::Checkbox("Grid", &Settings.bDrawGrid);
 	ImGui::Checkbox("Exponential Height Fog", &Settings.bExponentialHeightFog);
 	ImGui::Checkbox("Tile Light Count", &Settings.bVisualizeTileLightCount);
+	ImGui::Checkbox("Vignette", &Settings.bVignette);
 
 	//////////////////////////////////////////////////////////
 
@@ -73,6 +74,23 @@ void FSettingsPanel::OnRender()
 	ImGui::SliderFloat("Exposure (EV)", &Settings.ExposureEV, -4.0f, 4.0f, "%+.1f");
 	ImGui::SetItemTooltip("Scales scene color by 2^EV before ACES tone mapping. Lit view only.");
 	ImGui::EndDisabled();
+	ImGui::EndDisabled();
+
+
+	//////////////////////////////////////////////////////////
+
+	ImGui::Dummy(ImVec2(0.0f, SectionGap));
+	ImGui::SeparatorText("Screen Effects (Debug)");
+
+	FScreenEffectDebug& Debug = Settings.ScreenEffectDebug;
+	ImGui::Checkbox("Override", &Debug.bOverride);
+	ImGui::SetItemTooltip("Use these values instead of the camera's (PlayerCameraManager).");
+	ImGui::BeginDisabled(!Debug.bOverride);
+	ImGui::SliderFloat("Vignette Intensity", &Debug.VignetteIntensity, 0.0f, 1.0f, "%.2f");
+	ImGui::ColorEdit3("Fade Color", &Debug.FadeColor.R);
+	ImGui::SliderFloat("Fade Amount", &Debug.FadeAmount, 0.0f, 1.0f, "%.2f");
+	ImGui::SliderFloat("LetterBox Aspect", &Debug.LetterBoxAspect, 1.0f, 3.0f, "%.2f");
+	ImGui::SliderFloat("LetterBox Amount", &Debug.LetterBoxAmount, 0.0f, 1.0f, "%.2f");
 	ImGui::EndDisabled();
 
 	//////////////////////////////////////////////////////////
@@ -151,6 +169,7 @@ bool FSettingsPanel::SaveSettings() const
 	File << "ToneMapping=" << Settings.bToneMapping << "\n";
 	File << "GammaCorrection=" << Settings.bGammaCorrection << "\n";
 	File << "ExposureEV=" << Settings.ExposureEV << "\n";
+	File << "Vignette=" << Settings.bVignette << "\n";
 	File << "\n";
 
 	File << "[ShadowCulling]\n";
@@ -304,6 +323,7 @@ bool FSettingsPanel::LoadSettings()
 				else if (Key == "ToneMapping") Settings.bToneMapping = std::stoi(ValueStr);
 				else if (Key == "GammaCorrection") Settings.bGammaCorrection = std::stoi(ValueStr);
 				else if (Key == "ExposureEV") Settings.ExposureEV = std::stof(ValueStr);
+				else if (Key == "Vignette") Settings.bVignette = std::stof(ValueStr);
 
 				else if (Key == "CullLightsByView") Settings.ShadowCulling.bCullLightsByView = std::stoi(ValueStr);
 				else if (Key == "ShadowDistance") Settings.ShadowCulling.ShadowDistance = std::stof(ValueStr);

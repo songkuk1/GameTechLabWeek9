@@ -8,6 +8,7 @@
 #include "Render/HUDRenderer.h"
 #include "Render/ShadowFrameData.h"
 #include "Render/ShowFlags.h"
+#include "Render/PostProcessSettings.h"
 
 class FViewport;
 class UWorld;
@@ -21,8 +22,9 @@ struct FSceneRenderSettings
 {
 	bool bDrawPrimitives = true;
 	bool bVisualizeTileLightCount = false;
-	FEngineShowFlags ShowFlags;		// Fog, FXAA, ToneMapping, GammaCorrection 
+	FEngineShowFlags ShowFlags;		// Fog, FXAA, ToneMapping, GammaCorrection, Vignette
 	float ExposureEV = 0.6f;
+	FScreenEffectDebug ScreenEffectDebug; 	// Todo: PCM 연결 후 삭제
 };
 
 class FSceneRenderPipeline final
@@ -57,7 +59,7 @@ public:
 private:
 	void RenderOpaquePass(FViewport& Viewport, const FRenderingInfo& ViewRenderingInfo, const FSceneView& View, const FDirectionalLightInfo& DirectionalLight, const FSceneRenderSettings& Settings);
 	void RenderFogPass(UWorld& ViewWorld, const FRenderingInfo& ViewRenderingInfo, const FVector& ViewCameraLocation, const FMatrix& ViewProjection);
-	void RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, bool bEncode, bool bToneMap, float ExposureEV);
+	void RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, const FGammaEncodeParams& Params);
 	void RenderFXAAPass(FTexture2D* FxaaTarget, const FRenderingInfo& ViewRenderingInfo);
 
 	FRenderer* Renderer = nullptr;

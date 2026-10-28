@@ -91,9 +91,33 @@ void FSceneRenderPipeline::RenderPostProcess(FViewport& Viewport, UWorld& ViewWo
 
     // 2. Gamma Encode Pass: Linear 씬 컬러 → (Lit이면 ACES) → 표시용 sRGB
     const bool bLinear = !bVisualizeData && ColorWorkflow::bLinear;
+    FGammaEncodeParams Params;
     const bool bEncode = bLinear && Settings.ShowFlags.GammaCorrection;
     const bool bToneMap = bLinear && Settings.ShowFlags.Tonemapper && ViewMode == EViewMode::Lit;
-    RenderGammaEncodePass(SceneRenderingInfo, ViewRenderingInfo, bEncode, bToneMap, Settings.ExposureEV);
+    Params.ExposureEV = Settings.ExposureEV;
+    
+    // 데이터 시각화 뷰는 값 자체가 결과라 화면 효과를 넣지 않는다
+    if (!bVisualizeData && Settings.ShowFlags.PostProcessing)
+    {
+        const FScreenEffectDebug& Debug = Settings.ScreenEffectDebug;
+        if (Debug.bOverride)
+        {
+            Params.VignetteIntensity = Debug.VignetteIntensity;
+            Params.OverlayColor = FLinearColor(Debug.FadeColor.R, Debug.FadeColor.G, Debug.FadeColor.B, Debug.FadeAmount);
+            Params.LetterBoxAspect = Debug.LetterBoxAspect;
+            Params.LetterBoxAmount = Debug.LetterBoxAmount;
+        }
+        else
+        {
+            Params.VignetteIntensity = View.PostProcessSettings.VignetteIntensity;
+            Params.OverlayColor = View.OverlayColor;
+            Params.LetterBoxAspect = View.LetterBoxAspect;
+            Params.LetterBoxAmount = View.LetterBoxAmount;
+        }
+        if (!Settings.ShowFlags.Vignette)
+            Params.VignetteIntensity = 0.0f;
+    }
+    RenderGammaEncodePass(SceneRenderingInfo, ViewRenderingInfo, Params);
 
     // 3. FXAA Pass: 밝기 계산이 감마 공간을 전제로 하므로 인코딩 뒤에 한다
     if (!bVisualizeData && Settings.ShowFlags.AntiAliasing)
@@ -186,7 +210,7 @@ void FSceneRenderPipeline::RenderFogPass(UWorld& ViewWorld, const FRenderingInfo
     RenderCommand::EndRenderPass(PassInfo);
 }
 
-void FSceneRenderPipeline::RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, bool bEncode, bool bToneMap, float ExposureEV)
+void FSceneRenderPipeline::RenderGammaEncodePass(const FRenderingInfo& SceneRenderingInfo, const FRenderingInfo& ViewRenderingInfo, const FGammaEncodeParams& Params)
 {
     FTexture2D* SceneColor = SceneRenderingInfo.ColorRenderTargets[0].Texture;
     FTexture2D* ViewColor = ViewRenderingInfo.ColorRenderTargets[0].Texture;
@@ -204,7 +228,7 @@ void FSceneRenderPipeline::RenderGammaEncodePass(const FRenderingInfo& SceneRend
     PassInfo.DepthStencil.Texture = nullptr;
 
     RenderCommand::BeginRenderPass(PassInfo);
-    GammaEncodeRenderer->OnRender(SceneColor, bEncode, bToneMap, ExposureEV);
+    GammaEncodeRenderer->OnRender(SceneColor, Params, static_cast<float>(PassInfo.ViewportSetting.Width), static_cast<float>(PassInfo.ViewportSetting.Height));
     RenderCommand::EndRenderPass(PassInfo);
 
     // 다음 프레임에 SceneColor를 RTV로 쓸 때 SRV로 남아 있으면 D3D가 강제로 해제하므로 먼저 비운다

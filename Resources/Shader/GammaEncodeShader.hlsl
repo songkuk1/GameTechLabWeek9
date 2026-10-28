@@ -10,7 +10,14 @@ cbuffer GammaEncodeConstants : register(b0)
     uint bToneMap;
     // 톤매핑 직전에 곱하는 선형 배율 (2^EV)
     float Exposure;
-    uint Padding;
+    // 0이면 끔
+    float VignetteIntensity;
+    // RGB = 색, A = 양
+    float4 OverlayColor;
+    float2 ViewSize;
+    float LetterBoxAspect;
+    // 0이면 끔. 1이면 목표 비율만큼 완전히 들어옴.
+    float LetterBoxAmount;
 };
 
 struct PSInput
@@ -61,12 +68,34 @@ float4 mainPS(PSInput Input) : SV_TARGET
 {
     // 입력과 출력 크기가 같으므로 샘플러 없이 같은 픽셀을 그대로 읽는다.
     float3 Color = SceneColor.Load(int3(Input.Position.xy, 0)).rgb;
+    float2 UV = Input.Position.xy / ViewSize;
+
+    // 1. Vignette: 렌즈 가장자리로 갈수록 들어오는 빛이 줄어드는 현상
+    // Linear에서 곱한다 (cos^4 법칙 근사)
+    if (VignetteIntensity > 0.0f)
+    {
+        float2 D = (UV - 0.5f) * float2(ViewSize.x / ViewSize.y, 1.0f);   // 화면 비율 보정해 원형으로
+        float Falloff = 1.0f / (1.0f + dot(D, D) * VignetteIntensity * 4.0f);   // dot(D, D) = R^2
+        Color *= Falloff * Falloff;     // cos^4
+    }
 
     if (bToneMap)
         Color = ACESFitted(Color * Exposure);
     if (bEncode)
         Color = LinearToSRGB(Color);
 
-    // 뷰포트 텍스처를 ImGui가 알파 블렌딩으로 그리므로 최종 출력은 불투명으로 고정한다.
+    // 2. Fade: sRGB 에서 섞어야 사람 눈에 적절해 보임.
+    // Tone Mapping 이후에 섞어야 고른 색이 잘 반영 됨.
+    Color = lerp(Color, OverlayColor.rgb, OverlayColor.a);
+
+    // 3. LetterBox: 검은 띠는 다른 효과가 적용되지 않도록 마지막에 반영
+    if (LetterBoxAmount > 0.0f && LetterBoxAspect > 0.0f )
+    {
+        float Bar = saturate((1.0f - (ViewSize.x / ViewSize.y) / LetterBoxAspect) * 0.5f) * LetterBoxAmount;   // 위(아래) 띠 높이 비율
+        if (UV.y < Bar || UV.y > 1.0f - Bar)
+            Color = 0.0f;
+    }
+
+    // 뷰포트 텍스처를 ImGui가 알파 블렌딩으로 그림.
     return float4(Color, 1.0f);
 }

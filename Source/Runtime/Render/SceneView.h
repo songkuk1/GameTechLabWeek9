@@ -28,6 +28,8 @@ struct FSceneView
     // PCM 에서 채우는 값
     FPostProcessSettings PostProcessSettings;
     FLinearColor OverlayColor = FLinearColor(0, 0, 0, 0);      // RGB = FadeColor, A = FadeAmount
+    float LetterBoxAspect = 2.35f;                             // 목표 비율
+    float LetterBoxAmount = 0.0f;                              // 0 = 띠 없음, 1 = 완전 띠 (PCM이 보간)
 
     bool IsOrthographic() const { return ProjectionSettings.Mode == EProjectionMode::Orthographic; }
     FVector GetCameraLocation() const { return CameraLocation; }
