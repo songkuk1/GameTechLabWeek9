@@ -898,10 +898,13 @@ FSceneRenderSettings UEditorEngine::MakeSceneRenderSettings() const
     FSceneRenderSettings Out;
     Out.bDrawPrimitives = Settings.bDrawPrimitives;
     Out.bVisualizeTileLightCount = Settings.bVisualizeTileLightCount;
-    Out.bFog = Settings.bExponentialHeightFog;
-    Out.bFXAA = Settings.bEnableFXAA;
-    Out.bToneMapping = Settings.bToneMapping;
+    Out.ShowFlags.Fog = Settings.bExponentialHeightFog;
+    Out.ShowFlags.AntiAliasing = Settings.bEnableFXAA;
+    Out.ShowFlags.Tonemapper = Settings.bToneMapping;
+	Out.ShowFlags.GammaCorrection = Settings.bGammaCorrection;
+	Out.ShowFlags.Vignette = Settings.bVignette;
     Out.ExposureEV = Settings.ExposureEV;
+	Out.ScreenEffectDebug = Settings.ScreenEffectDebug;
     return Out;
 }
 
