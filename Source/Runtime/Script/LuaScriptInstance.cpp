@@ -45,6 +45,8 @@ bool FLuaScriptInstance::Load()
 	RegisterLuaHUDAPI(NewEnv, Owner);
 	RegisterLuaInputAPI(NewEnv, Owner);
 	RegisterLuaEffectAPI(NewEnv, Owner);
+	RegisterLuaTimeAPI(NewEnv, Owner);
+	RegisterLuaCameraAPI(NewEnv, Owner);
 
 	sol::protected_function_result Result = Lua.safe_script_file(Path, NewEnv, sol::script_pass_on_error);
 	if (!Result.valid())
