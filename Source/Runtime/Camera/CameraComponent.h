@@ -6,7 +6,6 @@
 #include "../Math/EngineMath.h"
 #include "../Math/Rotator.h"
 
-
 struct FMinimalViewInfo;
 
 class UCameraComponent : public USceneComponent
@@ -41,8 +40,6 @@ public:
 
 	// 매 프레임 카메라 입력/이동 처리
 	virtual void TickComponent(float DeltaTime) override;
-
-	void GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV) const;
 
 	// Camera 행렬 계산
 	FMatrix GetViewMatrix() const;
@@ -95,6 +92,7 @@ public:
 	void UpdateRotation(float DeltaTime); // 마우스 우클릭 회전
 	void UpdateZoom(float DeltaTime);     // 마우스 휠 줌
 
+	void GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV);
 protected:
 	float FieldOfView = 60.0f;
 	float AspectRatio = 16.0f / 9.0f;
@@ -110,3 +108,4 @@ protected:
 	bool bExternalInputManaged = false;
 
 };
+

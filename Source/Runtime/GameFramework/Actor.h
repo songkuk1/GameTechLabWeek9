@@ -39,7 +39,6 @@ public:
 	virtual void Tick(float DeltaTime) {}
 	virtual void EndPlay();
 	void TickActor(float DeltaTime);
-	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV) const;
 
 	// World가 호출하는 진입점. BeginPlay를 받은 액터만 EndPlay를 받도록 짝을 맞춘다.
 	void DispatchBeginPlay();
@@ -111,6 +110,10 @@ public:
 	using Super::Serialize;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
 	UActorComponent* FindComponentByName(FName Name) const;
+
+	// 이 액터가 ViewTarget일 때 이번 프레임의 POV를 계산한다.
+	// 카메라 컴포넌트가 있으면 그 시점, 없으면 액터 위치와 회전을 쓴다. 자식 클래스에서 오버라이드 가능.
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV);
 protected:
 	virtual void OnDefaultSubobjectCreated(UObject* Subobject) override;
 
@@ -142,4 +145,4 @@ private:
 	TUniquePtr<FInputComponent> InputComponent;
 
 
-};
+};

@@ -1,7 +1,5 @@
 #include "EnginePCH.h"
 #include "Actor.h"
-#include "Camera/CameraComponent.h"
-#include "CameraTypes.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"
 #include "Component/SceneComponent.h"
@@ -16,6 +14,7 @@
 #include "Component/ShapeComponent.h"
 #include "GameFramework/InputComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "CameraTypes.h"
 
 enum class EAttachmentRule;
 
@@ -617,6 +616,26 @@ void AActor::DestroyComponent(UActorComponent* Component)
     return;
 }
 
+void AActor::CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV)
+{
+    //루프를 돌면서 카메라 컴포넌트가 존재하는지
+    for (UActorComponent* Component : Components)
+    {
+        UCameraComponent* Camera = Cast<UCameraComponent>(Component);
+        if (!Camera)
+            continue;
+
+        //DeltaTime에 맞춰서 Location이나 Rotation을 조종하고싶을때가 있을수도 있어서 DeltaTime을 넘김
+        Camera->GetCameraView(DeltaTime, OutPOV);
+        return;                                 
+    }
+
+    //없으면 액터의 위치 회전을 씀
+    OutPOV.Location = GetActorLocation();
+    OutPOV.Rotation = GetActorRotation();
+
+}
+
 void AActor::OnDefaultSubobjectCreated(UObject* Subobject)
 {
     if (UActorComponent* Component = Cast<UActorComponent>(Subobject))
@@ -657,18 +676,4 @@ bool AActor::TryGetActorBounds(FBox& OutBounds) const
     }
 
     return bHasBounds;
-}
-void AActor::CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV) const
-{
-    for (UActorComponent* Component : Components)
-    {
-        if (const auto* Camera = Cast<UCameraComponent>(Component))
-        {
-            Camera->GetCameraView(DeltaTime, OutPOV);
-            return;
-        }
-    }
-    OutPOV = {};
-    OutPOV.Location = GetActorLocation();
-    OutPOV.Rotation = GetActorRotation();
-}
+}
