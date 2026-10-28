@@ -2,9 +2,7 @@
 #include "Script/LuaBindings.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-#include "GameFramework/PlayerController.h"
 #include "Component/ActorComponent.h"
-#include "PlayerCameraManager.h"
 #include "UObject/Casts.h"
 #include <sol/sol.hpp>
 
