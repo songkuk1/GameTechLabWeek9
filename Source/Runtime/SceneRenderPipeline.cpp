@@ -92,8 +92,8 @@ void FSceneRenderPipeline::RenderPostProcess(FViewport& Viewport, UWorld& ViewWo
     // 2. Gamma Encode Pass: Linear 씬 컬러 → (Lit이면 ACES) → 표시용 sRGB
     const bool bLinear = !bVisualizeData && ColorWorkflow::bLinear;
     FGammaEncodeParams Params;
-    const bool bEncode = bLinear && Settings.ShowFlags.GammaCorrection;
-    const bool bToneMap = bLinear && Settings.ShowFlags.Tonemapper && ViewMode == EViewMode::Lit;
+    Params.bEncode = bLinear && Settings.ShowFlags.GammaCorrection;
+    Params.bToneMap = bLinear && Settings.ShowFlags.Tonemapper && ViewMode == EViewMode::Lit;
     Params.ExposureEV = Settings.ExposureEV;
     
     // 데이터 시각화 뷰는 값 자체가 결과라 화면 효과를 넣지 않는다

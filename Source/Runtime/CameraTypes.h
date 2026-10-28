@@ -33,12 +33,13 @@ public:
 		Projection.FarClip = FMath::Lerp(Projection.FarClip, Other.Projection.FarClip, Alpha);
 		AspectRatio = FMath::Lerp(AspectRatio, Other.AspectRatio, Alpha);
 
-		// 원근/직교, 레터박스 여부는 중간값이 없어서 절반을 넘으면 도착 쪽 값으로 바꾼다
+		// 원근/직교는 중간값이 없어서 절반을 넘으면 도착 쪽 값으로 바꾼다
 		if (Alpha >= 0.5f)
-		{
 			Projection.Mode = Other.Projection.Mode;
-			bConstrainAspectRatio = Other.bConstrainAspectRatio;
-		}
+
+		// 한쪽이라도 레터박스면 블렌드 내내 켜 두고,
+		// 위에서 Lerp되는 AspectRatio에 따라 띠가 서서히 두꺼워지거나 얇아진다
+		bConstrainAspectRatio |= Other.bConstrainAspectRatio;
 	}
 
 	// 게임 화면과 같은 기저 (Roll 제거, 수평 Right). 카메라 쉐이크가 로컬 오프셋을 월드로 돌릴 때 쓴다

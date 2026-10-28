@@ -42,9 +42,11 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	ViewInfo.Rotation = Camera->GetWorldRotation();
 	ViewInfo.Projection = Camera->GetProjectionSettings();
 
+	const APlayerCameraManager* PCM = nullptr;
 	if (APlayerController* PC = World->GetPlayerController(0))
-		if (APlayerCameraManager* PCM = PC->GetCameraPlayerManager())
-			ViewInfo = PCM->GetCameraCacheView();
+		PCM = PC->GetCameraPlayerManager();
+	if (PCM)
+		ViewInfo = PCM->GetCameraCacheView();
 
 	// PIE는 기존처럼 Roll을 제거한다. 카메라를 변경하지 않고 Forward에서 수평 기저만 만든다.
 	// GetSafeNormal은 기존 inverse-length 곱셈 순서도 보존해 극점 포화 경계가 흔들리지 않는다.
@@ -63,7 +65,19 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	Rotation.SetAxis(2, Forward.Cross(Right).Normalized());
 	FCameraProjection Projection = ViewInfo.Projection;
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
-	return FSceneView(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	FSceneView View(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+
+	// 화면 Fade
+	if (PCM && PCM->IsFading())
+	{
+		View.OverlayColor = PCM->GetFadeColor();
+		View.OverlayColor.A = FMath::Clamp(PCM->GetFadeAmount(), 0.0f, 1.0f);
+	}
+
+	// 레터박스: 카메라가 비율을 강제하면 그 비율에 맞춰 위아래를 가린다
+	View.LetterBoxAspect = ViewInfo.AspectRatio;
+	View.LetterBoxAmount = ViewInfo.bConstrainAspectRatio ? 1.0f : 0.0f;
+	return View;
 }
 
 void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 OutputSize)
@@ -89,4 +103,4 @@ void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 Outp
 		bKeyDown[Key] = FInputSystem::IsKeyDown(static_cast<EKeyCode>(Key));
 	for (APlayerController* Controller : World->GetPlayerControllers())
 		Controller->InputKeyStates(bKeyDown);
-}
+}

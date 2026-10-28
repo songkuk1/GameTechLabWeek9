@@ -86,6 +86,16 @@ public:
 	void StopCameraShake(UCameraShakeBase* Shake);
 	void StopAllCameraShakes();
 
+	// Fade: 렌더러는 IsFading일 때 FadeColor를 FadeAmount만큼 덮는다
+	// bInHoldWhenFinished가 false면 끝나는 순간 Fade가 꺼진다
+	void StartCameraFade(float FromAlpha, float ToAlpha, float InFadeTime, FLinearColor InFadeColor, bool bInHoldWhenFinished = false);
+	void StopCameraFade();
+	// 시간 보간 없이 Fade 양을 직접 정한다
+	void SetManualCameraFade(float InFadeAmount, FLinearColor InFadeColor);
+	bool IsFading() const { return bEnableFading; }
+	FLinearColor GetFadeColor() const { return FadeColor; }
+	float GetFadeAmount() const { return FadeAmount; }
+
 
 	// 현재 카메라 시점을 제공하는 대상. 블렌드 중이면 떠나는 쪽이다
 	AActor* GetViewTarget() const { return ViewTarget.Target.Get(); }
@@ -122,16 +132,25 @@ private:
 	FViewTarget PendingViewTarget;
 
 	//화면을 덮을 색
-	FLinearColor FadeColor;
+	FLinearColor FadeColor = FLinearColor(0, 0, 0, 1);
 
 	//현재 프레임의 페이드 정도
-	float FadeAmount;
+	float FadeAmount = 0.0f;
 
 	//시작값,끝값
-	FVector2 FadeAlpha;
+	FVector2 FadeAlpha = FVector2(0.0f, 0.0f);
 
 	//페이드에 걸리는 전체 시간
-	float FadeTime;
+	float FadeTime = 0.0f;
+
+	//true인 동안 렌더러가 화면을 FadeColor로 덮는다
+	bool bEnableFading = false;
+	//true면 UpdateCamera가 FadeAlpha.X -> Y로 FadeAmount를 보간한다. SetManualCameraFade는 false
+	bool bAutoAnimateFade = false;
+	//true면 끝난 뒤에도 마지막 값을 유지한다
+	bool bHoldFadeWhenFinished = false;
+	//페이드 남은 시간
+	float FadeTimeRemaining = 0.f;
 
 	//ViewTarget이 카메라 액터가 아닐 때, 그 대상에서 POV를 어떤 방식으로 뽑을지 고르는 스위치
 	// PlayerController::SetCameraMode로 바꾼다
