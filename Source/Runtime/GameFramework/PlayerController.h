@@ -63,6 +63,10 @@ public:
 	void SpawnPlayerCameraManager();
 	//PCM 업데이트
 	void UpdatePlayerCameraManager(float DeltaTime);
+
+	//FViewTargetTransitionParams의 값들
+	void SetViewTargetWithBlend(AActor* NewViewTarget, float BlendTime,
+		EViewTargetBlendFunction BlendFunc, float BlendExp, bool bLockOutgoing);
 	
 	APlayerCameraManager* GetCameraPlayerManager() { return PlayerCameraManager;};
 private:

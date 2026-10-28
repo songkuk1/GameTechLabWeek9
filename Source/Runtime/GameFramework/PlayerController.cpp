@@ -185,3 +185,16 @@ void APlayerController::UpdatePlayerCameraManager(float DeltaTime)
 
 
 }
+
+void APlayerController::SetViewTargetWithBlend(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc, float BlendExp, bool bLockOutgoing)
+{
+	if (!PlayerCameraManager)
+		return;
+
+	FViewTargetTransitionParams TransitionParams;
+	TransitionParams.BlendTime = BlendTime;
+	TransitionParams.BlendFunction = BlendFunc;
+	TransitionParams.BlendExp = BlendExp;
+	TransitionParams.bLockOutgoing = bLockOutgoing;
+	PlayerCameraManager->SetViewTarget(NewViewTarget, TransitionParams);
+}
