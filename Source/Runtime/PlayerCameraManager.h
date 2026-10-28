@@ -5,6 +5,11 @@
 #include "UObject/WeakObjectPtr.h"
 #include "GameFramework/Actor.h"
 #include "CameraTypes.h"
+#include "Camera/CameraShakeBase.h"
+
+class APlayerController;
+class UCameraModifier;
+class UCameraModifier_CameraShake;
 
 enum class EViewTargetBlendFunction : uint8
 {
@@ -52,7 +57,8 @@ class APlayerCameraManager : public AActor
 
 public:
 	APlayerCameraManager() = default;
-	~APlayerCameraManager() = default;
+	~APlayerCameraManager() override;
+	void EndPlay() override;
 
 	APlayerCameraManager(const APlayerCameraManager&) = delete;
 	APlayerCameraManager& operator=(APlayerCameraManager&) = delete;
@@ -64,15 +70,33 @@ public:
 	void UpdateCamera(float deltaTime);
 
 	FMinimalViewInfo GetCameraCacheView() const { return CameraCachePOV; };
-	
+
+	// Modifier: 블렌드까지 끝난 최종 POV를 매 프레임 고친다. Priority가 낮은 것부터 실행한다
+	UCameraModifier* AddNewCameraModifier(UClass* ModifierClass);
+	void RemoveCameraModifier(UCameraModifier* Modifier);
+	void ApplyCameraModifiers(float DeltaTime, FMinimalViewInfo& InOutPOV);
+
+	// Camera Shake: 하나의 Shake Modifier가 여러 Shake 인스턴스를 관리한다
+	UCameraShakeBase* StartCameraShake(UClass* ShakeClass, float Scale = 1.0f,
+		ECameraShakePlaySpace Space = ECameraShakePlaySpace::CameraLocal);
+	UCameraShakeBase* StartCameraShake(float Strength, float Duration, float Frequency = 20.0f);
+	void StopCameraShake(UCameraShakeBase* Shake);
+	void StopAllCameraShakes();
+
 private:
 	void UpdateViewTarget(FViewTarget& VT, float DeltaTime);
 	void FillCameraCache(const FMinimalViewInfo& InCameraCachePov);
 	// 블렌드 진행률 T(0~1)를 BlendParams.BlendFunction 곡선에 넣어 실제로 섞을 비율로 바꾼다
 	float GetBlendAlpha(float T) const;
+	UCameraModifier_CameraShake* GetCameraShakeModifier();
+	void ClearCameraModifiers();
 
 private:
 	APlayerController* PCOwner = nullptr;
+
+	// Modifier는 PCM이 직접 delete한다. 약한 참조라 전역 UObject 정리 순서에서도 두 번 지우지 않는다
+	TArray<TWeakObjectPtr<UCameraModifier>> ModifierList;
+	TWeakObjectPtr<UCameraModifier_CameraShake> CachedCameraShakeMod;
 
 	// 이번 프레임 UpdateCamera가 만든 최종 카메라 시점. PCM이 밖으로 내보내는 유일한 출력이다
 	// 렌더러는 이 값으로 SceneView를 만들고, 시점이 필요한 다른 시스템(조준, 사운드 리스너 등)도 이 값을 읽는다

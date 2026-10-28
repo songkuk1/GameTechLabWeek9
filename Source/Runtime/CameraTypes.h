@@ -1,8 +1,10 @@
 #pragma once
 #include "EnginePCH.h"
 #include "Camera/CameraProjection.h"
+#include "Math/Rotator.h"
 
 //카메라 시점 하나"를 표현하는 구조체.
+// 복사 가능한 값이다. Modifier는 매 프레임 새로 만든 기본 시점을 고친다.
 struct FMinimalViewInfo
 {
 public:
@@ -38,4 +40,7 @@ public:
 			bConstrainAspectRatio = Other.bConstrainAspectRatio;
 		}
 	}
+
+	// 게임 화면과 같은 기저 (Roll 제거, 수평 Right). 카메라 쉐이크가 로컬 오프셋을 월드로 돌릴 때 쓴다
+	FMatrix GetCameraRotationMatrix() const;
 };

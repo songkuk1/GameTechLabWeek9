@@ -39,6 +39,9 @@ return function(Config)
 	-- 맞밀기 유예: 밀려나기 시작한 지 이 시간(초) 안에 누르면 밀려나는 중이어도 상대를 민다.
 	-- 사람이 "동시에" 눌러도 수 프레임 차이가 나서, 이게 없으면 먼저 누른 쪽만 민다
 	local TradeWindow = Config.TradeWindow or 0.15
+	-- 실제로 밀었을 때 부른다 (히트스톱·카메라 흔들림 같은 타격 연출).
+	-- HitStop 등은 액터 스크립트 환경에만 등록돼 이 파일(dofile)에서는 보이지 않아 콜백으로 받는다
+	local OnPush = Config.OnPush
 
 	local Actor = nil
 	local Root = nil
@@ -91,6 +94,9 @@ return function(Config)
 
 		-- 나에게서 상대 쪽으로 민다
 		GameState.PushPlayer(3 - PlayerNumber, DX / Distance, DY / Distance)
+		if OnPush then
+			OnPush()
+		end
 	end
 
 	-- 원형 플레이 영역 밖으로 나갔으면 중심 방향으로 원 위까지 되돌린다.

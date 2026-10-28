@@ -676,4 +676,4 @@ bool AActor::TryGetActorBounds(FBox& OutBounds) const
     }
 
     return bHasBounds;
-}
+}

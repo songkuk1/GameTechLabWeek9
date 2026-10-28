@@ -89,4 +89,4 @@ void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 Outp
 		bKeyDown[Key] = FInputSystem::IsKeyDown(static_cast<EKeyCode>(Key));
 	for (APlayerController* Controller : World->GetPlayerControllers())
 		Controller->InputKeyStates(bKeyDown);
-}
+}
