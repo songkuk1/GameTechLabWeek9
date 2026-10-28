@@ -25,9 +25,11 @@ public:
 	void SetWorld(UWorld* InWorld) { Sequencer.SetWorld(InWorld); }
 	void SetViewportsPanel(FViewportsPanel* InViewports) { Viewports = InViewports; }
 	void SetSelectedActorQuery(std::function<AActor*()> InQuery) { GetSelectedActor = std::move(InQuery); }
+	// 에디터 선택(아웃라이너·디테일·기즈모)을 비운다. 미리보기가 선택된 스폰 액터를 지울 때 부른다
+	void SetResetSelectionCallback(std::function<void()> InCallback) { ResetSelection = std::move(InCallback); }
 
 	// 씬 저장·PIE·씬 열기 전에 엔진이 부른다. 미리보기가 바꾼 값을 되돌린다
-	void ReleasePreview() { Sequencer.ReleasePreview(); }
+	void ReleasePreview() { Sequencer.ReleasePreview(); ClearSelectionIfDestroyed(); }
 	// 에디터 종료 전에 부른다 (UObject 일괄 삭제보다 먼저)
 	void Shutdown() { Sequencer.Shutdown(); }
 	// 이 창에 포커스가 있으면 에디터의 Delete(액터 삭제)를 막는다
@@ -49,6 +51,8 @@ private:
 	enum class EDrag : uint8 { None, Scrub, Keys, SectionMove, SectionStart, SectionEnd };
 
 	void BuildRows(TArray<FRow>& OutRows) const;
+	// 줄이 가리키는 바인딩·트랙·채널이 아직 있는지. 편집으로 인덱스가 어긋난 줄은 그리지 않는다
+	bool IsRowValid(const FRow& Row);
 	void DrawToolbar();
 	void DrawTimeline();
 	void DrawInspector();
@@ -73,9 +77,23 @@ private:
 	bool IsExpanded(int32 Binding, int32 Track) const;
 	void SetExpanded(int32 Binding, int32 Track, bool bExpanded);
 
+	// 바인딩·트랙을 더하거나 빼는 편집은 그리기가 끝난 뒤에 실행한다.
+	// 그리는 도중에 바꾸면 이번 프레임에 만든 줄 목록의 인덱스가 어긋난다.
+	void Defer(std::function<void()> Action) { DeferredActions.Add(std::move(Action)); }
+	void FlushDeferredActions();
+	// 바인딩·트랙을 지운 뒤 뒤쪽 줄의 펼침 상태를 한 칸씩 당긴다
+	void ShiftExpandedAfterRemove(int32 Binding, int32 Track);
+
+	TArray<std::function<void()>> DeferredActions;
+
+	// 미리보기가 스폰한 액터를 지우면 Destroy 표시만 되고 다음 월드 Tick에 delete 된다.
+	// 그 액터가 선택돼 있으면 에디터 패널들이 지워진 포인터를 들게 되므로, 표시된 즉시 선택을 비운다
+	void ClearSelectionIfDestroyed();
+
 	FSequencer Sequencer;
 	FViewportsPanel* Viewports = nullptr;
 	std::function<AActor*()> GetSelectedActor;
+	std::function<void()> ResetSelection;
 
 	// 타임라인 보기: 왼쪽 끝 시간과 1초의 픽셀 수
 	float ViewStart = 0.0f;
@@ -86,6 +104,10 @@ private:
 	bool bFitPending = true;
 	bool bTimelineHovered = false;
 	bool bFocused = false;
+
+	// 시네 카메라 시점을 마지막으로 맞춘 시간. 같은 시간이면 다시 맞추지 않아 뷰포트를 놓아준다
+	float LastPilotTime = -1.0f;
+	bool bPilotApplied = false;
 
 	std::unordered_set<uint64> ExpandedRows;
 

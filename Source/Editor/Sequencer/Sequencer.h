@@ -68,8 +68,8 @@ public:
 
 	bool bLoop = true;
 	bool bSnap = true;
-	// 미리보기 중 에디터 뷰포트를 시네 카메라 시점에 맞춘다 (패널이 처리)
-	bool bPilotCineCamera = true;
+	// 미리보기 중 에디터 뷰포트를 시네 카메라 시점에 맞춘다 (패널이 처리). 켜면 뷰포트를 붙잡으므로 기본은 끈다
+	bool bPilotCineCamera = false;
 
 	// 바인딩이 지금 미리보기에서 붙잡은 첫 액터. 아직 평가하지 않았거나 못 찾았으면 nullptr
 	AActor* GetBoundActor(int32 BindingIndex) const;
