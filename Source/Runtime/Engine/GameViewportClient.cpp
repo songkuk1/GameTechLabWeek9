@@ -35,9 +35,20 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 {
 	const UCameraComponent* Camera = GetCamera();
 	assert(Camera);
+
+	// 0번 PC의 카메라 매니저 결과를 쓰고, 아직 없으면 메인 카메라 값으로 대신한다
+	FMinimalViewInfo ViewInfo;
+	ViewInfo.Location = Camera->GetWorldLocation();
+	ViewInfo.Rotation = Camera->GetWorldRotation();
+	ViewInfo.Projection = Camera->GetProjectionSettings();
+
+	if (APlayerController* PC = World->GetPlayerController(0))
+		if (APlayerCameraManager* PCM = PC->GetCameraPlayerManager())
+			ViewInfo = PCM->GetCameraCacheView();
+
 	// PIE는 기존처럼 Roll을 제거한다. 카메라를 변경하지 않고 Forward에서 수평 기저만 만든다.
 	// GetSafeNormal은 기존 inverse-length 곱셈 순서도 보존해 극점 포화 경계가 흔들리지 않는다.
-	FVector Forward = Camera->GetWorldRotation().Quaternion().GetForwardVector().GetSafeNormal();
+	FVector Forward = ViewInfo.Rotation.Quaternion().GetForwardVector().GetSafeNormal();
 	FVector Right = FVector(-Forward.Y, Forward.X, 0.0f).Normalized();
 	if (Right.SizeSquared() == 0.0f)
 		Right = RightVector; // 수직 시선에서 기존 atan2(0,0)의 Yaw=0 정책.
@@ -50,9 +61,9 @@ FSceneView FGameViewportClient::CreateSceneView(const FVector2 OutputSize) const
 	Rotation.SetAxis(0, Forward);
 	Rotation.SetAxis(1, Right);
 	Rotation.SetAxis(2, Forward.Cross(Right).Normalized());
-	FCameraProjection Projection = Camera->GetProjectionSettings();
+	FCameraProjection Projection = ViewInfo.Projection;
 	FSceneView::ConstrainOrthographicWidth(Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y});
-	return FSceneView(Camera->GetWorldLocation(), Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
+	return FSceneView(ViewInfo.Location, Rotation, Projection, FRect{0.0f, 0.0f, OutputSize.X, OutputSize.Y}, GetViewRenderMode());
 }
 
 void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 OutputSize)
@@ -78,4 +89,4 @@ void FGameViewportClient::UpdateInput(const FViewportInput& Input, FVector2 Outp
 		bKeyDown[Key] = FInputSystem::IsKeyDown(static_cast<EKeyCode>(Key));
 	for (APlayerController* Controller : World->GetPlayerControllers())
 		Controller->InputKeyStates(bKeyDown);
-}
+}

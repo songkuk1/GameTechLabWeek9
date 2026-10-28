@@ -5,15 +5,9 @@
 #include "Math/Vector.h"
 #include "Math/Rotator.h"
 
+// Lerp는 EngineMath.h에 있다
 namespace FMath
 {
-    // 선형 보간 
-	template <typename T>
-	static inline T Lerp(const T& A, const T& B, float Alpha)
-	{
-        return A + (B - A) * Alpha;
-	}
-    
 	// ============================================================ 
     // InterpTo: 매 프레임 목표를 따라감 (정해진 시간이 없음. Ex. Spring Arm)
 
@@ -119,10 +113,15 @@ namespace FMath
 	}
 
 	// Bezier: 위치 네 개 ( 지나가는 점은 P0, P3 )
+	// 언리얼 UE::Curves::BezierInterp (CurveEvaluation.h). Lerp를 반복하는 de Casteljau 방식
 	template <typename T>
-	static inline T CubicBezier(const T& P0, const T& P1, const T& P2, const T& P3, float t)
+	static inline T BezierInterp(const T& P0, const T& P1, const T& P2, const T& P3, float Alpha)
 	{
-		const float u = 1.f - t;
-		return P0 * (u * u * u) + P1 * (3.f * u * u * t) + P2 * (3.f * u * t * t) + P3 * (t * t * t);
+		const T P01 = Lerp(P0, P1, Alpha);
+		const T P12 = Lerp(P1, P2, Alpha);
+		const T P23 = Lerp(P2, P3, Alpha);
+		const T P012 = Lerp(P01, P12, Alpha);
+		const T P123 = Lerp(P12, P23, Alpha);
+		return Lerp(P012, P123, Alpha);
 	}
 }

@@ -18,7 +18,7 @@ struct FRichCurveKey
 {
 	float Time = 0.f;
 	float Value = 0.f;
-	ERichCurveInterpMode InterpMode = ERichCurveInterpMode::Cubic;
+	ERichCurveInterpMode InterpMode = ERichCurveInterpMode::Linear;		// 언리얼 FRichCurveKey 기본값
 	ERichCurveTangentMode TangentMode = ERichCurveTangentMode::Auto;
 	float ArriveTangent = 0.f;		// 들어오는 기울기 (값 / 초)
 	float LeaveTangent = 0.f;		// 나가는 기울기 (값 / 초)
@@ -35,7 +35,8 @@ struct FRichCurve
 	// 시간이 바뀌면 순서가 바뀔 수 있어 새 인덱스를 반환
 	int32 SetKeyTime(int32 Index, float NewTime);
 	void SetKeyValue(int32 Index, float NewValue);
-	void AutoSetTangents();
+	// Auto 키의 기울기를 다시 계산한다. Tension 1이면 기울기가 0이 된다
+	void AutoSetTangents(float Tension = 0.f);
 
 	// 범위 밖은 양 끝 키 값을 유지한다 (언리얼 기본 Extrapolation = Constant)
 	float Eval(float Time, float DefaultValue = 0.f) const;

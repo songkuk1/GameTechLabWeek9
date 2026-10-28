@@ -161,7 +161,6 @@ void UGameEngine::Tick(float DeltaTime)
 
 	UpdateGameInput();
 	GameWorld->Tick(DeltaTime);
-	//TODO: LUA가 들어갈자리?
 
 	GameWorld->GetScene().UpdateAllTransforms();
 	RenderViewports();

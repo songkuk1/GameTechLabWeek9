@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 #include "Component/LightComponentBase.h"
+#include "GameFramework/PlayerController.h"
 
 // Billboard 컴포넌트의 초기 상태를 구성한다.
 UBillboardComponent::UBillboardComponent()
@@ -188,7 +189,16 @@ void UBillboardComponent::GetWorldTransformedMatrix(FMatrix* OutWorldMatrix) con
 {
 	OutWorldMatrix->SetIdentity();
 
-	const FTransform& Transform = GetOwner()->GetWorld()->GetMainCamera()->GetCameraComponent()->GetTransform();
+	UWorld* World = GetOwner()->GetWorld();
+	FTransform Transform = World->GetMainCamera()->GetCameraComponent()->GetTransform();
+	if (APlayerController* PC = World->GetPlayerController(0))
+	{
+		if (APlayerCameraManager* PCM = PC->GetCameraPlayerManager())
+		{
+			const FMinimalViewInfo POV = PCM->GetCameraCacheView();
+			Transform = FTransform(POV.Rotation, POV.Location, FVector(1.0f, 1.0f, 1.0f));
+		}
+	}
 
 	FVector Right = Transform.GetRight().Normalized();
 	FVector Up = Transform.GetUp().Normalized();

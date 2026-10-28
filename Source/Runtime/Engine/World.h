@@ -16,6 +16,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/HUD.h"
 #include "Engine/EffectManager.h"
+#include "Engine/TimeDilationManager.h"
 
 //class ACameraActor;
 class ULevel;
@@ -166,6 +167,17 @@ public:
 
 	using Super::Serialize;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
+
+	FTimeDilationManager& GetTimeDilationManager() { return TimeDilationManager; }
+
+	// 직접 설정하는 기본 배율. 슬로모·히트스톱은 이 값 위에 곱해진다.
+	void SetTimeDilation(float InTimeDilation) { TimeDilationManager.SetBaseTimeDilation(InTimeDilation); }
+	// 이번 프레임 게임 시간에 곱해지는 최종 배율
+	float GetTimeDilation() const { return TimeDilationManager.GetTimeDilation(); }
+
+	void StartSlomo(float TargetDilation, float Duration) { TimeDilationManager.StartSlomo(TargetDilation, Duration); }
+	void StartHitStop(float Duration, float Dilation = 0.0f) { TimeDilationManager.StartHitStop(Duration, Dilation); }
+
 private:
 	EWorldType WorldType = EWorldType::None;
 
@@ -236,4 +248,6 @@ private:
 	// 비소유. Instance 는 Actor/Component 가 소유
 	TArray<FLuaScriptInstance*> ScriptInstances;
 	bool bTickingScripts = false;
+
+	FTimeDilationManager TimeDilationManager;
 };

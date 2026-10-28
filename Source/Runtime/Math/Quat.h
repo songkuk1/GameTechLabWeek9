@@ -46,6 +46,8 @@ struct FQuat
 	static FQuat Identity();
 	static FQuat MakeFromAxisAngle(const FVector& Axis, float AngleRadians);
 	static FQuat MakeFromEuler(float Roll, float Pitch, float Yaw);
+	// A에서 B까지 최단 경로로 Alpha(0~1)만큼 회전한 값
+	static FQuat Slerp(const FQuat& A, const FQuat& B, float Alpha);
 };
 
 

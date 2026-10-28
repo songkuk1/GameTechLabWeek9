@@ -2,6 +2,7 @@
 
 #include "GameFramework/Actor.h"
 #include "GameFramework/InputComponent.h"
+#include "PlayerCameraManager.h"
 
 // 키 매핑 하나. 이 키를 누르고 있으면 Axis에 Scale만큼 더한다.
 struct FInputAxisKeyMapping
@@ -58,6 +59,16 @@ public:
 	// UWorld::Tick이 액터 Tick 전에 부른다. 이번 프레임 키 상태로 바인딩을 호출한다.
 	void ProcessPlayerInput();
 
+	//PlayerCameraManager 생성
+	void SpawnPlayerCameraManager();
+	//PCM 업데이트
+	void UpdatePlayerCameraManager(float DeltaTime);
+
+	//FViewTargetTransitionParams의 값들
+	void SetViewTargetWithBlend(AActor* NewViewTarget, float BlendTime,
+		EViewTargetBlendFunction BlendFunc, float BlendExp, bool bLockOutgoing);
+	
+	APlayerCameraManager* GetCameraPlayerManager() const { return PlayerCameraManager.Get(); }
 private:
 	bool IsKeyDown(EKeyCode Key) const { return bKeyDown[static_cast<uint8>(Key)]; }
 	bool WasKeyPressed(EKeyCode Key) const { return IsKeyDown(Key) && !bPrevKeyDown[static_cast<uint8>(Key)]; }
@@ -71,6 +82,11 @@ private:
 
 	// 소유하지 않는다. 각 액터가 자기 InputComponent를 가진다.
 	TArray<FInputComponent*> InputStack;
+
+	//플레이어 컨트롤러당 플레이어 카메라 매니저 하나를 가지고있음
+	TWeakObjectPtr<APlayerCameraManager> PlayerCameraManager;
+	UClass* PlayerCameraManagerClass = nullptr;
+
 
 	// 뷰포트가 넘긴 이번 프레임 상태와, 지난 ProcessPlayerInput 때의 상태
 	bool bKeyDown[256] = {};

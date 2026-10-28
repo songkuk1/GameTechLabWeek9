@@ -9,6 +9,10 @@ local Controller = dofile("Assets/Scripts/Lib/PlayerController.lua")({
 	KnockbackSound = "Assets/Audio/UsagiPush.wav",
 	MeshYawOffset = 0,     -- usagi_chiikawa.obj는 정면이 +X를 보도록 변환했다
 	SpawnOffsetY = 1.0,    -- 시작 위치: 바닥 중앙에서 화면 오른쪽으로
+	OnPush = function()    -- 밀친 순간 잠깐 멈추고 화면을 흔든다 (Player1과 같은 값)
+		HitStop(0.5)   -- TEMP: 확인용. 확인 후 0.08로 되돌린다
+		CameraShake(0.1, 0.25)
+	end,
 })
 
 -- 걷는 동안 발밑 연기를 켠다. 매 프레임 스폰하지 않고 걷기 시작·멈춤 순간에만 부른다

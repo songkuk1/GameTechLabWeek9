@@ -117,8 +117,11 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 	return NewActor;
 }
 
-void UWorld::Tick(float DeltaTime)
+void UWorld::Tick(float FrameDeltaTime)
 {
+	TimeDilationManager.Tick(FrameDeltaTime);
+
+	const float DeltaTime = FrameDeltaTime * TimeDilationManager.GetTimeDilation();
 	{
 		SCOPE_CYCLE_COUNTER(STAT_UpdateAllTransforms);
 		Scene.UpdateAllTransforms();
@@ -163,6 +166,17 @@ void UWorld::Tick(float DeltaTime)
 
 		// 이번 프레임의 스폰(겹침 이벤트·스크립트)까지 받은 뒤, 지워지기 전에 이펙트 수명을 정리한다.
 		EffectManager.Tick(DeltaTime);
+
+
+		// 게임플레이 이동이 다 끝난 최종 위치로 카메라를 갱신한다.
+		// 카메라 연출(쉐이크·블렌드)은 히트스톱·슬로모 중에도 흘러야 하므로 배율을 곱하지 않은 시간을 쓴다
+		{
+			const TArray<APlayerController*> Controllers = PlayerControllers;
+			for (APlayerController* Controller : Controllers)
+				if (::IsValid(Controller))
+					Controller->UpdatePlayerCameraManager(FrameDeltaTime);
+		}
+
 	}
 
 	// Frame 끝에서 Destroy 된 객체 실제로 지우기

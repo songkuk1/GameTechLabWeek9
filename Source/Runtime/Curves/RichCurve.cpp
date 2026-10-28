@@ -27,7 +27,7 @@ namespace
 		// 기울기(값/초)를 Bezier 제어점으로 바꾼다. 구간 길이의 1/3 만큼 기울기 방향으로 뻗은 점
 		const float P1 = Key1.Value + Key1.LeaveTangent * Diff / 3.f;
 		const float P2 = Key2.Value - Key2.ArriveTangent * Diff / 3.f;
-		return FMath::CubicBezier(Key1.Value, P1, P2, Key2.Value, Alpha);
+		return FMath::BezierInterp(Key1.Value, P1, P2, Key2.Value, Alpha);
 	}
 }
 
@@ -79,28 +79,51 @@ void FRichCurve::SetKeyValue(int32 Index, float NewValue)
 	AutoSetTangents();
 }
 
-void FRichCurve::AutoSetTangents()
+// 언리얼 FRichCurve::AutoSetTangents (RichCurve.cpp)
+void FRichCurve::AutoSetTangents(float Tension)
 {
 	const int32 Num = Keys.Num();
-	for (int32 i = 0; i < Num; ++i)
+	for (int32 KeyIndex = 0; KeyIndex < Num; ++KeyIndex)
 	{
-		FRichCurveKey& Key = Keys[i];
-		if (Key.TangentMode != ERichCurveTangentMode::Auto)
-			continue;
+		FRichCurveKey& Key = Keys[KeyIndex];
+		float ArriveTangent = Key.ArriveTangent;
+		float LeaveTangent = Key.LeaveTangent;
 
-		// 양 끝 키는 평평하게 (부드럽게 출발, 도착)
-		float Tangent = 0.f;
-		if (i > 0 && i < Num - 1)
+		if (KeyIndex == 0)
 		{
-			// 앞 키와 뒤 키를 잇는 직선의 기울기 (Catmull-Rom)
-			const FRichCurveKey& Prev = Keys[i - 1];
-			const FRichCurveKey& Next = Keys[i + 1];
-			const float Dt = Next.Time - Prev.Time;
-			if (Dt > 0.f)
-				Tangent = (Next.Value - Prev.Value) / Dt;
+			// 첫 키: 평평하게 출발
+			if (KeyIndex < Num - 1 && Key.TangentMode == ERichCurveTangentMode::Auto)
+				LeaveTangent = 0.f;
 		}
-		Key.ArriveTangent = Tangent;
-		Key.LeaveTangent = Tangent;
+		else if (KeyIndex < Num - 1)
+		{
+			const FRichCurveKey& PrevKey = Keys[KeyIndex - 1];
+
+			if (Key.InterpMode == ERichCurveInterpMode::Cubic && Key.TangentMode == ERichCurveTangentMode::Auto)
+			{
+				// 가운데 키: 앞 키와 뒤 키를 잇는 기울기 (언리얼 ComputeCurveTangent, 클램핑 없음)
+				const FRichCurveKey& NextKey = Keys[KeyIndex + 1];
+				const float PrevToNextTimeDiff = FMath::Max(KINDA_SMALL_NUMBER, NextKey.Time - PrevKey.Time);
+				ArriveTangent = (1.f - Tension) * ((Key.Value - PrevKey.Value) + (NextKey.Value - Key.Value)) / PrevToNextTimeDiff;
+				// Auto 모드에서는 들어오고 나가는 기울기가 같다
+				LeaveTangent = ArriveTangent;
+			}
+			else if (PrevKey.InterpMode == ERichCurveInterpMode::Constant || Key.InterpMode == ERichCurveInterpMode::Constant)
+			{
+				LeaveTangent = 0.f;
+				if (PrevKey.InterpMode != ERichCurveInterpMode::Cubic)
+					ArriveTangent = 0.f;
+			}
+		}
+		else
+		{
+			// 마지막 키: 평평하게 도착
+			if (Key.InterpMode == ERichCurveInterpMode::Cubic && Key.TangentMode == ERichCurveTangentMode::Auto)
+				ArriveTangent = 0.f;
+		}
+
+		Key.ArriveTangent = ArriveTangent;
+		Key.LeaveTangent = LeaveTangent;
 	}
 }
 
@@ -145,7 +168,7 @@ void FRichCurve::Serialize(json& Handle, bool bIsLoading)
 			FRichCurveKey Key;
 			Key.Time = K.value("Time", 0.f);
 			Key.Value = K.value("Value", 0.f);
-			Key.InterpMode = static_cast<ERichCurveInterpMode>(K.value("Interp", static_cast<int>(ERichCurveInterpMode::Cubic)));
+			Key.InterpMode = static_cast<ERichCurveInterpMode>(K.value("Interp", static_cast<int>(ERichCurveInterpMode::Linear)));
 			Key.TangentMode = static_cast<ERichCurveTangentMode>(K.value("TangentMode", static_cast<int>(ERichCurveTangentMode::Auto)));
 			Key.ArriveTangent = K.value("Arrive", 0.f);
 			Key.LeaveTangent = K.value("Leave", 0.f);

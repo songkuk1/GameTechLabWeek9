@@ -6,6 +6,9 @@
 
 void APlayerController::EndPlay()
 {
+    if (APlayerCameraManager* Manager = PlayerCameraManager.Get())
+        Manager->Destroy();
+    PlayerCameraManager.Reset();
 	// 아직 스택에 남은 InputComponent가 사라진 컨트롤러를 가리키지 않게 끊는다
 	for (FInputComponent* Component : InputStack)
 		Component->Controller = nullptr;
@@ -155,4 +158,37 @@ void APlayerController::ProcessPlayerInput()
 	}
 
 	std::memcpy(bPrevKeyDown, bKeyDown, sizeof(bPrevKeyDown));
+}
+
+void APlayerController::SpawnPlayerCameraManager()
+{
+    UWorld* World = GetWorld();
+    if (!World || PlayerCameraManager.IsValid())
+        return;
+    UClass* Class = PlayerCameraManagerClass ? PlayerCameraManagerClass : APlayerCameraManager::StaticClass();
+    APlayerCameraManager* Manager = Cast<APlayerCameraManager>(World->SpawnActor(Class));
+    if (!Manager)
+        return;
+    PlayerCameraManager = Manager;
+    Manager->SetFlags(EObjectFlags::RF_Transient);
+    Manager->InitializeFor(this);
+}
+
+void APlayerController::UpdatePlayerCameraManager(float DeltaTime)
+{
+    if (APlayerCameraManager* Manager = PlayerCameraManager.Get())
+        Manager->UpdateCamera(DeltaTime);
+}
+
+void APlayerController::SetViewTargetWithBlend(AActor* NewViewTarget, float BlendTime, EViewTargetBlendFunction BlendFunc, float BlendExp, bool bLockOutgoing)
+{
+	if (!PlayerCameraManager)
+		return;
+
+	FViewTargetTransitionParams TransitionParams;
+	TransitionParams.BlendTime = BlendTime;
+	TransitionParams.BlendFunction = BlendFunc;
+	TransitionParams.BlendExp = BlendExp;
+	TransitionParams.bLockOutgoing = bLockOutgoing;
+	PlayerCameraManager->SetViewTarget(NewViewTarget, TransitionParams);
 }
