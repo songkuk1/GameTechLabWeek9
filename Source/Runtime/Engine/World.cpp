@@ -119,9 +119,9 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 
 void UWorld::Tick(float FrameDeltaTime)
 {
-	UpdateSlomo(FrameDeltaTime);
+	TimeDilationManager.Tick(FrameDeltaTime);
 
-	const float DeltaTime = FrameDeltaTime * TimeDilation;
+	const float DeltaTime = FrameDeltaTime * TimeDilationManager.GetTimeDilation();
 	{
 		SCOPE_CYCLE_COUNTER(STAT_UpdateAllTransforms);
 		Scene.UpdateAllTransforms();
@@ -891,72 +891,6 @@ void UWorld::TickScriptCoroutines(float DeltaTime)
 	}
 }
 
-void UWorld::UpdateSlomo(float FrameDeltaTime)
-{
-	if (SlomoPhase == ESlomoPhase::Inactive)
-		return;
-
-	constexpr float BlendInTime = 0.1f;
-	constexpr float BlendOutTime = 0.3f;
-
-	SlomoElapsedTime += FrameDeltaTime;
-
-	// 한 프레임이 단계 경계를 넘으면 남은 시간을 다음 단계에 사용한다.
-	while (SlomoPhase != ESlomoPhase::Inactive)
-	{
-		switch (SlomoPhase)
-		{
-		case ESlomoPhase::BlendIn:
-		{
-			const float Alpha =
-				FMath::Clamp(SlomoElapsedTime / BlendInTime, 0.0f, 1.0f);
-
-			SetTimeDilation(
-				SlomoStartDilation
-				+ (SlomoTargetDilation - SlomoStartDilation) * Alpha);
-
-			if (SlomoElapsedTime < BlendInTime)
-				return;
-
-			SlomoElapsedTime -= BlendInTime;
-			SlomoPhase = ESlomoPhase::Holding;
-			break;
-		}
-
-		case ESlomoPhase::Holding:
-		{
-			if (SlomoElapsedTime < SlomoHoldDuration)
-				return;
-
-			SlomoElapsedTime -= SlomoHoldDuration;
-			SlomoPhase = ESlomoPhase::BlendOut;
-			break;
-		}
-
-		case ESlomoPhase::BlendOut:
-		{
-			const float Alpha =
-				FMath::Clamp(SlomoElapsedTime / BlendOutTime, 0.0f, 1.0f);
-
-			SetTimeDilation(
-				SlomoTargetDilation
-				+ (SlomoRestoreDilation - SlomoTargetDilation) * Alpha);
-
-			if (SlomoElapsedTime < BlendOutTime)
-				return;
-
-			SetTimeDilation(SlomoRestoreDilation);
-			SlomoElapsedTime = 0.0f;
-			SlomoPhase = ESlomoPhase::Inactive;
-			return;
-		}
-
-		case ESlomoPhase::Inactive:
-			return;
-		}
-	}
-}
-
 // 다른 World의 객체를 제외하고 Component 교차 중 최근접 결과를 선택한다.
 bool UWorld::LineTraceSingle(const FRay& WorldRay, FHitResult& OutHit,
 	FBillboardTraceTransform ResolveBillboard, const void* ViewContext)
@@ -1240,22 +1174,4 @@ void UWorld::Serialize(FStructuredArchive::FRecord Record)
 
 	// (선택) 메인 카메라는 레벨에 속하지 않아 따로 쓴다. PIE 시작 시점이나 에디터 시점을 복원할 때 쓸 수 있다.
 	// MainCamera->GetCameraComponent()->Serialize(Record.EnterRecord("MainCamera"));
-}
-
-void UWorld::StartSlomo(float TargetDilation, float Duration)
-{
-	if (Duration <= 0.0f)
-		return;
-
-	if (SlomoPhase == ESlomoPhase::Inactive)
-	{
-		SlomoRestoreDilation = GetTimeDilation();
-	}
-
-	SlomoStartDilation = GetTimeDilation();
-	SlomoTargetDilation = FMath::Clamp(TargetDilation, 0.01f, 10.0f);
-
-	SlomoHoldDuration = Duration;
-	SlomoElapsedTime = 0.0f;
-	SlomoPhase = ESlomoPhase::BlendIn;
 }

@@ -16,6 +16,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/HUD.h"
 #include "Engine/EffectManager.h"
+#include "Engine/TimeDilationManager.h"
 
 //class ACameraActor;
 class ULevel;
@@ -167,10 +168,15 @@ public:
 	using Super::Serialize;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
 
-	void SetTimeDilation(float InTimeDilation) { TimeDilation = FMath::Clamp(InTimeDilation, 0.01f, 10.0f); }
-	float GetTimeDilation() const { return TimeDilation; }
+	FTimeDilationManager& GetTimeDilationManager() { return TimeDilationManager; }
 
-	void StartSlomo(float TargetDilation, float Duration);
+	// 직접 설정하는 기본 배율. 슬로모·히트스톱은 이 값 위에 곱해진다.
+	void SetTimeDilation(float InTimeDilation) { TimeDilationManager.SetBaseTimeDilation(InTimeDilation); }
+	// 이번 프레임 게임 시간에 곱해지는 최종 배율
+	float GetTimeDilation() const { return TimeDilationManager.GetTimeDilation(); }
+
+	void StartSlomo(float TargetDilation, float Duration) { TimeDilationManager.StartSlomo(TargetDilation, Duration); }
+	void StartHitStop(float Duration, float Dilation = 0.0f) { TimeDilationManager.StartHitStop(Duration, Dilation); }
 
 private:
 	EWorldType WorldType = EWorldType::None;
@@ -243,22 +249,5 @@ private:
 	TArray<FLuaScriptInstance*> ScriptInstances;
 	bool bTickingScripts = false;
 
-	float TimeDilation = 1.0f;
-
-	void UpdateSlomo(float FrameDeltaTime);
-	enum class ESlomoPhase : uint8
-	{
-		Inactive,
-		BlendIn,
-		Holding,
-		BlendOut
-	};
-	ESlomoPhase SlomoPhase = ESlomoPhase::Inactive;
-
-	float SlomoElapsedTime = 0.0f; // 현재 단계의 경과 시간
-	float SlomoHoldDuration = 0.0f; // 목표 배율 유지 시간
-
-	float SlomoStartDilation = 1.0f; // 슬로모 시작 시의 시간 배율
-	float SlomoTargetDilation = 1.0f; // 목표 시간 배율
-	float SlomoRestoreDilation = 1.0f; // 슬로모 종료 후 복원할 시간 배율
+	FTimeDilationManager TimeDilationManager;
 };
