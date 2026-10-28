@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "Script/LuaBindings.h"
+#include "Script/LuaReflection.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
@@ -86,5 +87,19 @@ void RegisterLuaCameraAPI(sol::environment& Env, UObject* Owner)
 		{
 			if (APlayerCameraManager* Manager = FindCameraManagerForObject(Owner))
 				Manager->StopAllCameraShakes();
+		});
+
+	// SetViewTarget(Actor, BlendTime = 0): 화면이 Actor의 카메라 컴포넌트로 보게 한다. BlendTime > 0이면 그 시간 동안 섞으며 넘어간다
+	Env.set_function("SetViewTarget",
+		[Owner](sol::object TargetObject, sol::optional<float> BlendTime)
+		{
+			// 스크립트의 obj는 AActor*가 아니라 약한 참조 FLuaObjectRef로 넘어온다 (SpawnEffectAttached와 같은 방식)
+			AActor* Target = TargetObject.is<FLuaObjectRef>() ? Cast<AActor>(TargetObject.as<FLuaObjectRef>().Weak.Get()) : nullptr;
+			APlayerCameraManager* Manager = FindCameraManagerForObject(Owner);
+			if (!Manager || !Target)
+				return;
+			FViewTargetTransitionParams Params;
+			Params.BlendTime = BlendTime.value_or(0.0f);
+			Manager->SetViewTarget(Target, Params);
 		});
 }

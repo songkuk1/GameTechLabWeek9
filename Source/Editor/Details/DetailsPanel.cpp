@@ -20,6 +20,7 @@
 #include "Component/ParticleSubUVComponent.h"
 #include "Component/RotatingMovementComponent.h"
 #include "Component/ProjectileMovementComponent.h"
+#include "Component/SpringArmComponent.h"
 #include "Asset/AssetManager.h"
 #include "Render/Material.h"
 #include "Render/Texture2D.h"
@@ -1086,6 +1087,12 @@ namespace
 			if (ImGui::MenuItem("Capsule Component"))
 			{
 				OutSelectedComponent = Actor->AddComponent(UCapsuleComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("SpringArm Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(USpringArmComponent::StaticClass(), FString(ComponentNameInputBuf));
 				ComponentNameInputBuf[0] = '\0';
 				ImGui::CloseCurrentPopup();
 			}
