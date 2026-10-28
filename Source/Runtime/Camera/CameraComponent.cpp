@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "CameraComponent.h"
+#include "CameraTypes.h"
 #include "Input/InputSystem.h"
 #include "../Collision/Ray.h"
 
@@ -116,4 +117,13 @@ FMatrix UCameraComponent::GetProjectionMatrix(const float ViewAspectRatio) const
 FMatrix UCameraComponent::GetViewProjectionMatrix() const
 {
     return GetViewMatrix() * GetProjectionMatrix();
+}
+
+void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV) const
+{
+    OutPOV = {};
+    OutPOV.Location = GetWorldLocation();
+    OutPOV.Rotation = GetWorldRotation();
+    OutPOV.Projection = GetProjectionSettings();
+    OutPOV.AspectRatio = GetAspectRatio();
 }

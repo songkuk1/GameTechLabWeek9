@@ -1,5 +1,7 @@
 #include "EnginePCH.h"
 #include "Actor.h"
+#include "Camera/CameraComponent.h"
+#include "CameraTypes.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"
 #include "Component/SceneComponent.h"
@@ -655,4 +657,18 @@ bool AActor::TryGetActorBounds(FBox& OutBounds) const
     }
 
     return bHasBounds;
+}
+void AActor::CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV) const
+{
+    for (UActorComponent* Component : Components)
+    {
+        if (const auto* Camera = Cast<UCameraComponent>(Component))
+        {
+            Camera->GetCameraView(DeltaTime, OutPOV);
+            return;
+        }
+    }
+    OutPOV = {};
+    OutPOV.Location = GetActorLocation();
+    OutPOV.Rotation = GetActorRotation();
 }

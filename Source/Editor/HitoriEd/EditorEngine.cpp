@@ -12,6 +12,7 @@
 #include "Render/GeometryGenerator.h"
 
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "Component/BillboardComponent.h"
 #include "Core/Stats/EditorStats.h"
 #include "Engine/Level.h"
@@ -503,7 +504,11 @@ void UEditorEngine::TickWorldAndEditor(const float DeltaTime)
 	if (PlayWorld && !bIsPaused && !ImGui::GetIO().WantTextInput
 		&& FInputSystem::IsKeyPressed(EKeyCode::F7))
 	{
-		PlayWorld->StartCameraShake(0.1f, 0.5f);
+        if (APlayerController* Controller = PlayWorld->GetPlayerController(0))
+        {
+            if (APlayerCameraManager* Manager = Controller->GetCameraPlayerManager())
+                Manager->StartCameraShake(0.1f, 0.5f);
+        }
 	}
 
 	// 월드 상태는 프레임마다 정확히 한 번 갱신하고 캡처한다.

@@ -4,6 +4,12 @@
 #include "Core/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
 #include "GameFramework/Actor.h"
+#include "CameraTypes.h"
+#include "Camera/CameraShakeBase.h"
+
+class APlayerController;
+class UCameraModifier;
+class UCameraModifier_CameraShake;
 
 struct FViewTarget
 {
@@ -27,7 +33,8 @@ class APlayerCameraManager : public AActor
 
 public:
 	APlayerCameraManager() = default;
-	~APlayerCameraManager() = default;
+	~APlayerCameraManager() override;
+	void EndPlay() override;
 
 	APlayerCameraManager(const APlayerCameraManager&) = delete;
 	APlayerCameraManager& operator=(APlayerCameraManager&) = delete;
@@ -35,14 +42,31 @@ public:
 	void InitializeFor(APlayerController* PC);
 
 	void SetViewTarget(AActor* InActor);
-	void UpdateCamera(float deltaTime);
+	void UpdateCamera(float DeltaTime);
+    const FMinimalViewInfo& GetCameraCachePOV() const { return CameraCache; }
+    bool HasValidCameraCache() const { return bCameraCacheValid; }
+    AActor* GetViewTarget() const { return ViewTarget.Target.Get(); }
+    UCameraModifier* AddNewCameraModifier(UClass* ModifierClass);
+    void RemoveCameraModifier(UCameraModifier* Modifier);
+    void ApplyCameraModifiers(float DeltaTime, FMinimalViewInfo& InOutPOV);
+    UCameraShakeBase* StartCameraShake(UClass* ShakeClass, float Scale = 1.0f,
+        ECameraShakePlaySpace Space = ECameraShakePlaySpace::CameraLocal);
+    UCameraShakeBase* StartCameraShake(float Strength, float Duration, float Frequency = 20.0f);
+    void StopCameraShake(UCameraShakeBase* Shake);
+    void StopAllCameraShakes();
 	
 private:
 	void UpdateViewTarget(FViewTarget& VT, float DeltaTime);
+    UCameraModifier_CameraShake* GetCameraShakeModifier();
+    void ClearCameraModifiers();
 
 
 private:
-	APlayerController* PCOwner = nullptr;
+	TWeakObjectPtr<APlayerController> PCOwner;
+    FMinimalViewInfo CameraCache;
+    bool bCameraCacheValid = false;
+    TArray<TWeakObjectPtr<UCameraModifier>> ModifierList;
+    TWeakObjectPtr<UCameraModifier_CameraShake> CachedCameraShakeMod;
 
 	//현재 카메라 시점을 제공하는 대상과,그 대상으로부터 이번 프레임에 계산한 POV
 	FViewTarget ViewTarget;

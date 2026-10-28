@@ -7,6 +7,8 @@
 #include "../Math/Rotator.h"
 
 
+struct FMinimalViewInfo;
+
 class UCameraComponent : public USceneComponent
 {
 	DECLARE_CLASS(UCameraComponent, USceneComponent)
@@ -39,6 +41,8 @@ public:
 
 	// 매 프레임 카메라 입력/이동 처리
 	virtual void TickComponent(float DeltaTime) override;
+
+	void GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV) const;
 
 	// Camera 행렬 계산
 	FMatrix GetViewMatrix() const;
@@ -106,4 +110,3 @@ protected:
 	bool bExternalInputManaged = false;
 
 };
-

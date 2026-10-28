@@ -6,6 +6,9 @@
 
 void APlayerController::EndPlay()
 {
+    if (APlayerCameraManager* Manager = PlayerCameraManager.Get())
+        Manager->Destroy();
+    PlayerCameraManager.Reset();
 	// 아직 스택에 남은 InputComponent가 사라진 컨트롤러를 가리키지 않게 끊는다
 	for (FInputComponent* Component : InputStack)
 		Component->Controller = nullptr;
@@ -159,29 +162,20 @@ void APlayerController::ProcessPlayerInput()
 
 void APlayerController::SpawnPlayerCameraManager()
 {
-
-	UWorld* World = GetWorld();
-	if (!World)
-		return;
-
-	// 클래스를 지정하지 않았으면 기본 매니저
-	UClass* Class = PlayerCameraManagerClass ? PlayerCameraManagerClass : APlayerCameraManager::StaticClass();
-
-	PlayerCameraManager = Cast<APlayerCameraManager>(World->SpawnActor(Class));
-	if (!PlayerCameraManager)
-		return;
-
-	// 컨트롤러처럼 씬 파일에 저장되지 않게 함 (언리얼도 RF_Transient)
-	PlayerCameraManager->SetFlags(EObjectFlags::RF_Transient);
-	PlayerCameraManager->InitializeFor(this);
-
-
+    UWorld* World = GetWorld();
+    if (!World || PlayerCameraManager.IsValid())
+        return;
+    UClass* Class = PlayerCameraManagerClass ? PlayerCameraManagerClass : APlayerCameraManager::StaticClass();
+    APlayerCameraManager* Manager = Cast<APlayerCameraManager>(World->SpawnActor(Class));
+    if (!Manager)
+        return;
+    PlayerCameraManager = Manager;
+    Manager->SetFlags(EObjectFlags::RF_Transient);
+    Manager->InitializeFor(this);
 }
 
 void APlayerController::UpdatePlayerCameraManager(float DeltaTime)
 {
-
-	PlayerCameraManager->UpdateCamera(DeltaTime);
-
-
+    if (APlayerCameraManager* Manager = PlayerCameraManager.Get())
+        Manager->UpdateCamera(DeltaTime);
 }

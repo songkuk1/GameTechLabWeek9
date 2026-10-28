@@ -120,7 +120,6 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 void UWorld::Tick(float FrameDeltaTime)
 {
 	UpdateSlomo(FrameDeltaTime);
-	UpdateCameraShake(FrameDeltaTime);
 
 	const float DeltaTime = FrameDeltaTime * TimeDilation;
 	{
@@ -167,6 +166,14 @@ void UWorld::Tick(float FrameDeltaTime)
 
 		// 이번 프레임의 스폰(겹침 이벤트·스크립트)까지 받은 뒤, 지워지기 전에 이펙트 수명을 정리한다.
 		EffectManager.Tick(DeltaTime);
+
+        // Read final gameplay transforms once; camera effects use undilated frame time.
+        const TArray<APlayerController*> CameraControllers = PlayerControllers;
+        for (APlayerController* Controller : CameraControllers)
+        {
+            if (::IsValid(Controller))
+                Controller->UpdatePlayerCameraManager(FrameDeltaTime);
+        }
 	}
 
 	// Frame 끝에서 Destroy 된 객체 실제로 지우기
@@ -1251,34 +1258,4 @@ void UWorld::StartSlomo(float TargetDilation, float Duration)
 	SlomoHoldDuration = Duration;
 	SlomoElapsedTime = 0.0f;
 	SlomoPhase = ESlomoPhase::BlendIn;
-}
-
-void UWorld::StartCameraShake(float Strength, float Duration, float Frequency)
-{
-	CameraShakeStrength = FMath::Max(Strength, 0.0f);
-	CameraShakeDuration = FMath::Max(Duration, 0.0f);
-	CameraShakeFrequency = FMath::Max(Frequency, 0.0f);
-	CameraShakeElapsedTime = 0.0f;
-	CameraShakeOffset = FVector::ZeroVector;
-}
-
-void UWorld::UpdateCameraShake(float FrameDeltaTime)
-{
-	if (CameraShakeDuration <= 0.0f || CameraShakeElapsedTime >= CameraShakeDuration)
-		return;
-
-	CameraShakeElapsedTime += FrameDeltaTime;
-	if (CameraShakeElapsedTime >= CameraShakeDuration)
-	{
-		CameraShakeOffset = FVector::ZeroVector;
-		return;
-	}
-
-	const float Weight = 1.0f - CameraShakeElapsedTime / CameraShakeDuration;
-	const float Amplitude = CameraShakeStrength * Weight;
-	const float Phase = 2.0f * PI * CameraShakeFrequency * CameraShakeElapsedTime;
-
-	CameraShakeOffset = FVector(0.0f,
-		std::sin(Phase) * Amplitude,
-		std::sin(Phase * 1.3f) * Amplitude * 0.5f);
 }

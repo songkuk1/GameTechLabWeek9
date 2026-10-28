@@ -64,7 +64,7 @@ public:
 	//PCM 업데이트
 	void UpdatePlayerCameraManager(float DeltaTime);
 	
-	APlayerCameraManager* GetCameraPlayerManager() { return PlayerCameraManager;};
+	APlayerCameraManager* GetCameraPlayerManager() const { return PlayerCameraManager.Get(); }
 private:
 	bool IsKeyDown(EKeyCode Key) const { return bKeyDown[static_cast<uint8>(Key)]; }
 	bool WasKeyPressed(EKeyCode Key) const { return IsKeyDown(Key) && !bPrevKeyDown[static_cast<uint8>(Key)]; }
@@ -80,7 +80,7 @@ private:
 	TArray<FInputComponent*> InputStack;
 
 	//플레이어 컨트롤러당 플레이어 카메라 매니저 하나를 가지고있음
-	APlayerCameraManager* PlayerCameraManager = nullptr;
+	TWeakObjectPtr<APlayerCameraManager> PlayerCameraManager;
 	UClass* PlayerCameraManagerClass = nullptr;
 
 

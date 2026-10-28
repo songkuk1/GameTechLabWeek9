@@ -13,6 +13,7 @@ class ULevel;
 class FLuaScriptInstance;
 class FInputComponent;
 class APlayerController;
+struct FMinimalViewInfo;
 
 class AActor : public UObject
 {
@@ -38,6 +39,7 @@ public:
 	virtual void Tick(float DeltaTime) {}
 	virtual void EndPlay();
 	void TickActor(float DeltaTime);
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutPOV) const;
 
 	// World가 호출하는 진입점. BeginPlay를 받은 액터만 EndPlay를 받도록 짝을 맞춘다.
 	void DispatchBeginPlay();

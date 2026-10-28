@@ -172,12 +172,6 @@ public:
 
 	void StartSlomo(float TargetDilation, float Duration);
 
-	void StartCameraShake(float Strength, float Duration, float Frequency = 20.0f);
-	// Position offset in camera-local space; applied only when building the final view.
-	const FVector& GetCameraShakeOffset() const
-	{
-		return CameraShakeOffset;
-	}
 private:
 	EWorldType WorldType = EWorldType::None;
 
@@ -267,11 +261,4 @@ private:
 	float SlomoStartDilation = 1.0f; // 슬로모 시작 시의 시간 배율
 	float SlomoTargetDilation = 1.0f; // 목표 시간 배율
 	float SlomoRestoreDilation = 1.0f; // 슬로모 종료 후 복원할 시간 배율
-	void UpdateCameraShake(float FrameDeltaTime);
-
-	float CameraShakeStrength = 0.0f;
-	float CameraShakeDuration = 0.0f;
-	float CameraShakeElapsedTime = 0.0f;
-	float CameraShakeFrequency = 20.0f;
-	FVector CameraShakeOffset = FVector::ZeroVector;
 };
