@@ -1,5 +1,6 @@
 -- 인게임 진행과 HUD
---   Ready   : 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
+--   Intro   : 시작 카메라 연출 (CameraIntro.lua). 이동·낙하 멈춤, 카운트다운 없음
+--   Ready   : 카메라가 게임 시점에 도착한 뒤 가운데 3, 2, 1 카운트다운. 이동·낙하 멈춤
 --   Playing : GameState.TimeLimit 동안 줍기. 상단 가운데 타이머(10초 아래면 Hurry), 왼쪽 P1 점수, 오른쪽 P2 점수
 --   Result  : 승자·무승부 영상 → 승자 표시 → 3등 안에 든 플레이어 이름 입력 → RANK 팝업과 다시하기·메인 메뉴 버튼
 --   Esc     : Ready·Playing 중 일시정지 팝업 (음량 슬라이더·메인·재시작). 다시 누르면 이어 한다
@@ -332,7 +333,10 @@ function Tick(dt)
 	if not GameState.bPaused then
 		GameState.PhaseTime = GameState.PhaseTime + dt
 
-		if GameState.Phase == "Ready" and GameState.PhaseTime >= GameState.ReadyTime then
+		-- 연출이 끝났다는 신호가 오지 않으면(스크립트 오류 등) 일정 시간 뒤 그냥 시작한다
+		if GameState.Phase == "Intro" and GameState.PhaseTime >= GameState.IntroTimeout then
+			GameState.FinishIntro()
+		elseif GameState.Phase == "Ready" and GameState.PhaseTime >= GameState.ReadyTime then
 			GameState.SetPhase("Playing")
 		elseif GameState.Phase == "Playing" and GameState.PhaseTime >= GameState.TimeLimit then
 			StartResult()
