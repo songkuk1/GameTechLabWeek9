@@ -13,6 +13,8 @@ class UCameraComponent : public USceneComponent
 	DECLARE_CLASS(UCameraComponent, USceneComponent)
 	// 행렬·FRay를 쓰는 함수와 에디터 입력 처리(Update*)는 노출하지 않는다
 	REFLECT_START(ClassName)
+		// 레벨 시퀀스 Float 트랙이 "CameraComponent.FieldOfView"로 줌을 움직일 수 있게 프로퍼티로도 노출한다
+		PROPERTY_FLAGS(FieldOfView, CPF_EditAnywhere)
 		FUNCTION(GetFieldOfView)
 		FUNCTION(SetFieldOfView)
 		FUNCTION(GetAspectRatio)

@@ -34,6 +34,7 @@
 #include "Editor/Rendering/Outline.h"
 #include "Editor/Rendering/OutLineRenderer.h"
 #include "Editor/Outliner/OutlinerPanel.h"
+#include "Editor/Sequencer/SequencerPanel.h"
 
 #include "PlayInEditorDataTypes.h"
 #include "Core/Misc/Optional.h"
@@ -168,6 +169,7 @@ private:
 	FSceneRenderer SceneRenderer;
 	FOutlinerPanel* OutlinerPanel = nullptr;
 	FContentDrawerPanel* ContentDrawerPanel = nullptr;
+	FSequencerPanel* SequencerPanel = nullptr;
 
 	UWorld* EditorWorld = nullptr;
 	UWorld* PlayWorld = nullptr;

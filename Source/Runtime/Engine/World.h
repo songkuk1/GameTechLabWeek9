@@ -27,6 +27,7 @@ class AGameModeBase;
 class AGameStateBase;
 class APlayerController;
 class FLuaScriptInsatance;
+class ULevelSequencePlayer;
 
 struct FLODViewContext;
 
@@ -91,6 +92,11 @@ public:
 	// Coroutine을 World가 매 Frame 진행하도록 등록 / 해제 ( BeginPlay, EndPlay에서 호출 )
 	void RegisterScriptInstance(FLuaScriptInstance* Instance);
 	void UnregisterScriptInstance(FLuaScriptInstance* Instance);
+
+	// 시퀀스 플레이어를 World가 매 Frame 진행하도록 등록 / 해제 ( 플레이어의 Initialize와 소멸자에서 호출 )
+	// UE처럼 액터 Tick보다 먼저 돌려, 같은 Frame의 게임플레이 코드가 시퀀스가 적용된 값을 보게 한다.
+	void RegisterSequencePlayer(ULevelSequencePlayer* Player);
+	void UnregisterSequencePlayer(ULevelSequencePlayer* Player);
 
 	// Path 스크립트를 쓰는 모든 Instance를 다시 로드한다 ( PIE 중 Hot Reload ). 다시 로드한 개수를 반환
 	int32 ReloadScripts(const FString& Path);
@@ -248,6 +254,12 @@ private:
 	// 비소유. Instance 는 Actor/Component 가 소유
 	TArray<FLuaScriptInstance*> ScriptInstances;
 	bool bTickingScripts = false;
+
+	void TickSequencePlayers(float DeltaTime);
+
+	// 비소유. 플레이어는 ALevelSequenceActor(또는 에디터 Sequencer)가 소유
+	TArray<ULevelSequencePlayer*> SequencePlayers;
+	bool bTickingSequences = false;
 
 	FTimeDilationManager TimeDilationManager;
 };

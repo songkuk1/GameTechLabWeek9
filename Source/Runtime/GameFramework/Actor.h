@@ -20,6 +20,7 @@ class AActor : public UObject
 	DECLARE_CLASS(AActor, UObject)
 	REFLECT_START(ClassName)
 		PROPERTY_FLAGS(ScriptPath, CPF_EditAnywhere | CPF_LuaScriptPath)
+		PROPERTY_FLAGS(BindingTag, CPF_EditAnywhere)
 		FUNCTION(GetRootComponent)
 		FUNCTION(FindComponentByName)
 		FUNCTION(GetActorLocation)
@@ -48,6 +49,10 @@ public:
 	// 비어 있으면 스크립트 없음. 씬 저장과 PIE 복제는 리플렉션(PROPERTY)이 처리한다.
 	FString ScriptPath;
 	FLuaScriptInstance* GetScriptInstance() const { return ScriptInstance.get(); }
+
+	// 레벨 시퀀스가 이 액터를 찾을 때 쓰는 이름표 (UE의 Binding Tag). 비어 있으면 어떤 시퀀스에도 빌려 주지 않는다.
+	// 액터 이름(AActor_3 등)은 실행마다 바뀌어 저장할 수 없으므로 디자이너가 직접 붙인다.
+	FString BindingTag;
 
 	// UE AActor::EnableInput. 이 액터의 InputComponent를 PlayerController 입력 스택에 올린다.
 	// 처음 부를 때 InputComponent를 만든다. 다시 켜도 바인딩은 그대로 남아 있다.

@@ -23,10 +23,18 @@ void UWaveOscillatorCameraShakePattern::UpdateShakePattern(
 	ElapsedTime += DeltaTime;
 	if (IsFinished())
 		return;
+	OutResult.Location = EvaluateOffset(Strength, Duration, Frequency, ElapsedTime);
+}
+
+FVector UWaveOscillatorCameraShakePattern::EvaluateOffset(float Strength, float Duration, float Frequency, float ElapsedTime)
+{
+	if (Duration <= 0.0f || ElapsedTime < 0.0f || ElapsedTime >= Duration)
+		return FVector(0.0f, 0.0f, 0.0f);
+
 	const float Weight = 1.0f - ElapsedTime / Duration;
-	const float Amplitude = Strength * Weight;
-	const float Phase = 2.0f * PI * Frequency * ElapsedTime;
-	OutResult.Location = FVector(0.0f,
+	const float Amplitude = FMath::Max(Strength, 0.0f) * Weight;
+	const float Phase = 2.0f * PI * FMath::Max(Frequency, 0.0f) * ElapsedTime;
+	return FVector(0.0f,
 		std::sin(Phase) * Amplitude,
 		std::sin(Phase * 1.3f) * Amplitude * 0.5f);
 }

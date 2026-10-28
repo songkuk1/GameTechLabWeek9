@@ -12,54 +12,25 @@ namespace
 {
 	const FLinearColor DefaultTextColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-	// 스크립트 주인의 월드 이펙트 매니저. 게임 월드가 아니면 nullptr (FindHUDForObject와 같은 규칙)
+	// 스크립트 주인의 월드 이펙트 매니저. 게임 월드가 아니면 nullptr
 	FEffectManager* FindEffectManagerForObject(UObject* Object)
 	{
-		AActor* Actor = Cast<AActor>(Object);
-		if (!Actor)
-		{
-			if (UActorComponent* Component = Cast<UActorComponent>(Object))
-				Actor = Component->GetOwner();
-		}
-
-		UWorld* World = Actor ? Actor->GetWorld() : nullptr;
-		if (!World || !World->IsGameWorld())
-			return nullptr;
-
-		return &World->GetEffectManager();
+		UWorld* World = FindGameWorldForObject(Object);
+		return World ? &World->GetEffectManager() : nullptr;
 	}
 
-	// RegisterEffect 테이블 값 읽기. 타입이 틀리면 어느 키인지 알려 주는 Lua 에러를 낸다.
-	float ReadNumber(const sol::object& Value, const FString& Effect, const std::string& Key)
+	// RegisterEffect 테이블 값 하나. 키 → 필드 규칙은 ApplyEffectDescField가 시퀀스 Effects와 같이 쓴다.
+	struct FLuaEffectValue : IEffectValueReader
 	{
-		if (!Value.is<float>())
-			throw sol::error(std::format("RegisterEffect({}): {}는 숫자여야 합니다", Effect, Key));
-		return Value.as<float>();
-	}
+		explicit FLuaEffectValue(const sol::object& InValue) : Value(InValue) {}
+		bool ReadNumber(float& Out) const override { if (!Value.is<float>()) return false; Out = Value.as<float>(); return true; }
+		bool ReadBool(bool& Out) const override { if (!Value.is<bool>()) return false; Out = Value.as<bool>(); return true; }
+		bool ReadString(FString& Out) const override { if (!Value.is<std::string>()) return false; Out = Value.as<std::string>(); return true; }
+		bool ReadVector(FVector& Out) const override { if (!Value.is<FVector>()) return false; Out = Value.as<FVector>(); return true; }
+		const sol::object& Value;
+	};
 
-	bool ReadBool(const sol::object& Value, const FString& Effect, const std::string& Key)
-	{
-		if (!Value.is<bool>())
-			throw sol::error(std::format("RegisterEffect({}): {}는 true/false여야 합니다", Effect, Key));
-		return Value.as<bool>();
-	}
-
-	FVector ReadVector(const sol::object& Value, const FString& Effect, const std::string& Key)
-	{
-		if (!Value.is<FVector>())
-			throw sol::error(std::format("RegisterEffect({}): {}는 FVector여야 합니다", Effect, Key));
-		return Value.as<FVector>();
-	}
-
-	uint32 ReadCount(const sol::object& Value, const FString& Effect, const std::string& Key, uint32 Min)
-	{
-		const float Number = ReadNumber(Value, Effect, Key);
-		if (Number < static_cast<float>(Min))
-			throw sol::error(std::format("RegisterEffect({}): {}는 {} 이상이어야 합니다", Effect, Key, Min));
-		return static_cast<uint32>(Number);
-	}
-
-	// 테이블의 키를 FEffectDesc 필드에 넣는다. 키 이름은 C++ 필드 이름과 같다.
+	// 테이블의 키를 FEffectDesc 필드에 넣는다. 타입이 틀리면 어느 키인지 알려 주는 Lua 에러를 낸다.
 	// 모르는 키는 오타일 가능성이 커서 경고만 하고 넘어간다.
 	void ApplyEffectTable(const FString& Effect, const sol::table& Table, FEffectDesc& Desc)
 	{
@@ -71,29 +42,15 @@ namespace
 			const std::string Key = KeyObject.as<std::string>();
 			if (Key == "Base")
 				continue;
-			else if (Key == "TexturePath")
-			{
-				if (!Value.is<std::string>())
-					throw sol::error(std::format("RegisterEffect({}): TexturePath는 문자열이어야 합니다", Effect));
-				Desc.TexturePath = Value.as<std::string>();
-			}
-			else if (Key == "Cols")              Desc.Cols = ReadCount(Value, Effect, Key, 1);
-			else if (Key == "Rows")              Desc.Rows = ReadCount(Value, Effect, Key, 1);
-			else if (Key == "FrameCount")        Desc.FrameCount = ReadCount(Value, Effect, Key, 0);
-			else if (Key == "FrameRate")         Desc.FrameRate = ReadNumber(Value, Effect, Key);
-			else if (Key == "bRandomStartFrame") Desc.bRandomStartFrame = ReadBool(Value, Effect, Key);
-			else if (Key == "ParticleCount")     Desc.ParticleCount = static_cast<int32>(ReadCount(Value, Effect, Key, 0));
-			else if (Key == "MinLifeTime")       Desc.MinLifeTime = ReadNumber(Value, Effect, Key);
-			else if (Key == "MaxLifeTime")       Desc.MaxLifeTime = ReadNumber(Value, Effect, Key);
-			else if (Key == "MinVelocity")       Desc.MinVelocity = ReadVector(Value, Effect, Key);
-			else if (Key == "MaxVelocity")       Desc.MaxVelocity = ReadVector(Value, Effect, Key);
-			else if (Key == "Acceleration")      Desc.Acceleration = ReadVector(Value, Effect, Key);
-			else if (Key == "StartScale")        Desc.StartScale = ReadNumber(Value, Effect, Key);
-			else if (Key == "EndScale")          Desc.EndScale = ReadNumber(Value, Effect, Key);
-			else if (Key == "FadeStart")         Desc.FadeStart = ReadNumber(Value, Effect, Key);
-			else if (Key == "bBurst")            Desc.bBurst = ReadBool(Value, Effect, Key);
-			else
+
+			FString Error;
+			bool bUnknownKey = false;
+			if (ApplyEffectDescField(Desc, Key, FLuaEffectValue(Value), Error, bUnknownKey))
+				continue;
+			if (bUnknownKey)
 				HTR_LOG(Warning, "[Lua] RegisterEffect({}): unknown key '{}' ignored", Effect, Key);
+			else
+				throw sol::error(std::format("RegisterEffect({}): {}", Effect, Error));
 		}
 	}
 }
