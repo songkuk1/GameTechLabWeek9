@@ -25,7 +25,7 @@ bool FGammaEncodeRenderer::Init()
 	return true;
 }
 
-void FGammaEncodeRenderer::OnRender(FTexture2D* SceneColor, bool bEncode, bool bToneMap, float ExposureEV)
+void FGammaEncodeRenderer::OnRender(FTexture2D* SceneColor, const FGammaEncodeParams& Params, float ViewWidth, float ViewHeight)
 {
 	if (!Shader || !SceneColor)
 		return;
@@ -34,9 +34,14 @@ void FGammaEncodeRenderer::OnRender(FTexture2D* SceneColor, bool bEncode, bool b
 	RenderCommand::BindShaderResource(0, SceneColor, EShaderBindFlagBits::Pixel);
 
 	FGammaEncodeConstants Constants{};
-	Constants.bEncode = bEncode ? 1u : 0u;
-	Constants.bToneMap = bToneMap ? 1u : 0u;
-	Constants.Exposure = std::exp2(ExposureEV);
+	Constants.bEncode = Params.bEncode ? 1u : 0u;
+	Constants.bToneMap = Params.bToneMap ? 1u : 0u;
+	Constants.Exposure = std::exp2(Params.ExposureEV);
+	Constants.VignetteIntensity = Params.VignetteIntensity;
+	Constants.OverlayColor = Params.OverlayColor;
+	Constants.ViewSize = FVector2(ViewWidth, ViewHeight);
+	Constants.LetterBoxAspect = Params.LetterBoxAspect;
+	Constants.LetterBoxAmout = Params.LetterBoxAmount;
 	RenderCommand::UpdateBufferData(ConstantBuffer.get(), &Constants);
 	RenderCommand::BindConstantBuffer(0, ConstantBuffer.get(), EShaderBindFlagBits::Pixel);
 
