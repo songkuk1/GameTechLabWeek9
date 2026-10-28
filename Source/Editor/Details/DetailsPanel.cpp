@@ -21,6 +21,8 @@
 #include "Component/RotatingMovementComponent.h"
 #include "Component/ProjectileMovementComponent.h"
 #include "Component/SpringArmComponent.h"
+#include "Component/KnockbackComponent.h"
+#include "Component/HitSquashComponent.h"
 #include "Asset/AssetManager.h"
 #include "Render/Material.h"
 #include "Render/Texture2D.h"
@@ -1093,6 +1095,18 @@ namespace
 			if (ImGui::MenuItem("SpringArm Component"))
 			{
 				OutSelectedComponent = Actor->AddComponent(USpringArmComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("Knockback Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(UKnockbackComponent::StaticClass(), FString(ComponentNameInputBuf));
+				ComponentNameInputBuf[0] = '\0';
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::MenuItem("HitSquash Component"))
+			{
+				OutSelectedComponent = Actor->AddComponent(UHitSquashComponent::StaticClass(), FString(ComponentNameInputBuf));
 				ComponentNameInputBuf[0] = '\0';
 				ImGui::CloseCurrentPopup();
 			}
